@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS schema_marker (
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL
+);

@@ -1,0 +1,23 @@
+[package]
+name = "lunu"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "lunu"
+path = "src/main.rs"
+
+[dependencies]
+lunu-config.workspace = true
+lunu-db.workspace = true
+lunu-api.workspace = true
+actix-web.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenvy = "0.15"
