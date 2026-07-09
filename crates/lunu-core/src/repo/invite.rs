@@ -1,0 +1,13 @@
+use async_trait::async_trait;
+
+use crate::Result;
+use crate::models::Invite;
+
+#[async_trait]
+pub trait InviteRepo: Send + Sync {
+	async fn create(&self, invite: &Invite) -> Result<()>;
+	async fn find_by_code_hash(&self, code_hash: &str) -> Result<Option<Invite>>;
+	async fn increment_used(&self, id: &str) -> Result<()>;
+	async fn list(&self) -> Result<Vec<Invite>>;
+	async fn delete(&self, id: &str) -> Result<()>;
+}

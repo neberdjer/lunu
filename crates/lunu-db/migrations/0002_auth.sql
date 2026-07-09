@@ -5,7 +5,7 @@ CREATE TABLE users (
 	password_hash TEXT,
 	role TEXT NOT NULL,
 	auth_source TEXT NOT NULL,
-	enabled INTEGER NOT NULL DEFAULT 1,
+	enabled BIGINT NOT NULL DEFAULT 1,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
@@ -30,7 +30,7 @@ CREATE TABLE api_keys (
 	created_at TEXT NOT NULL,
 	last_used_at TEXT,
 	expires_at TEXT,
-	revoked INTEGER NOT NULL DEFAULT 0
+	revoked BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE invites (
@@ -39,8 +39,8 @@ CREATE TABLE invites (
 	role TEXT NOT NULL,
 	email TEXT,
 	created_by TEXT NOT NULL,
-	max_uses INTEGER NOT NULL DEFAULT 1,
-	used_count INTEGER NOT NULL DEFAULT 0,
+	max_uses BIGINT NOT NULL DEFAULT 1,
+	used_count BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	expires_at TEXT
 );
@@ -48,7 +48,7 @@ CREATE TABLE invites (
 CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL,
-	encrypted INTEGER NOT NULL DEFAULT 0,
+	encrypted BIGINT NOT NULL DEFAULT 0,
 	updated_at TEXT NOT NULL
 );
 

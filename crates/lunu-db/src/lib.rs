@@ -4,11 +4,14 @@ use lunu_core::{Error, Result};
 use sqlx::AnyPool;
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
+mod convert;
+pub mod repos;
+
 pub type Db = AnyPool;
 
 pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
 
-fn db_error(error: impl std::fmt::Display) -> Error {
+pub(crate) fn db_error(error: impl std::fmt::Display) -> Error {
 	Error::Database(error.to_string())
 }
 

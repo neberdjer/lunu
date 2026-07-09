@@ -11,3 +11,8 @@ repository.workspace = true
 [dependencies]
 lunu-core.workspace = true
 sqlx.workspace = true
+chrono.workspace = true
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio.workspace = true
