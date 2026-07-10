@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
-use lunu_core::models::Role;
-use lunu_core::repo::SettingsRepo;
+use lunu_core::models::{MetadataCacheEntry, Role};
+use lunu_core::repo::{MetadataCacheRepo, SettingsRepo};
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxInviteRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
+	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxSessionRepo, SqlxSettingsRepo,
+	SqlxUserRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -151,4 +153,48 @@ async fn api_key_issue_verify_revoke() {
 		.await
 		.unwrap();
 	assert!(keys.verify(&issued.secret).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn metadata_cache_put_get_upsert() {
+	let db = memory_db().await;
+	let cache = SqlxMetadataCacheRepo::new(db.clone());
+
+	assert!(
+		cache
+			.get("audnexus", "book", "B01")
+			.await
+			.unwrap()
+			.is_none()
+	);
+
+	let entry = |payload: &str| MetadataCacheEntry {
+		provider: "audnexus".to_string(),
+		kind: "book".to_string(),
+		key: "B01".to_string(),
+		payload: payload.to_string(),
+		fetched_at: Utc::now(),
+	};
+
+	cache.put(&entry("{\"v\":1}")).await.unwrap();
+	assert_eq!(
+		cache
+			.get("audnexus", "book", "B01")
+			.await
+			.unwrap()
+			.unwrap()
+			.payload,
+		"{\"v\":1}"
+	);
+
+	cache.put(&entry("{\"v\":2}")).await.unwrap();
+	assert_eq!(
+		cache
+			.get("audnexus", "book", "B01")
+			.await
+			.unwrap()
+			.unwrap()
+			.payload,
+		"{\"v\":2}"
+	);
 }

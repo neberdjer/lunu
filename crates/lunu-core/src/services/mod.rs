@@ -1,12 +1,14 @@
 mod api_key;
 mod auth;
 mod invite;
+mod metadata;
 mod settings;
 mod user;
 
 pub use api_key::{ApiKeyService, IssuedApiKey};
 pub use auth::{AuthService, Authenticated};
 pub use invite::{InviteService, IssuedInvite};
+pub use metadata::MetadataService;
 pub use settings::SettingsService;
 pub use user::UserService;
 

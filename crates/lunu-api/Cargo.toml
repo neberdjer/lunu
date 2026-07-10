@@ -13,6 +13,7 @@ lunu-core.workspace = true
 lunu-config.workspace = true
 lunu-db.workspace = true
 lunu-i18n.workspace = true
+lunu-integrations.workspace = true
 actix-web.workspace = true
 serde.workspace = true
 serde_json.workspace = true
