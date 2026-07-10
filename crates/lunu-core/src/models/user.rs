@@ -37,7 +37,7 @@ impl FromStr for Role {
 		match value {
 			"admin" => Ok(Role::Admin),
 			"user" => Ok(Role::User),
-			other => Err(Error::Validation(format!("unknown role: {other}"))),
+			_ => Err(Error::Validation("role-unknown".to_string())),
 		}
 	}
 }
@@ -70,7 +70,7 @@ impl FromStr for AuthSource {
 		match value {
 			"local" => Ok(AuthSource::Local),
 			"abs" => Ok(AuthSource::Abs),
-			other => Err(Error::Validation(format!("unknown auth source: {other}"))),
+			_ => Err(Error::Validation("auth-source-unknown".to_string())),
 		}
 	}
 }

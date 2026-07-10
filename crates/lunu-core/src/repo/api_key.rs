@@ -10,5 +10,7 @@ pub trait ApiKeyRepo: Send + Sync {
 	async fn find_by_key_hash(&self, key_hash: &str) -> Result<Option<ApiKey>>;
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<ApiKey>>;
 	async fn touch_last_used(&self, id: &str, at: DateTime<Utc>) -> Result<()>;
+	async fn set_revoked(&self, id: &str, revoked: bool) -> Result<()>;
+	async fn revoke_owned(&self, id: &str, user_id: &str) -> Result<bool>;
 	async fn delete(&self, id: &str) -> Result<()>;
 }

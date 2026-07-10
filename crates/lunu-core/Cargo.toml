@@ -12,6 +12,7 @@ repository.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 chrono.workspace = true
+uuid.workspace = true
 async-trait = "0.1"
 argon2 = "0.5"
 aes-gcm = "0.10"

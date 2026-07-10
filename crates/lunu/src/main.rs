@@ -5,6 +5,8 @@ use lunu_api::AppState;
 use lunu_config::BootstrapConfig;
 use tracing_subscriber::EnvFilter;
 
+const DEFAULT_LOG_FILTER: &str = "info,actix_server=warn";
+
 fn load_dotenv() {
 	if let Err(error) = dotenvy::dotenv()
 		&& !error.not_found()
@@ -14,8 +16,8 @@ fn load_dotenv() {
 }
 
 fn init_tracing() {
-	let filter = EnvFilter::try_from_default_env()
-		.unwrap_or_else(|_| EnvFilter::new("info,actix_server=warn"));
+	let filter =
+		EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 }
 
@@ -47,7 +49,14 @@ async fn main() -> ExitCode {
 
 	let bind = config.bind.clone();
 	let workers = config.workers;
-	let state = web::Data::new(AppState::new(db, config, env!("CARGO_PKG_VERSION")));
+
+	let state = match AppState::build(db, config, env!("CARGO_PKG_VERSION")) {
+		Ok(state) => web::Data::new(state),
+		Err(error) => {
+			tracing::error!(%error, "failed to build application state");
+			return ExitCode::FAILURE;
+		}
+	};
 
 	tracing::info!(%bind, workers, "starting lunu");
 

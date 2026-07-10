@@ -36,15 +36,13 @@ pub fn t_args(
 }
 
 pub fn error_message(lang: &LanguageIdentifier, code: &str, detail: Option<&str>) -> String {
-	let key = format!("error-{}", code.replace('_', "-"));
-	match detail {
-		Some(detail) => {
-			let mut args = HashMap::new();
-			args.insert(Cow::from("detail"), FluentValue::from(detail));
-			t_args(lang, &key, &args)
-		}
-		None => t(lang, &key),
+	if let Some(reason) = detail
+		&& let Some(message) = LOCALES.try_lookup(lang, &format!("error-{reason}"))
+	{
+		return message;
 	}
+
+	t(lang, &format!("error-{}", code.replace('_', "-")))
 }
 
 pub fn negotiate(accept_language: Option<&str>, user_pref: Option<&str>) -> LanguageIdentifier {
@@ -116,8 +114,20 @@ mod tests {
 	}
 
 	#[test]
-	fn maps_error_code_to_message() {
+	fn maps_error_code_to_generic_message() {
 		let message = error_message(&default_locale(), "not_found", None);
+		assert_eq!(message, "The requested resource was not found.");
+	}
+
+	#[test]
+	fn resolves_specific_reason_key() {
+		let message = error_message(&default_locale(), "conflict", Some("username-taken"));
+		assert_eq!(message, "That username is already taken.");
+	}
+
+	#[test]
+	fn falls_back_to_generic_when_reason_missing() {
+		let message = error_message(&default_locale(), "not_found", Some("user 123"));
 		assert_eq!(message, "The requested resource was not found.");
 	}
 }

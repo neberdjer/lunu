@@ -7,6 +7,9 @@ use sqlx::any::{AnyPoolOptions, install_default_drivers};
 mod convert;
 pub mod repos;
 
+#[cfg(test)]
+mod service_tests;
+
 pub type Db = AnyPool;
 
 pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;

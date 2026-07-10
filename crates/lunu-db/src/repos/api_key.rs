@@ -95,6 +95,27 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 		Ok(())
 	}
 
+	async fn set_revoked(&self, id: &str, revoked: bool) -> Result<()> {
+		sqlx::query("UPDATE api_keys SET revoked = ? WHERE id = ?")
+			.bind(bool_to_int(revoked))
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
+
+	async fn revoke_owned(&self, id: &str, user_id: &str) -> Result<bool> {
+		let result = sqlx::query("UPDATE api_keys SET revoked = ? WHERE id = ? AND user_id = ?")
+			.bind(bool_to_int(true))
+			.bind(id)
+			.bind(user_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
 	async fn delete(&self, id: &str) -> Result<()> {
 		sqlx::query("DELETE FROM api_keys WHERE id = ?")
 			.bind(id)
