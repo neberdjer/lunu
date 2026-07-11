@@ -11,6 +11,9 @@ pub enum Error {
 	#[error("not found: {0}")]
 	NotFound(String),
 
+	#[error("bad request: {0}")]
+	BadRequest(String),
+
 	#[error("validation error: {0}")]
 	Validation(String),
 
@@ -39,6 +42,7 @@ impl Error {
 			Error::Config(_) => "config",
 			Error::Database(_) => "database",
 			Error::NotFound(_) => "not_found",
+			Error::BadRequest(_) => "bad_request",
 			Error::Validation(_) => "validation",
 			Error::Unauthorized => "unauthorized",
 			Error::Forbidden => "forbidden",
@@ -54,6 +58,7 @@ impl Error {
 			Error::Config(detail)
 			| Error::Database(detail)
 			| Error::NotFound(detail)
+			| Error::BadRequest(detail)
 			| Error::Validation(detail)
 			| Error::Conflict(detail)
 			| Error::Integration(detail)

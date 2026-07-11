@@ -74,6 +74,7 @@ async fn main() -> ExitCode {
 
 	let server = HttpServer::new(move || {
 		App::new()
+			.wrap(actix_web::middleware::from_fn(lunu_api::normalize_errors))
 			.app_data(state.clone())
 			.configure(lunu_api::routes)
 	})
