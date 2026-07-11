@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod api_key;
 pub mod download;
 pub mod invite;
@@ -11,6 +12,7 @@ pub mod settings;
 pub mod user;
 pub mod user_settings;
 
+pub use activity::Activity;
 pub use api_key::ApiKey;
 pub use download::{Download, DownloadState, DownloadStatus};
 pub use invite::Invite;

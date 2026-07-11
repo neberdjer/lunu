@@ -1,6 +1,58 @@
 use chrono::{DateTime, Utc};
-use lunu_core::models::{ApiKey, Download, Invite, QualityProfile, Request, User, UserSettings};
+use lunu_core::models::{
+	Activity, ApiKey, Download, Invite, Job, QualityProfile, Request, User, UserSettings,
+};
 use serde::Serialize;
+
+#[derive(Serialize)]
+pub(crate) struct ActivityResponse {
+	pub id: String,
+	pub request_id: String,
+	pub event: String,
+	pub detail: Option<String>,
+	pub at: DateTime<Utc>,
+}
+
+impl From<&Activity> for ActivityResponse {
+	fn from(activity: &Activity) -> Self {
+		Self {
+			id: activity.id.clone(),
+			request_id: activity.request_id.clone(),
+			event: activity.event.clone(),
+			detail: activity.detail.clone(),
+			at: activity.at,
+		}
+	}
+}
+
+#[derive(Serialize)]
+pub(crate) struct JobResponse {
+	pub id: String,
+	pub job_type: String,
+	pub status: String,
+	pub attempts: i64,
+	pub max_attempts: i64,
+	pub run_after: DateTime<Utc>,
+	pub last_error: Option<String>,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+}
+
+impl From<&Job> for JobResponse {
+	fn from(job: &Job) -> Self {
+		Self {
+			id: job.id.clone(),
+			job_type: job.job_type.to_string(),
+			status: job.status.to_string(),
+			attempts: job.attempts,
+			max_attempts: job.max_attempts,
+			run_after: job.run_after,
+			last_error: job.last_error.clone(),
+			created_at: job.created_at,
+			updated_at: job.updated_at,
+		}
+	}
+}
 
 #[derive(Serialize)]
 pub(crate) struct UserResponse {

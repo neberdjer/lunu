@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use crate::consts::reasons;
 use crate::models::{GrabPayload, JobType, Request, RequestStatus, User, UserSettings};
 use crate::repo::{RequestRepo, UserSettingsRepo};
-use crate::services::{JobService, MetadataService, new_id};
+use crate::services::{ActivityService, JobService, MetadataService, new_id};
 use crate::{Error, Result};
 
 pub struct RequestService {
@@ -13,6 +13,7 @@ pub struct RequestService {
 	user_settings: Arc<dyn UserSettingsRepo>,
 	metadata: Arc<MetadataService>,
 	jobs: Arc<JobService>,
+	activity: Arc<ActivityService>,
 }
 
 impl RequestService {
@@ -21,12 +22,14 @@ impl RequestService {
 		user_settings: Arc<dyn UserSettingsRepo>,
 		metadata: Arc<MetadataService>,
 		jobs: Arc<JobService>,
+		activity: Arc<ActivityService>,
 	) -> Self {
 		Self {
 			requests,
 			user_settings,
 			metadata,
 			jobs,
+			activity,
 		}
 	}
 
@@ -35,6 +38,14 @@ impl RequestService {
 			request_id: request_id.to_string(),
 		};
 		self.jobs.enqueue(JobType::Grab, &payload).await?;
+		Ok(())
+	}
+
+	async fn persist(&self, request: &Request) -> Result<()> {
+		self.requests.update(request).await?;
+		self.activity
+			.record(&request.id, request.status.as_str())
+			.await?;
 		Ok(())
 	}
 
@@ -85,6 +96,9 @@ impl RequestService {
 		};
 
 		self.requests.create(&request).await?;
+		self.activity
+			.record(&request.id, request.status.as_str())
+			.await?;
 		if request.status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}
@@ -132,7 +146,7 @@ impl RequestService {
 
 		request.status = status;
 		request.updated_at = Utc::now();
-		self.requests.update(&request).await?;
+		self.persist(&request).await?;
 		Ok(request)
 	}
 
@@ -154,7 +168,7 @@ impl RequestService {
 		request.status = status;
 		request.approved_by = Some(admin_id.to_string());
 		request.updated_at = Utc::now();
-		self.requests.update(&request).await?;
+		self.persist(&request).await?;
 		if status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}

@@ -1,8 +1,10 @@
+mod activity;
 mod api_keys;
 mod auth;
 mod downloads;
 mod health;
 mod invites;
+mod jobs;
 mod metadata;
 mod quality_profiles;
 mod requests;
@@ -43,6 +45,9 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/requests/{id}/grab", web::post().to(requests::grab));
 
 	cfg.route("/downloads", web::get().to(downloads::list));
+
+	cfg.route("/activity", web::get().to(activity::list));
+	cfg.route("/jobs", web::get().to(jobs::list));
 
 	cfg.route("/quality-profiles", web::get().to(quality_profiles::list));
 	cfg.route(

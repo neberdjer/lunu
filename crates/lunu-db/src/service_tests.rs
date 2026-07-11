@@ -15,16 +15,16 @@ use lunu_core::repo::{
 	UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
-	ApiKeyService, AuthService, ImportService, InviteService, JobService, MetadataService,
-	MonitorService, RequestService, SettingsService,
+	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
+	MetadataService, MonitorService, RequestService, SettingsService,
 };
 use lunu_core::traits::{DownloadClient, Importer, MetadataProvider};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMetadataCacheRepo,
-	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo,
+	SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -474,6 +474,47 @@ async fn import_places_content_and_marks_available() {
 }
 
 #[tokio::test]
+async fn request_transitions_record_activity() {
+	let db = memory_db().await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let activity = activity_service(&db);
+	let requests = request_service_with_activity(&db, jobs, activity.clone());
+
+	let now = Utc::now();
+	let request = Request {
+		id: "r1".to_string(),
+		user_id: "u1".to_string(),
+		asin: "B01".to_string(),
+		title: "The Hobbit".to_string(),
+		author: None,
+		cover_url: None,
+		status: RequestStatus::Pending,
+		approved_by: None,
+		created_at: now,
+		updated_at: now,
+	};
+	SqlxRequestRepo::new(db.clone())
+		.create(&request)
+		.await
+		.unwrap();
+
+	requests.approve("admin", "r1").await.unwrap();
+	requests.mark_downloading("r1").await.unwrap();
+
+	let events: Vec<String> = activity
+		.for_request("r1")
+		.await
+		.unwrap()
+		.into_iter()
+		.map(|entry| entry.event)
+		.collect();
+	assert!(events.contains(&"approved".to_string()));
+	assert!(events.contains(&"downloading".to_string()));
+	assert_eq!(activity.recent(10).await.unwrap().len(), 2);
+}
+
+#[tokio::test]
 async fn import_requires_library_configured() {
 	let db = memory_db().await;
 	seed_download(&db, Utc::now()).await;
@@ -490,6 +531,20 @@ async fn import_requires_library_configured() {
 }
 
 fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
+	request_service_with_activity(db, jobs, activity_service(db))
+}
+
+fn activity_service(db: &Db) -> Arc<ActivityService> {
+	Arc::new(ActivityService::new(Arc::new(SqlxActivityRepo::new(
+		db.clone(),
+	))))
+}
+
+fn request_service_with_activity(
+	db: &Db,
+	jobs: Arc<JobService>,
+	activity: Arc<ActivityService>,
+) -> Arc<RequestService> {
 	let metadata = Arc::new(MetadataService::new(
 		Arc::new(StubProvider),
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
@@ -500,6 +555,7 @@ fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
 		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
 		metadata,
 		jobs,
+		activity,
 	))
 }
 

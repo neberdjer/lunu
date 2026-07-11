@@ -1,3 +1,4 @@
+mod activity;
 mod api_key;
 mod download;
 mod invite;
@@ -10,6 +11,7 @@ mod settings;
 mod user;
 mod user_settings;
 
+pub use activity::SqlxActivityRepo;
 pub use api_key::SqlxApiKeyRepo;
 pub use download::SqlxDownloadRepo;
 pub use invite::SqlxInviteRepo;

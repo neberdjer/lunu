@@ -1,3 +1,4 @@
+mod activity;
 mod api_key;
 mod auth;
 mod grab;
@@ -12,6 +13,7 @@ mod request;
 mod settings;
 mod user;
 
+pub use activity::ActivityService;
 pub use api_key::{ApiKeyService, IssuedApiKey};
 pub use auth::{AuthService, Authenticated};
 pub use grab::{GrabService, ReleaseSelection};

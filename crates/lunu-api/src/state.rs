@@ -5,15 +5,15 @@ use lunu_core::Result;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ApiKeyService, AuthService, GrabService, ImportService, InviteService, JobService,
-	MetadataService, MonitorService, QualityProfileService, ReleaseService, RequestService,
-	SettingsService, UserService,
+	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
+	JobService, MetadataService, MonitorService, QualityProfileService, ReleaseService,
+	RequestService, SettingsService, UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
-	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMetadataCacheRepo,
-	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo,
+	SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
@@ -37,6 +37,7 @@ pub struct AppState {
 	pub jobs: Arc<JobService>,
 	pub monitor: Arc<MonitorService>,
 	pub imports: Arc<ImportService>,
+	pub activity: Arc<ActivityService>,
 }
 
 impl AppState {
@@ -52,6 +53,7 @@ impl AppState {
 		let quality_profiles_repo = Arc::new(SqlxQualityProfileRepo::new(db.clone()));
 		let downloads_repo = Arc::new(SqlxDownloadRepo::new(db.clone()));
 		let jobs_repo = Arc::new(SqlxJobRepo::new(db.clone()));
+		let activity_repo = Arc::new(SqlxActivityRepo::new(db.clone()));
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
 
@@ -76,11 +78,13 @@ impl AppState {
 			settings.clone(),
 		));
 		let jobs = Arc::new(JobService::new(jobs_repo));
+		let activity = Arc::new(ActivityService::new(activity_repo));
 		let requests = Arc::new(RequestService::new(
 			requests_repo.clone(),
 			user_settings_repo,
 			metadata.clone(),
 			jobs.clone(),
+			activity.clone(),
 		));
 
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
@@ -130,6 +134,7 @@ impl AppState {
 			jobs,
 			monitor,
 			imports,
+			activity,
 		})
 	}
 }
