@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, web};
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use lunu_core::consts::auth::KNOWN_API_KEY_SCOPES;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::dto::ApiKeyResponse;
@@ -17,6 +18,13 @@ pub struct CreateApiKeyRequest {
 	expires_in_days: Option<i64>,
 }
 
+#[derive(Serialize)]
+struct ApiKeyList {
+	#[serde(flatten)]
+	page: Page<ApiKeyResponse>,
+	scopes: &'static [&'static str],
+}
+
 pub async fn list(
 	user: AuthUser,
 	query: web::Query<PageParams>,
@@ -29,7 +37,10 @@ pub async fn list(
 		.await?;
 	let total = state.api_keys.count_for_user(&user.id).await?;
 	let items: Vec<ApiKeyResponse> = keys.iter().map(ApiKeyResponse::from).collect();
-	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
+	Ok(HttpResponse::Ok().json(ApiKeyList {
+		page: Page::new(items, &pagination, total),
+		scopes: KNOWN_API_KEY_SCOPES,
+	}))
 }
 
 pub async fn create(
