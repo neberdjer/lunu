@@ -59,8 +59,12 @@ impl AppState {
 		let invites = Arc::new(InviteService::new(invites_repo));
 		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
 
-		let provider = Arc::new(AudnexusProvider::with_default_region());
-		let metadata = Arc::new(MetadataService::new(provider, metadata_cache_repo));
+		let provider = Arc::new(AudnexusProvider::new());
+		let metadata = Arc::new(MetadataService::new(
+			provider,
+			metadata_cache_repo,
+			settings.clone(),
+		));
 		let requests = Arc::new(RequestService::new(
 			requests_repo.clone(),
 			user_settings_repo,

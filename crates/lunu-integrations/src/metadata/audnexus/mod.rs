@@ -10,30 +10,27 @@ mod audible_api;
 mod audnex_api;
 
 const PROVIDER_ID: &str = "audnexus";
-const DEFAULT_REGION: &str = "us";
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
 pub struct AudnexusProvider {
 	client: reqwest::Client,
-	region: String,
 }
 
 impl AudnexusProvider {
-	pub fn new(region: impl Into<String>) -> Self {
+	pub fn new() -> Self {
 		let client = reqwest::Client::builder()
 			.user_agent(concat!("lunu/", env!("CARGO_PKG_VERSION")))
 			.timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
 			.build()
 			.expect("reqwest client builds with static configuration");
 
-		Self {
-			client,
-			region: region.into(),
-		}
+		Self { client }
 	}
+}
 
-	pub fn with_default_region() -> Self {
-		Self::new(DEFAULT_REGION)
+impl Default for AudnexusProvider {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 
@@ -43,16 +40,16 @@ impl MetadataProvider for AudnexusProvider {
 		PROVIDER_ID
 	}
 
-	async fn search(&self, query: &str) -> Result<Vec<Book>> {
-		audible_api::search(&self.client, &self.region, query).await
+	async fn search(&self, query: &str, region: &str) -> Result<Vec<Book>> {
+		audible_api::search(&self.client, region, query).await
 	}
 
-	async fn get_book(&self, asin: &str) -> Result<Option<Book>> {
-		audnex_api::get_book(&self.client, &self.region, asin).await
+	async fn get_book(&self, asin: &str, region: &str) -> Result<Option<Book>> {
+		audnex_api::get_book(&self.client, region, asin).await
 	}
 
-	async fn get_chapters(&self, asin: &str) -> Result<Option<Chapters>> {
-		audnex_api::get_chapters(&self.client, &self.region, asin).await
+	async fn get_chapters(&self, asin: &str, region: &str) -> Result<Option<Chapters>> {
+		audnex_api::get_chapters(&self.client, region, asin).await
 	}
 }
 

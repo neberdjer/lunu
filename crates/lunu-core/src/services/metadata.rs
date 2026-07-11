@@ -4,9 +4,14 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::consts::metadata::METADATA_CACHE_TTL_DAYS;
+use crate::consts::metadata::{
+	DEFAULT_METADATA_REGION, METADATA_CACHE_TTL_DAYS, METADATA_REGION_SETTING,
+	VALID_METADATA_REGIONS,
+};
+use crate::consts::reasons;
 use crate::models::{Book, Chapters, MetadataCacheEntry};
 use crate::repo::MetadataCacheRepo;
+use crate::services::SettingsService;
 use crate::traits::MetadataProvider;
 use crate::{Error, Result};
 
@@ -17,52 +22,93 @@ const KIND_CHAPTERS: &str = "chapters";
 pub struct MetadataService {
 	provider: Arc<dyn MetadataProvider>,
 	cache: Arc<dyn MetadataCacheRepo>,
+	settings: Arc<SettingsService>,
 }
 
 impl MetadataService {
-	pub fn new(provider: Arc<dyn MetadataProvider>, cache: Arc<dyn MetadataCacheRepo>) -> Self {
-		Self { provider, cache }
+	pub fn new(
+		provider: Arc<dyn MetadataProvider>,
+		cache: Arc<dyn MetadataCacheRepo>,
+		settings: Arc<SettingsService>,
+	) -> Self {
+		Self {
+			provider,
+			cache,
+			settings,
+		}
 	}
 
 	pub async fn search(&self, query: &str) -> Result<Vec<Book>> {
-		let key = query.trim().to_lowercase();
-		if key.is_empty() {
+		let normalized = query.trim().to_lowercase();
+		if normalized.is_empty() {
 			return Ok(Vec::new());
 		}
 
-		if let Some(books) = self.read_cache::<Vec<Book>>(KIND_SEARCH, &key).await? {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{normalized}");
+
+		if let Some(books) = self
+			.read_cache::<Vec<Book>>(KIND_SEARCH, &cache_key)
+			.await?
+		{
 			return Ok(books);
 		}
 
-		let books = self.provider.search(query).await?;
-		self.write_cache(KIND_SEARCH, &key, &books).await?;
+		let books = self.provider.search(query, &region).await?;
+		self.write_cache(KIND_SEARCH, &cache_key, &books).await?;
 		Ok(books)
 	}
 
 	pub async fn get_book(&self, asin: &str) -> Result<Option<Book>> {
-		if let Some(book) = self.read_cache::<Book>(KIND_BOOK, asin).await? {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{asin}");
+
+		if let Some(book) = self.read_cache::<Book>(KIND_BOOK, &cache_key).await? {
 			return Ok(Some(book));
 		}
 
-		let Some(book) = self.provider.get_book(asin).await? else {
+		let Some(book) = self.provider.get_book(asin, &region).await? else {
 			return Ok(None);
 		};
 
-		self.write_cache(KIND_BOOK, asin, &book).await?;
+		self.write_cache(KIND_BOOK, &cache_key, &book).await?;
 		Ok(Some(book))
 	}
 
 	pub async fn get_chapters(&self, asin: &str) -> Result<Option<Chapters>> {
-		if let Some(chapters) = self.read_cache::<Chapters>(KIND_CHAPTERS, asin).await? {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{asin}");
+
+		if let Some(chapters) = self
+			.read_cache::<Chapters>(KIND_CHAPTERS, &cache_key)
+			.await?
+		{
 			return Ok(Some(chapters));
 		}
 
-		let Some(chapters) = self.provider.get_chapters(asin).await? else {
+		let Some(chapters) = self.provider.get_chapters(asin, &region).await? else {
 			return Ok(None);
 		};
 
-		self.write_cache(KIND_CHAPTERS, asin, &chapters).await?;
+		self.write_cache(KIND_CHAPTERS, &cache_key, &chapters)
+			.await?;
 		Ok(Some(chapters))
+	}
+
+	async fn region(&self) -> Result<String> {
+		let region = self
+			.settings
+			.get(METADATA_REGION_SETTING)
+			.await?
+			.map(|value| value.trim().to_ascii_lowercase())
+			.filter(|value| !value.is_empty())
+			.unwrap_or_else(|| DEFAULT_METADATA_REGION.to_string());
+
+		if !VALID_METADATA_REGIONS.contains(&region.as_str()) {
+			return Err(Error::Validation(reasons::INVALID_REGION.to_string()));
+		}
+
+		Ok(region)
 	}
 
 	async fn read_cache<T: DeserializeOwned>(&self, kind: &str, key: &str) -> Result<Option<T>> {
