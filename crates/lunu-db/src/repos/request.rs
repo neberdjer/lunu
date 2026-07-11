@@ -8,7 +8,7 @@ use sqlx::any::AnyRow;
 
 use super::{map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_enum};
-use crate::{Db, db_error};
+use crate::{Db, db_error, map_write_error};
 
 pub struct SqlxRequestRepo {
 	db: Db,
@@ -59,7 +59,7 @@ impl RequestRepo for SqlxRequestRepo {
 		.bind(format_dt(request.updated_at))
 		.execute(&self.db)
 		.await
-		.map_err(db_error)?;
+		.map_err(map_write_error)?;
 		Ok(())
 	}
 

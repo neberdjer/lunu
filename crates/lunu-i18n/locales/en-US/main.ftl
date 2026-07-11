@@ -35,3 +35,4 @@ error-quota-exceeded = You have reached your request limit. Try again later.
 error-request-not-pending = That request has already been processed.
 error-prowlarr-not-configured = Prowlarr is not configured. Set its URL and API key in settings.
 error-invalid-region = The configured metadata region is not supported.
+error-already-exists = That already exists.

@@ -7,7 +7,7 @@ use sqlx::any::AnyRow;
 
 use super::{map_row_opt, map_rows};
 use crate::convert::{bool_to_int, format_dt, int_to_bool, parse_dt, parse_enum};
-use crate::{Db, db_error};
+use crate::{Db, db_error, map_write_error};
 
 pub struct SqlxUserRepo {
 	db: Db,
@@ -58,7 +58,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(format_dt(user.updated_at))
 		.execute(&self.db)
 		.await
-		.map_err(db_error)?;
+		.map_err(map_write_error)?;
 		Ok(())
 	}
 

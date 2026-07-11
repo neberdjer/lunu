@@ -37,10 +37,6 @@ impl QualityProfileService {
 	}
 
 	pub async fn create(&self, input: QualityProfileInput) -> Result<QualityProfile> {
-		if input.is_default {
-			self.repo.clear_default().await?;
-		}
-
 		let now = Utc::now();
 		let profile = QualityProfile {
 			id: new_id(),
@@ -58,6 +54,9 @@ impl QualityProfileService {
 		};
 
 		self.repo.create(&profile).await?;
+		if profile.is_default {
+			self.repo.set_default(&profile.id).await?;
+		}
 		Ok(profile)
 	}
 
@@ -67,10 +66,6 @@ impl QualityProfileService {
 			.find_by_id(id)
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("quality profile {id}")))?;
-
-		if input.is_default && !profile.is_default {
-			self.repo.clear_default().await?;
-		}
 
 		profile.name = input.name;
 		profile.allowed_formats = input.allowed_formats;
@@ -84,6 +79,9 @@ impl QualityProfileService {
 		profile.updated_at = Utc::now();
 
 		self.repo.update(&profile).await?;
+		if profile.is_default {
+			self.repo.set_default(&profile.id).await?;
+		}
 		Ok(profile)
 	}
 

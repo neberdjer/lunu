@@ -18,6 +18,16 @@ pub(crate) fn db_error(error: impl std::fmt::Display) -> Error {
 	Error::Database(error.to_string())
 }
 
+pub(crate) fn map_write_error(error: sqlx::Error) -> Error {
+	if error
+		.as_database_error()
+		.is_some_and(|db| db.is_unique_violation())
+	{
+		return Error::Conflict(lunu_core::consts::reasons::ALREADY_EXISTS.to_string());
+	}
+	Error::Database(error.to_string())
+}
+
 pub async fn connect(database_url: &str) -> Result<Db> {
 	install_default_drivers();
 	ensure_sqlite_parent(database_url)?;

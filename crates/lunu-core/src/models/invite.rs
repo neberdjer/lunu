@@ -16,7 +16,7 @@ pub struct Invite {
 }
 
 impl Invite {
-	pub fn is_redeemable(&self, now: DateTime<Utc>) -> bool {
-		self.used_count < self.max_uses && self.expires_at.is_none_or(|expires| expires > now)
+	pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
+		self.expires_at.is_some_and(|expires| expires <= now)
 	}
 }

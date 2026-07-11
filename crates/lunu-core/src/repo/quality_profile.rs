@@ -10,6 +10,6 @@ pub trait QualityProfileRepo: Send + Sync {
 	async fn find_by_id(&self, id: &str) -> Result<Option<QualityProfile>>;
 	async fn find_default(&self) -> Result<Option<QualityProfile>>;
 	async fn list(&self) -> Result<Vec<QualityProfile>>;
-	async fn clear_default(&self) -> Result<()>;
+	async fn set_default(&self, id: &str) -> Result<()>;
 	async fn delete(&self, id: &str) -> Result<()>;
 }

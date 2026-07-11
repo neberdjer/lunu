@@ -118,8 +118,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		map_rows(rows, map_profile)
 	}
 
-	async fn clear_default(&self) -> Result<()> {
-		sqlx::query("UPDATE quality_profiles SET is_default = 0")
+	async fn set_default(&self, id: &str) -> Result<()> {
+		sqlx::query("UPDATE quality_profiles SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END")
+			.bind(id)
 			.execute(&self.db)
 			.await
 			.map_err(db_error)?;

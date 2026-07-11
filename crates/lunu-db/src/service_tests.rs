@@ -7,7 +7,7 @@ use lunu_core::models::{
 	MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role, UserSettings,
 };
 use lunu_core::repo::{
-	MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserSettingsRepo,
+	MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
@@ -251,6 +251,34 @@ async fn request_lifecycle_and_quota_count() {
 }
 
 #[tokio::test]
+async fn duplicate_username_is_conflict_not_db_error() {
+	use lunu_core::Error;
+	use lunu_core::models::{AuthSource, User};
+
+	let db = memory_db().await;
+	let repo = SqlxUserRepo::new(db.clone());
+
+	let now = Utc::now();
+	let user = |id: &str| User {
+		id: id.to_string(),
+		username: "alice".to_string(),
+		email: None,
+		password_hash: Some("hash".to_string()),
+		role: Role::User,
+		auth_source: AuthSource::Local,
+		enabled: true,
+		created_at: now,
+		updated_at: now,
+	};
+
+	repo.create(&user("u1")).await.unwrap();
+	match repo.create(&user("u2")).await {
+		Err(Error::Conflict(_)) => {}
+		other => panic!("expected Conflict on duplicate username, got {other:?}"),
+	}
+}
+
+#[tokio::test]
 async fn user_settings_upsert() {
 	let db = memory_db().await;
 	let settings = SqlxUserSettingsRepo::new(db.clone());
@@ -303,7 +331,14 @@ async fn quality_profile_crud_and_default() {
 	assert!(loaded.is_default);
 
 	assert_eq!(repo.find_default().await.unwrap().unwrap().id, "p1");
-	repo.clear_default().await.unwrap();
-	assert!(repo.find_default().await.unwrap().is_none());
-	assert_eq!(repo.list().await.unwrap().len(), 1);
+
+	let mut second = profile.clone();
+	second.id = "p2".to_string();
+	second.is_default = false;
+	repo.create(&second).await.unwrap();
+
+	repo.set_default("p2").await.unwrap();
+	assert_eq!(repo.find_default().await.unwrap().unwrap().id, "p2");
+	assert!(!repo.find_by_id("p1").await.unwrap().unwrap().is_default);
+	assert_eq!(repo.list().await.unwrap().len(), 2);
 }

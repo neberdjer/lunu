@@ -124,15 +124,18 @@ impl AuthService {
 			.await?
 			.ok_or_else(|| Error::Validation(reasons::INVITE_INVALID.to_string()))?;
 
-		if !invite.is_redeemable(Utc::now()) {
+		if invite.is_expired(Utc::now()) {
 			return Err(Error::Validation(reasons::INVITE_UNUSABLE.to_string()));
 		}
 
 		ensure_username_available(self.users.as_ref(), username).await?;
 
+		if !self.invites.redeem(&invite.id).await? {
+			return Err(Error::Validation(reasons::INVITE_UNUSABLE.to_string()));
+		}
+
 		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
 		self.users.create(&user).await?;
-		self.invites.increment_used(&invite.id).await?;
 
 		let session_token = self.create_session(&user.id).await?;
 		Ok(Authenticated {

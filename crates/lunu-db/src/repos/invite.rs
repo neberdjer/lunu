@@ -69,13 +69,15 @@ impl InviteRepo for SqlxInviteRepo {
 		map_row_opt(row, map_invite)
 	}
 
-	async fn increment_used(&self, id: &str) -> Result<()> {
-		sqlx::query("UPDATE invites SET used_count = used_count + 1 WHERE id = ?")
-			.bind(id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
-		Ok(())
+	async fn redeem(&self, id: &str) -> Result<bool> {
+		let result = sqlx::query(
+			"UPDATE invites SET used_count = used_count + 1 WHERE id = ? AND used_count < max_uses",
+		)
+		.bind(id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
 	}
 
 	async fn list(&self) -> Result<Vec<Invite>> {
