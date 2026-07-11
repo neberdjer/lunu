@@ -43,3 +43,4 @@ error-no-releases = No releases were found for this title.
 error-download-state-unknown = That download state is not recognized.
 error-job-type-unknown = That job type is not recognized.
 error-job-status-unknown = That job status is not recognized.
+error-library-not-configured = No library directory is configured. Set the library path in settings.

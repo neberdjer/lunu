@@ -20,6 +20,7 @@ pub const NO_RELEASES: &str = "no-releases";
 pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const JOB_STATUS_UNKNOWN: &str = "job-status-unknown";
+pub const LIBRARY_NOT_CONFIGURED: &str = "library-not-configured";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -44,4 +45,5 @@ pub const ALL: &[&str] = &[
 	DOWNLOAD_STATE_UNKNOWN,
 	JOB_TYPE_UNKNOWN,
 	JOB_STATUS_UNKNOWN,
+	LIBRARY_NOT_CONFIGURED,
 ];

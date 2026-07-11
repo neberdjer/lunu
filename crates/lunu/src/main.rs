@@ -63,6 +63,7 @@ async fn main() -> ExitCode {
 	let handler = Arc::new(PipelineHandler::new(
 		state.grabs.clone(),
 		state.monitor.clone(),
+		state.imports.clone(),
 	));
 	WorkerPool::new(state.jobs.repo(), handler, WorkerConfig::default()).start();
 

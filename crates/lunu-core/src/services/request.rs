@@ -119,6 +119,10 @@ impl RequestService {
 		self.set_status(id, RequestStatus::Failed).await
 	}
 
+	pub async fn mark_available(&self, id: &str) -> Result<Request> {
+		self.set_status(id, RequestStatus::Available).await
+	}
+
 	async fn set_status(&self, id: &str, status: RequestStatus) -> Result<Request> {
 		let mut request = self
 			.requests

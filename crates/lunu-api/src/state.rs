@@ -5,9 +5,9 @@ use lunu_core::Result;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ApiKeyService, AuthService, GrabService, InviteService, JobService, MetadataService,
-	MonitorService, QualityProfileService, ReleaseService, RequestService, SettingsService,
-	UserService,
+	ApiKeyService, AuthService, GrabService, ImportService, InviteService, JobService,
+	MetadataService, MonitorService, QualityProfileService, ReleaseService, RequestService,
+	SettingsService, UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
@@ -17,6 +17,7 @@ use lunu_db::repos::{
 };
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
+use lunu_integrations::library::HardlinkImporter;
 use lunu_integrations::metadata::AudnexusProvider;
 
 pub struct AppState {
@@ -35,6 +36,7 @@ pub struct AppState {
 	pub grabs: Arc<GrabService>,
 	pub jobs: Arc<JobService>,
 	pub monitor: Arc<MonitorService>,
+	pub imports: Arc<ImportService>,
 }
 
 impl AppState {
@@ -97,11 +99,18 @@ impl AppState {
 			jobs.clone(),
 		));
 		let grabs = Arc::new(GrabService::new(
-			downloads_repo,
+			downloads_repo.clone(),
 			requests.clone(),
 			releases.clone(),
 			download_client,
 			jobs.clone(),
+		));
+		let importer = Arc::new(HardlinkImporter::new());
+		let imports = Arc::new(ImportService::new(
+			downloads_repo,
+			requests.clone(),
+			settings.clone(),
+			importer,
 		));
 
 		Ok(Self {
@@ -120,6 +129,7 @@ impl AppState {
 			grabs,
 			jobs,
 			monitor,
+			imports,
 		})
 	}
 }

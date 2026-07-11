@@ -4,7 +4,9 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::Result;
 use crate::consts::download::{MONITOR_MAX_MISSES, MONITOR_POLL_SECS};
-use crate::models::{Download, DownloadState, DownloadStatus, JobType, MonitorPayload};
+use crate::models::{
+	Download, DownloadState, DownloadStatus, ImportPayload, JobType, MonitorPayload,
+};
 use crate::repo::DownloadRepo;
 use crate::services::{JobService, RequestService};
 use crate::traits::DownloadClient;
@@ -76,11 +78,7 @@ impl MonitorService {
 			.await?;
 
 		match status.state {
-			DownloadState::Completed => self
-				.requests
-				.mark_importing(&download.request_id)
-				.await
-				.map(|_| ()),
+			DownloadState::Completed => self.complete(download, status.content_path).await,
 			DownloadState::Failed => self
 				.requests
 				.mark_failed(&download.request_id)
@@ -90,6 +88,18 @@ impl MonitorService {
 				self.enqueue_next(&download.id, 0).await
 			}
 		}
+	}
+
+	async fn complete(&self, download: &Download, content_path: Option<String>) -> Result<()> {
+		self.requests.mark_importing(&download.request_id).await?;
+		if let Some(content_path) = content_path {
+			let payload = ImportPayload {
+				download_id: download.id.clone(),
+				content_path,
+			};
+			self.jobs.enqueue(JobType::Import, &payload).await?;
+		}
+		Ok(())
 	}
 
 	async fn enqueue_next(&self, download_id: &str, misses: i64) -> Result<()> {

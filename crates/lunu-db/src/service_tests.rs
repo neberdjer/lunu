@@ -15,10 +15,10 @@ use lunu_core::repo::{
 	UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
-	ApiKeyService, AuthService, InviteService, JobService, MetadataService, MonitorService,
-	RequestService, SettingsService,
+	ApiKeyService, AuthService, ImportService, InviteService, JobService, MetadataService,
+	MonitorService, RequestService, SettingsService,
 };
-use lunu_core::traits::{DownloadClient, MetadataProvider};
+use lunu_core::traits::{DownloadClient, Importer, MetadataProvider};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
@@ -113,8 +113,7 @@ async fn register_with_invite_then_exhausted() {
 #[tokio::test]
 async fn settings_encrypts_secret_values() {
 	let db = memory_db().await;
-	let encryptor = Encryptor::new("dev-master-key-value", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
-	let settings = SettingsService::new(Arc::new(SqlxSettingsRepo::new(db.clone())), encryptor);
+	let settings = settings_service(&db);
 
 	settings
 		.set("qbittorrent_password", "s3cret", true)
@@ -418,16 +417,83 @@ impl DownloadClient for FakeClient {
 	}
 }
 
-fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
+#[derive(Default)]
+struct FakeImporter {
+	call: std::sync::Mutex<Option<(String, String)>>,
+}
+
+#[async_trait]
+impl Importer for FakeImporter {
+	async fn import(&self, source: &str, destination: &str) -> CoreResult<()> {
+		*self.call.lock().unwrap() = Some((source.to_string(), destination.to_string()));
+		Ok(())
+	}
+}
+
+fn settings_service(db: &Db) -> Arc<SettingsService> {
 	let encryptor = Encryptor::new("dev-master-key-value", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
-	let settings = Arc::new(SettingsService::new(
+	Arc::new(SettingsService::new(
 		Arc::new(SqlxSettingsRepo::new(db.clone())),
 		encryptor,
-	));
+	))
+}
+
+#[tokio::test]
+async fn import_places_content_and_marks_available() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let settings = settings_service(&db);
+	settings
+		.set("library_dir", "/library", false)
+		.await
+		.unwrap();
+	let importer = Arc::new(FakeImporter::default());
+	let imports = ImportService::new(
+		Arc::new(SqlxDownloadRepo::new(db.clone())),
+		request_service(&db, jobs),
+		settings,
+		importer.clone(),
+	);
+
+	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
+
+	let call = importer.call.lock().unwrap().clone().unwrap();
+	assert_eq!(call.0, "/downloads/The Hobbit");
+	assert_eq!(call.1, "/library/Unknown Author/The Hobbit");
+	assert_eq!(
+		SqlxRequestRepo::new(db.clone())
+			.find_by_id("r1")
+			.await
+			.unwrap()
+			.unwrap()
+			.status,
+		RequestStatus::Available
+	);
+}
+
+#[tokio::test]
+async fn import_requires_library_configured() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let imports = ImportService::new(
+		Arc::new(SqlxDownloadRepo::new(db.clone())),
+		request_service(&db, jobs),
+		settings_service(&db),
+		Arc::new(FakeImporter::default()),
+	);
+
+	assert!(imports.import("d1", "/downloads/x").await.is_err());
+}
+
+fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
 	let metadata = Arc::new(MetadataService::new(
 		Arc::new(StubProvider),
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
-		settings,
+		settings_service(db),
 	));
 	Arc::new(RequestService::new(
 		Arc::new(SqlxRequestRepo::new(db.clone())),

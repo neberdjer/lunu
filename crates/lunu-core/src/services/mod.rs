@@ -1,6 +1,7 @@
 mod api_key;
 mod auth;
 mod grab;
+mod import;
 mod invite;
 mod job;
 mod metadata;
@@ -14,6 +15,7 @@ mod user;
 pub use api_key::{ApiKeyService, IssuedApiKey};
 pub use auth::{AuthService, Authenticated};
 pub use grab::{GrabService, ReleaseSelection};
+pub use import::ImportService;
 pub use invite::{InviteService, IssuedInvite};
 pub use job::JobService;
 pub use metadata::MetadataService;

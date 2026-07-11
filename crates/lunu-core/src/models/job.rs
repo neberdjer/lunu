@@ -19,6 +19,12 @@ pub struct MonitorPayload {
 	pub misses: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportPayload {
+	pub download_id: String,
+	pub content_path: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStatus {
 	Pending,
