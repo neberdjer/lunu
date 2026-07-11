@@ -57,3 +57,35 @@ impl ResponseError for ApiError {
 		})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use lunu_core::Error;
+
+	fn all_variants() -> Vec<Error> {
+		vec![
+			Error::Config("x".to_string()),
+			Error::Database("x".to_string()),
+			Error::NotFound("x".to_string()),
+			Error::Validation("x".to_string()),
+			Error::Unauthorized,
+			Error::Forbidden,
+			Error::Conflict("x".to_string()),
+			Error::Integration("x".to_string()),
+			Error::Internal("x".to_string()),
+		]
+	}
+
+	#[test]
+	fn every_error_code_has_a_catalog_message() {
+		let locale = lunu_i18n::default_locale();
+		for error in all_variants() {
+			let code = error.code();
+			let message = lunu_i18n::error_message(&locale, code, None);
+			assert!(
+				!message.starts_with("error-"),
+				"no catalog message for error code '{code}'"
+			);
+		}
+	}
+}

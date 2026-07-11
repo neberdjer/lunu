@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use lunu_core::models::{ApiKey, Invite, User};
+use lunu_core::models::{ApiKey, Invite, Request, User, UserSettings};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -50,6 +50,56 @@ impl From<&ApiKey> for ApiKeyResponse {
 			last_used_at: key.last_used_at,
 			expires_at: key.expires_at,
 			revoked: key.revoked,
+		}
+	}
+}
+
+#[derive(Serialize)]
+pub(crate) struct RequestResponse {
+	pub id: String,
+	pub user_id: String,
+	pub asin: String,
+	pub title: String,
+	pub author: Option<String>,
+	pub cover_url: Option<String>,
+	pub status: String,
+	pub approved_by: Option<String>,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+}
+
+impl From<&Request> for RequestResponse {
+	fn from(request: &Request) -> Self {
+		Self {
+			id: request.id.clone(),
+			user_id: request.user_id.clone(),
+			asin: request.asin.clone(),
+			title: request.title.clone(),
+			author: request.author.clone(),
+			cover_url: request.cover_url.clone(),
+			status: request.status.to_string(),
+			approved_by: request.approved_by.clone(),
+			created_at: request.created_at,
+			updated_at: request.updated_at,
+		}
+	}
+}
+
+#[derive(Serialize)]
+pub(crate) struct UserSettingsResponse {
+	pub user_id: String,
+	pub auto_approve: bool,
+	pub request_quota: Option<i64>,
+	pub quota_days: Option<i64>,
+}
+
+impl From<&UserSettings> for UserSettingsResponse {
+	fn from(settings: &UserSettings) -> Self {
+		Self {
+			user_id: settings.user_id.clone(),
+			auto_approve: settings.auto_approve,
+			request_quota: settings.request_quota,
+			quota_days: settings.quota_days,
 		}
 	}
 }

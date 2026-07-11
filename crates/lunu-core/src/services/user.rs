@@ -2,19 +2,54 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
-use crate::models::{Role, User};
-use crate::repo::{SessionRepo, UserRepo};
+use crate::models::{Role, User, UserSettings};
+use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
 use crate::services::{build_local_user, ensure_username_available};
 use crate::{Error, Result};
 
 pub struct UserService {
 	users: Arc<dyn UserRepo>,
 	sessions: Arc<dyn SessionRepo>,
+	settings: Arc<dyn UserSettingsRepo>,
 }
 
 impl UserService {
-	pub fn new(users: Arc<dyn UserRepo>, sessions: Arc<dyn SessionRepo>) -> Self {
-		Self { users, sessions }
+	pub fn new(
+		users: Arc<dyn UserRepo>,
+		sessions: Arc<dyn SessionRepo>,
+		settings: Arc<dyn UserSettingsRepo>,
+	) -> Self {
+		Self {
+			users,
+			sessions,
+			settings,
+		}
+	}
+
+	pub async fn get_settings(&self, user_id: &str) -> Result<Option<UserSettings>> {
+		self.settings.get(user_id).await
+	}
+
+	pub async fn set_settings(
+		&self,
+		user_id: &str,
+		auto_approve: bool,
+		request_quota: Option<i64>,
+		quota_days: Option<i64>,
+	) -> Result<UserSettings> {
+		if self.users.find_by_id(user_id).await?.is_none() {
+			return Err(Error::NotFound(format!("user {user_id}")));
+		}
+
+		let settings = UserSettings {
+			user_id: user_id.to_string(),
+			auto_approve,
+			request_quota,
+			quota_days,
+			updated_at: Utc::now(),
+		};
+		self.settings.upsert(&settings).await?;
+		Ok(settings)
 	}
 
 	pub async fn list(&self) -> Result<Vec<User>> {
@@ -59,6 +94,7 @@ impl UserService {
 
 	pub async fn delete(&self, id: &str) -> Result<()> {
 		self.sessions.delete_for_user(id).await?;
+		self.settings.delete(id).await?;
 		self.users.delete(id).await
 	}
 }

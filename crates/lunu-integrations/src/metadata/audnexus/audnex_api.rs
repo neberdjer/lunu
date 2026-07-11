@@ -43,7 +43,7 @@ async fn get_json<T: DeserializeOwned>(
 		.await
 		.map_err(integration_error)?;
 
-	if response.status() == reqwest::StatusCode::NOT_FOUND {
+	if response.status().is_client_error() {
 		return Ok(None);
 	}
 

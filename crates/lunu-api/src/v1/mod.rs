@@ -3,6 +3,7 @@ mod auth;
 mod health;
 mod invites;
 mod metadata;
+mod requests;
 mod settings;
 mod setup;
 mod users;
@@ -28,6 +29,14 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/users", web::post().to(users::create));
 	cfg.route("/users/{id}", web::patch().to(users::update));
 	cfg.route("/users/{id}", web::delete().to(users::delete));
+	cfg.route("/users/{id}/settings", web::get().to(users::get_settings));
+	cfg.route("/users/{id}/settings", web::put().to(users::set_settings));
+
+	cfg.route("/requests", web::get().to(requests::list));
+	cfg.route("/requests", web::post().to(requests::create));
+	cfg.route("/requests/{id}", web::get().to(requests::get));
+	cfg.route("/requests/{id}/approve", web::post().to(requests::approve));
+	cfg.route("/requests/{id}/decline", web::post().to(requests::decline));
 
 	cfg.route("/api-keys", web::get().to(api_keys::list));
 	cfg.route("/api-keys", web::post().to(api_keys::create));

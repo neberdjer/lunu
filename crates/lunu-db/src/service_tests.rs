@@ -3,14 +3,14 @@ use std::sync::Arc;
 use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
-use lunu_core::models::{MetadataCacheEntry, Role};
-use lunu_core::repo::{MetadataCacheRepo, SettingsRepo};
+use lunu_core::models::{MetadataCacheEntry, Request, RequestStatus, Role, UserSettings};
+use lunu_core::repo::{MetadataCacheRepo, RequestRepo, SettingsRepo, UserSettingsRepo};
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxSessionRepo, SqlxSettingsRepo,
-	SqlxUserRepo,
+	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -197,4 +197,75 @@ async fn metadata_cache_put_get_upsert() {
 			.payload,
 		"{\"v\":2}"
 	);
+}
+
+#[tokio::test]
+async fn request_lifecycle_and_quota_count() {
+	let db = memory_db().await;
+	let requests = SqlxRequestRepo::new(db.clone());
+
+	let now = Utc::now();
+	let request = Request {
+		id: "r1".to_string(),
+		user_id: "u1".to_string(),
+		asin: "B01".to_string(),
+		title: "The Hobbit".to_string(),
+		author: Some("Tolkien".to_string()),
+		cover_url: None,
+		status: RequestStatus::Pending,
+		approved_by: None,
+		created_at: now,
+		updated_at: now,
+	};
+	requests.create(&request).await.unwrap();
+
+	let found = requests
+		.find_by_user_and_asin("u1", "B01")
+		.await
+		.unwrap()
+		.unwrap();
+	assert_eq!(found.status, RequestStatus::Pending);
+	assert_eq!(found.author.as_deref(), Some("Tolkien"));
+
+	let mut approved = found;
+	approved.status = RequestStatus::Approved;
+	approved.approved_by = Some("admin".to_string());
+	requests.update(&approved).await.unwrap();
+	assert_eq!(
+		requests.find_by_id("r1").await.unwrap().unwrap().status,
+		RequestStatus::Approved
+	);
+
+	assert_eq!(
+		requests
+			.count_for_user_since("u1", now - chrono::Duration::days(1))
+			.await
+			.unwrap(),
+		1
+	);
+	assert_eq!(requests.list_for_user("u1").await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn user_settings_upsert() {
+	let db = memory_db().await;
+	let settings = SqlxUserSettingsRepo::new(db.clone());
+
+	assert!(settings.get("u1").await.unwrap().is_none());
+
+	settings
+		.upsert(&UserSettings {
+			user_id: "u1".to_string(),
+			auto_approve: true,
+			request_quota: Some(5),
+			quota_days: Some(7),
+			updated_at: Utc::now(),
+		})
+		.await
+		.unwrap();
+
+	let loaded = settings.get("u1").await.unwrap().unwrap();
+	assert!(loaded.auto_approve);
+	assert_eq!(loaded.request_quota, Some(5));
+	assert_eq!(loaded.quota_days, Some(7));
 }

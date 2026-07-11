@@ -1,16 +1,20 @@
 mod api_key;
 mod invite;
 mod metadata_cache;
+mod request;
 mod session;
 mod settings;
 mod user;
+mod user_settings;
 
 pub use api_key::SqlxApiKeyRepo;
 pub use invite::SqlxInviteRepo;
 pub use metadata_cache::SqlxMetadataCacheRepo;
+pub use request::SqlxRequestRepo;
 pub use session::SqlxSessionRepo;
 pub use settings::SqlxSettingsRepo;
 pub use user::SqlxUserRepo;
+pub use user_settings::SqlxUserSettingsRepo;
 
 use lunu_core::Result;
 use sqlx::any::AnyRow;
