@@ -31,8 +31,12 @@ impl ActivityService {
 		Ok(())
 	}
 
-	pub async fn recent(&self, limit: i64) -> Result<Vec<Activity>> {
-		self.activity.recent(limit).await
+	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Activity>> {
+		self.activity.list_page(limit, offset).await
+	}
+
+	pub async fn count(&self) -> Result<i64> {
+		self.activity.count().await
 	}
 
 	pub async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>> {

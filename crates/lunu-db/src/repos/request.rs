@@ -6,7 +6,7 @@ use lunu_core::repo::RequestRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_enum};
 use crate::{Db, db_error, map_write_error};
 
@@ -37,6 +37,24 @@ fn map_request(row: &AnyRow) -> Result<Request> {
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
+}
+
+fn request_filter(user_id: Option<&str>, status: Option<&str>) -> (String, i64) {
+	let mut clauses = Vec::new();
+	let mut next = 1;
+	if user_id.is_some() {
+		clauses.push(format!("user_id = ${next}"));
+		next += 1;
+	}
+	if status.is_some() {
+		clauses.push(format!("status = ${next}"));
+		next += 1;
+	}
+	if clauses.is_empty() {
+		(String::new(), next)
+	} else {
+		(format!(" WHERE {}", clauses.join(" AND ")), next)
+	}
 }
 
 #[async_trait]
@@ -116,16 +134,54 @@ impl RequestRepo for SqlxRequestRepo {
 		map_rows(rows, map_request)
 	}
 
+	async fn list_page(
+		&self,
+		user_id: Option<&str>,
+		status: Option<&str>,
+		limit: i64,
+		offset: i64,
+	) -> Result<Vec<Request>> {
+		let (where_clause, next) = request_filter(user_id, status);
+		let sql = format!(
+			"SELECT * FROM requests{where_clause} ORDER BY created_at DESC LIMIT ${next} OFFSET ${}",
+			next + 1
+		);
+		let mut query = sqlx::query(&sql);
+		if let Some(user_id) = user_id {
+			query = query.bind(user_id);
+		}
+		if let Some(status) = status {
+			query = query.bind(status);
+		}
+		let rows = query
+			.bind(limit)
+			.bind(offset)
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_request)
+	}
+
+	async fn count(&self, user_id: Option<&str>, status: Option<&str>) -> Result<i64> {
+		let (where_clause, _) = request_filter(user_id, status);
+		let sql = format!("SELECT COUNT(*) AS count FROM requests{where_clause}");
+		let mut query = sqlx::query(&sql);
+		if let Some(user_id) = user_id {
+			query = query.bind(user_id);
+		}
+		if let Some(status) = status {
+			query = query.bind(status);
+		}
+		fetch_count(&self.db, query).await
+	}
+
 	async fn count_for_user_since(&self, user_id: &str, since: DateTime<Utc>) -> Result<i64> {
-		let row = sqlx::query(
+		let query = sqlx::query(
 			"SELECT COUNT(*) AS count FROM requests WHERE user_id = $1 AND created_at >= $2",
 		)
 		.bind(user_id)
-		.bind(format_dt(since))
-		.fetch_one(&self.db)
-		.await
-		.map_err(db_error)?;
-		row.try_get("count").map_err(db_error)
+		.bind(format_dt(since));
+		fetch_count(&self.db, query).await
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {

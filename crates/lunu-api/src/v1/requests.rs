@@ -1,11 +1,15 @@
+use std::str::FromStr;
+
 use actix_web::{HttpResponse, web};
 use lunu_core::Error;
+use lunu_core::models::RequestStatus;
 use lunu_core::services::ReleaseSelection;
 use serde::Deserialize;
 
 use crate::dto::{DownloadResponse, RequestResponse};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
+use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -22,15 +26,33 @@ pub struct GrabBody {
 	indexer: String,
 }
 
-pub async fn list(user: AuthUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	let requests = if user.role.is_admin() {
-		state.requests.list().await?
-	} else {
-		state.requests.list_for_user(&user.id).await?
-	};
+#[derive(Deserialize)]
+pub struct RequestListParams {
+	page: Option<i64>,
+	limit: Option<i64>,
+	status: Option<String>,
+}
 
-	let response: Vec<RequestResponse> = requests.iter().map(RequestResponse::from).collect();
-	Ok(HttpResponse::Ok().json(response))
+pub async fn list(
+	user: AuthUser,
+	query: web::Query<RequestListParams>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let pagination = Pagination::resolve(query.page, query.limit);
+	let status = query
+		.status
+		.as_deref()
+		.map(RequestStatus::from_str)
+		.transpose()?;
+
+	let requests = state
+		.requests
+		.list_page(&user, status, pagination.limit, pagination.offset)
+		.await?;
+	let total = state.requests.count(&user, status).await?;
+
+	let items: Vec<RequestResponse> = requests.iter().map(RequestResponse::from).collect();
+	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
 pub async fn create(

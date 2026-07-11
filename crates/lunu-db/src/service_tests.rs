@@ -420,6 +420,47 @@ async fn request_lifecycle_and_quota_count() {
 }
 
 #[tokio::test]
+async fn request_list_page_filters_and_counts() {
+	let db = memory_db().await;
+	let repo = SqlxRequestRepo::new(db.clone());
+	let now = Utc::now();
+
+	let make = |id: &str, user: &str, status: RequestStatus| Request {
+		id: id.to_string(),
+		user_id: user.to_string(),
+		asin: id.to_string(),
+		title: "t".to_string(),
+		author: None,
+		cover_url: None,
+		status,
+		approved_by: None,
+		created_at: now,
+		updated_at: now,
+	};
+	repo.create(&make("a", "u1", RequestStatus::Pending))
+		.await
+		.unwrap();
+	repo.create(&make("b", "u1", RequestStatus::Approved))
+		.await
+		.unwrap();
+	repo.create(&make("c", "u2", RequestStatus::Pending))
+		.await
+		.unwrap();
+
+	assert_eq!(repo.count(None, None).await.unwrap(), 3);
+	assert_eq!(repo.count(None, Some("pending")).await.unwrap(), 2);
+	assert_eq!(repo.count(Some("u1"), None).await.unwrap(), 2);
+	assert_eq!(repo.count(Some("u1"), Some("pending")).await.unwrap(), 1);
+
+	assert_eq!(repo.list_page(None, None, 2, 0).await.unwrap().len(), 2);
+	assert_eq!(repo.list_page(None, None, 2, 2).await.unwrap().len(), 1);
+
+	let pending = repo.list_page(None, Some("pending"), 10, 0).await.unwrap();
+	assert_eq!(pending.len(), 2);
+	assert!(pending.iter().all(|r| r.status == RequestStatus::Pending));
+}
+
+#[tokio::test]
 async fn duplicate_username_is_conflict_not_db_error() {
 	use lunu_core::Error;
 	use lunu_core::models::{AuthSource, User};
@@ -671,7 +712,7 @@ async fn request_transitions_record_activity() {
 		.collect();
 	assert!(events.contains(&"approved".to_string()));
 	assert!(events.contains(&"downloading".to_string()));
-	assert_eq!(activity.recent(10).await.unwrap().len(), 2);
+	assert_eq!(activity.list_page(10, 0).await.unwrap().len(), 2);
 }
 
 #[tokio::test]

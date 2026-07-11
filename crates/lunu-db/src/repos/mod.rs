@@ -25,7 +25,11 @@ pub use user::SqlxUserRepo;
 pub use user_settings::SqlxUserSettingsRepo;
 
 use lunu_core::Result;
-use sqlx::any::AnyRow;
+use sqlx::Row;
+use sqlx::any::{AnyArguments, AnyRow};
+use sqlx::query::Query;
+
+use crate::{Db, db_error};
 
 pub(crate) fn map_row_opt<T>(
 	row: Option<AnyRow>,
@@ -36,4 +40,12 @@ pub(crate) fn map_row_opt<T>(
 
 pub(crate) fn map_rows<T>(rows: Vec<AnyRow>, map: fn(&AnyRow) -> Result<T>) -> Result<Vec<T>> {
 	rows.iter().map(map).collect()
+}
+
+pub(crate) async fn fetch_count<'q>(
+	db: &Db,
+	query: Query<'q, sqlx::Any, AnyArguments<'q>>,
+) -> Result<i64> {
+	let row = query.fetch_one(db).await.map_err(db_error)?;
+	row.try_get::<i64, _>("count").map_err(db_error)
 }

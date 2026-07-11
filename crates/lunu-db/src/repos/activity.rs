@@ -5,7 +5,7 @@ use lunu_core::repo::ActivityRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::map_rows;
+use super::{fetch_count, map_rows};
 use crate::convert::{format_dt, parse_dt};
 use crate::{Db, db_error};
 
@@ -48,13 +48,22 @@ impl ActivityRepo for SqlxActivityRepo {
 		Ok(())
 	}
 
-	async fn recent(&self, limit: i64) -> Result<Vec<Activity>> {
-		let rows = sqlx::query("SELECT * FROM activity ORDER BY at DESC LIMIT $1")
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Activity>> {
+		let rows = sqlx::query("SELECT * FROM activity ORDER BY at DESC LIMIT $1 OFFSET $2")
 			.bind(limit)
+			.bind(offset)
 			.fetch_all(&self.db)
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_activity)
+	}
+
+	async fn count(&self) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query("SELECT COUNT(*) AS count FROM activity"),
+		)
+		.await
 	}
 
 	async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>> {

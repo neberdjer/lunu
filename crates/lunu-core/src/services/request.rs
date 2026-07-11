@@ -113,6 +113,37 @@ impl RequestService {
 		self.requests.list_for_user(user_id).await
 	}
 
+	pub async fn list_page(
+		&self,
+		caller: &User,
+		status: Option<RequestStatus>,
+		limit: i64,
+		offset: i64,
+	) -> Result<Vec<Request>> {
+		self.requests
+			.list_page(
+				Self::scope(caller),
+				status.map(|status| status.as_str()),
+				limit,
+				offset,
+			)
+			.await
+	}
+
+	pub async fn count(&self, caller: &User, status: Option<RequestStatus>) -> Result<i64> {
+		self.requests
+			.count(Self::scope(caller), status.map(|status| status.as_str()))
+			.await
+	}
+
+	fn scope(caller: &User) -> Option<&str> {
+		if caller.role.is_admin() {
+			None
+		} else {
+			Some(caller.id.as_str())
+		}
+	}
+
 	pub async fn get(&self, id: &str) -> Result<Option<Request>> {
 		self.requests.find_by_id(id).await
 	}

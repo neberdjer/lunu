@@ -5,7 +5,7 @@ use lunu_core::repo::UserRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{bool_to_int, format_dt, int_to_bool, parse_dt, parse_enum};
 use crate::{Db, db_error, map_write_error};
 
@@ -118,11 +118,7 @@ impl UserRepo for SqlxUserRepo {
 	}
 
 	async fn count(&self) -> Result<i64> {
-		let row = sqlx::query("SELECT COUNT(*) AS count FROM users")
-			.fetch_one(&self.db)
-			.await
-			.map_err(db_error)?;
-		row.try_get("count").map_err(db_error)
+		fetch_count(&self.db, sqlx::query("SELECT COUNT(*) AS count FROM users")).await
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {

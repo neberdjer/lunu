@@ -4,6 +4,7 @@ mod error;
 mod extract;
 mod hub;
 mod locale;
+mod pagination;
 mod state;
 mod v1;
 
