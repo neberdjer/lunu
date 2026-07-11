@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use lunu_config::BootstrapConfig;
 use lunu_core::Result;
+use lunu_core::consts::auth::{AUTH_RATE_LIMIT_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECS};
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
@@ -17,6 +18,7 @@ use lunu_db::repos::{
 };
 
 use crate::hub::EventHub;
+use crate::rate_limit::RateLimiter;
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::HardlinkImporter;
@@ -41,6 +43,7 @@ pub struct AppState {
 	pub imports: Arc<ImportService>,
 	pub activity: Arc<ActivityService>,
 	pub hub: Arc<EventHub>,
+	pub auth_rate_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -82,6 +85,10 @@ impl AppState {
 		));
 		let jobs = Arc::new(JobService::new(jobs_repo));
 		let hub = Arc::new(EventHub::new());
+		let auth_rate_limiter = Arc::new(RateLimiter::new(
+			AUTH_RATE_LIMIT_ATTEMPTS,
+			std::time::Duration::from_secs(AUTH_RATE_LIMIT_WINDOW_SECS),
+		));
 		let activity = Arc::new(ActivityService::new(activity_repo, hub.clone()));
 		let requests = Arc::new(RequestService::new(
 			requests_repo.clone(),
@@ -140,6 +147,7 @@ impl AppState {
 			imports,
 			activity,
 			hub,
+			auth_rate_limiter,
 		})
 	}
 }

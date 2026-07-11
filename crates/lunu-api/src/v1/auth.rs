@@ -1,4 +1,5 @@
 use actix_web::{HttpRequest, HttpResponse, web};
+use lunu_core::Error;
 use lunu_core::consts::auth::SESSION_COOKIE;
 use serde::Deserialize;
 use serde_json::json;
@@ -8,6 +9,19 @@ use crate::dto::UserResponse;
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::state::AppState;
+
+fn enforce_auth_rate_limit(req: &HttpRequest, state: &AppState) -> Result<(), ApiError> {
+	let ip = req
+		.connection_info()
+		.realip_remote_addr()
+		.map(str::to_string)
+		.unwrap_or_default();
+	if state.auth_rate_limiter.check(&ip) {
+		Ok(())
+	} else {
+		Err(Error::RateLimited.into())
+	}
+}
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
@@ -23,17 +37,21 @@ pub struct RegisterRequest {
 }
 
 pub async fn login(
+	req: HttpRequest,
 	state: web::Data<AppState>,
 	body: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
 	let authenticated = state.auth.login(&body.username, &body.password).await?;
 	Ok(authenticated_response(HttpResponse::Ok(), &authenticated))
 }
 
 pub async fn register(
+	req: HttpRequest,
 	state: web::Data<AppState>,
 	body: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
 	let authenticated = state
 		.auth
 		.register_with_invite(&body.code, &body.username, &body.password)

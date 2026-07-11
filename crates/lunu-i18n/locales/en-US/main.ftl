@@ -17,6 +17,7 @@ error-not-found = The requested resource was not found.
 error-validation = The submitted data was not valid.
 error-unauthorized = Authentication is required.
 error-forbidden = You do not have permission to do that.
+error-rate-limited = Too many attempts. Please try again later.
 error-conflict = That request conflicts with existing data.
 error-integration = An external service returned an error.
 error-internal = Something went wrong. Please try again.

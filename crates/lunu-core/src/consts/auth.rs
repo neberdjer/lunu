@@ -7,3 +7,6 @@ pub const API_KEY_HEADER: &str = "x-api-key";
 pub const BEARER_PREFIX: &str = "Bearer ";
 
 pub const DEFAULT_INVITE_MAX_USES: i64 = 1;
+
+pub const AUTH_RATE_LIMIT_ATTEMPTS: u32 = 10;
+pub const AUTH_RATE_LIMIT_WINDOW_SECS: u64 = 60;

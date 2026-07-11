@@ -20,6 +20,9 @@ pub enum Error {
 	#[error("forbidden")]
 	Forbidden,
 
+	#[error("too many requests")]
+	RateLimited,
+
 	#[error("conflict: {0}")]
 	Conflict(String),
 
@@ -39,6 +42,7 @@ impl Error {
 			Error::Validation(_) => "validation",
 			Error::Unauthorized => "unauthorized",
 			Error::Forbidden => "forbidden",
+			Error::RateLimited => "rate_limited",
 			Error::Conflict(_) => "conflict",
 			Error::Integration(_) => "integration",
 			Error::Internal(_) => "internal",
@@ -54,7 +58,7 @@ impl Error {
 			| Error::Conflict(detail)
 			| Error::Integration(detail)
 			| Error::Internal(detail) => Some(detail.as_str()),
-			Error::Unauthorized | Error::Forbidden => None,
+			Error::Unauthorized | Error::Forbidden | Error::RateLimited => None,
 		}
 	}
 }

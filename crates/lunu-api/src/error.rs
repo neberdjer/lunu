@@ -35,6 +35,7 @@ impl ResponseError for ApiError {
 			Error::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
 			Error::Unauthorized => StatusCode::UNAUTHORIZED,
 			Error::Forbidden => StatusCode::FORBIDDEN,
+			Error::RateLimited => StatusCode::TOO_MANY_REQUESTS,
 			Error::NotFound(_) => StatusCode::NOT_FOUND,
 			Error::Conflict(_) => StatusCode::CONFLICT,
 			Error::Config(_) | Error::Database(_) | Error::Integration(_) | Error::Internal(_) => {
@@ -70,6 +71,7 @@ mod tests {
 			Error::Validation("x".to_string()),
 			Error::Unauthorized,
 			Error::Forbidden,
+			Error::RateLimited,
 			Error::Conflict("x".to_string()),
 			Error::Integration("x".to_string()),
 			Error::Internal("x".to_string()),

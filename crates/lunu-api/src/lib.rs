@@ -5,6 +5,7 @@ mod extract;
 mod hub;
 mod locale;
 mod pagination;
+mod rate_limit;
 mod state;
 mod v1;
 
