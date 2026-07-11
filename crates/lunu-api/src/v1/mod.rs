@@ -11,6 +11,7 @@ mod requests;
 mod settings;
 mod setup;
 mod users;
+mod ws;
 
 use actix_web::web;
 
@@ -48,6 +49,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
 	cfg.route("/activity", web::get().to(activity::list));
 	cfg.route("/jobs", web::get().to(jobs::list));
+	cfg.route("/ws", web::get().to(ws::ws));
 
 	cfg.route("/quality-profiles", web::get().to(quality_profiles::list));
 	cfg.route(

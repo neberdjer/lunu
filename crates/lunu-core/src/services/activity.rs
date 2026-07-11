@@ -6,14 +6,16 @@ use crate::Result;
 use crate::models::Activity;
 use crate::repo::ActivityRepo;
 use crate::services::new_id;
+use crate::traits::EventPublisher;
 
 pub struct ActivityService {
 	activity: Arc<dyn ActivityRepo>,
+	events: Arc<dyn EventPublisher>,
 }
 
 impl ActivityService {
-	pub fn new(activity: Arc<dyn ActivityRepo>) -> Self {
-		Self { activity }
+	pub fn new(activity: Arc<dyn ActivityRepo>, events: Arc<dyn EventPublisher>) -> Self {
+		Self { activity, events }
 	}
 
 	pub async fn record(&self, request_id: &str, event: &str) -> Result<()> {
@@ -24,7 +26,9 @@ impl ActivityService {
 			detail: None,
 			at: Utc::now(),
 		};
-		self.activity.create(&activity).await
+		self.activity.create(&activity).await?;
+		self.events.publish(&activity);
+		Ok(())
 	}
 
 	pub async fn recent(&self, limit: i64) -> Result<Vec<Activity>> {

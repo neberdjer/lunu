@@ -2,6 +2,7 @@ mod cookie;
 mod dto;
 mod error;
 mod extract;
+mod hub;
 mod locale;
 mod state;
 mod v1;

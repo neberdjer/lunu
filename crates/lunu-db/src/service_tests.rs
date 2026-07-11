@@ -18,7 +18,7 @@ use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
 	MetadataService, MonitorService, RequestService, SettingsService,
 };
-use lunu_core::traits::{DownloadClient, Importer, MetadataProvider};
+use lunu_core::traits::{DownloadClient, EventPublisher, Importer, MetadataProvider};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
@@ -694,10 +694,48 @@ fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
 	request_service_with_activity(db, jobs, activity_service(db))
 }
 
+struct NoopPublisher;
+
+impl EventPublisher for NoopPublisher {
+	fn publish(&self, _activity: &lunu_core::models::Activity) {}
+}
+
+#[derive(Default)]
+struct RecordingPublisher {
+	events: std::sync::Mutex<Vec<String>>,
+}
+
+impl EventPublisher for RecordingPublisher {
+	fn publish(&self, activity: &lunu_core::models::Activity) {
+		self.events
+			.lock()
+			.unwrap()
+			.push(format!("{}:{}", activity.request_id, activity.event));
+	}
+}
+
 fn activity_service(db: &Db) -> Arc<ActivityService> {
-	Arc::new(ActivityService::new(Arc::new(SqlxActivityRepo::new(
-		db.clone(),
-	))))
+	Arc::new(ActivityService::new(
+		Arc::new(SqlxActivityRepo::new(db.clone())),
+		Arc::new(NoopPublisher),
+	))
+}
+
+#[tokio::test]
+async fn recording_activity_publishes_event() {
+	let db = memory_db().await;
+	let publisher = Arc::new(RecordingPublisher::default());
+	let activity = ActivityService::new(
+		Arc::new(SqlxActivityRepo::new(db.clone())),
+		publisher.clone(),
+	);
+
+	activity.record("r1", "downloading").await.unwrap();
+
+	assert_eq!(
+		publisher.events.lock().unwrap().as_slice(),
+		&["r1:downloading".to_string()]
+	);
 }
 
 fn request_service_with_activity(
