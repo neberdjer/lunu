@@ -1,17 +1,23 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::Utc;
+use lunu_core::Result as CoreResult;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
-	Download, DownloadState, Job, JobStatus, JobType, MetadataCacheEntry, QualityProfile, Request,
-	RequestStatus, Role, UserSettings,
+	Book, Chapters, Download, DownloadState, Job, JobStatus, JobType, MetadataCacheEntry,
+	QualityProfile, Request, RequestStatus, Role, UserSettings,
 };
 use lunu_core::repo::{
 	DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo,
 	UserRepo, UserSettingsRepo,
 };
-use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
+use lunu_core::services::{
+	ApiKeyService, AuthService, InviteService, JobService, MetadataService, RequestService,
+	SettingsService,
+};
+use lunu_core::traits::MetadataProvider;
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
@@ -338,6 +344,71 @@ async fn download_create_and_set_state() {
 		DownloadState::Downloading
 	);
 	assert_eq!(repo.list().await.unwrap().len(), 1);
+}
+
+struct StubProvider;
+
+#[async_trait]
+impl MetadataProvider for StubProvider {
+	fn id(&self) -> &'static str {
+		"stub"
+	}
+	async fn search(&self, _query: &str, _region: &str) -> CoreResult<Vec<Book>> {
+		Ok(Vec::new())
+	}
+	async fn get_book(&self, _asin: &str, _region: &str) -> CoreResult<Option<Book>> {
+		Ok(None)
+	}
+	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
+		Ok(None)
+	}
+}
+
+#[tokio::test]
+async fn approving_a_request_enqueues_a_grab_job() {
+	let db = memory_db().await;
+
+	let requests_repo = Arc::new(SqlxRequestRepo::new(db.clone()));
+	let encryptor = Encryptor::new("dev-master-key-value", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
+	let settings = Arc::new(SettingsService::new(
+		Arc::new(SqlxSettingsRepo::new(db.clone())),
+		encryptor,
+	));
+	let metadata = Arc::new(MetadataService::new(
+		Arc::new(StubProvider),
+		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
+		settings,
+	));
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = RequestService::new(
+		requests_repo.clone(),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+		metadata,
+		jobs.clone(),
+	);
+
+	let now = Utc::now();
+	let request = Request {
+		id: "r1".to_string(),
+		user_id: "u1".to_string(),
+		asin: "B01".to_string(),
+		title: "The Hobbit".to_string(),
+		author: None,
+		cover_url: None,
+		status: RequestStatus::Pending,
+		approved_by: None,
+		created_at: now,
+		updated_at: now,
+	};
+	requests_repo.create(&request).await.unwrap();
+
+	let approved = requests.approve("admin", "r1").await.unwrap();
+	assert_eq!(approved.status, RequestStatus::Approved);
+
+	let listed = jobs.list().await.unwrap();
+	assert_eq!(listed.len(), 1);
+	assert_eq!(listed[0].job_type, JobType::Grab);
+	assert!(listed[0].payload.contains("r1"));
 }
 
 fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {

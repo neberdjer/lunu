@@ -1589,6 +1589,7 @@ dependencies = [
  "lunu-api",
  "lunu-config",
  "lunu-db",
+ "lunu-jobs",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1671,6 +1672,7 @@ dependencies = [
  "chrono",
  "lunu-core",
  "lunu-db",
+ "serde_json",
  "tokio",
  "tracing",
 ]

@@ -1,8 +1,10 @@
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use actix_web::{App, HttpServer, web};
 use lunu_api::AppState;
 use lunu_config::BootstrapConfig;
+use lunu_jobs::{PipelineHandler, WorkerConfig, WorkerPool};
 use tracing_subscriber::EnvFilter;
 
 const DEFAULT_LOG_FILTER: &str = "info,actix_server=warn";
@@ -51,12 +53,17 @@ async fn main() -> ExitCode {
 	let workers = config.workers;
 
 	let state = match AppState::build(db, config, env!("CARGO_PKG_VERSION")) {
-		Ok(state) => web::Data::new(state),
+		Ok(state) => state,
 		Err(error) => {
 			tracing::error!(%error, "failed to build application state");
 			return ExitCode::FAILURE;
 		}
 	};
+
+	let handler = Arc::new(PipelineHandler::new(state.grabs.clone()));
+	WorkerPool::new(state.jobs.repo(), handler, WorkerConfig::default()).start();
+
+	let state = web::Data::new(state);
 
 	tracing::info!(%bind, workers, "starting lunu");
 

@@ -2,10 +2,16 @@ use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::consts::jobs::{RETRY_BASE_SECS, RETRY_MAX_SECS};
 use crate::consts::reasons;
 use crate::{Error, Result};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrabPayload {
+	pub request_id: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStatus {

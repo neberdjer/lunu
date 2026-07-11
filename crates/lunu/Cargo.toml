@@ -16,6 +16,7 @@ path = "src/main.rs"
 lunu-config.workspace = true
 lunu-db.workspace = true
 lunu-api.workspace = true
+lunu-jobs.workspace = true
 actix-web.workspace = true
 tokio.workspace = true
 tracing.workspace = true

@@ -7,6 +7,10 @@ use lunu_core::models::Job;
 use lunu_core::repo::JobRepo;
 use lunu_core::traits::JobHandler;
 
+mod pipeline;
+
+pub use pipeline::PipelineHandler;
+
 #[derive(Debug, Clone, Copy)]
 pub struct WorkerConfig {
 	pub workers: usize,

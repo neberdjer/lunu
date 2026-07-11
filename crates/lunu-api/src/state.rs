@@ -5,12 +5,12 @@ use lunu_core::Result;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ApiKeyService, AuthService, GrabService, InviteService, MetadataService, QualityProfileService,
-	ReleaseService, RequestService, SettingsService, UserService,
+	ApiKeyService, AuthService, GrabService, InviteService, JobService, MetadataService,
+	QualityProfileService, ReleaseService, RequestService, SettingsService, UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
-	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxMetadataCacheRepo,
+	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMetadataCacheRepo,
 	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
 	SqlxUserSettingsRepo,
 };
@@ -32,6 +32,7 @@ pub struct AppState {
 	pub releases: Arc<ReleaseService>,
 	pub quality_profiles: Arc<QualityProfileService>,
 	pub grabs: Arc<GrabService>,
+	pub jobs: Arc<JobService>,
 }
 
 impl AppState {
@@ -46,6 +47,7 @@ impl AppState {
 		let user_settings_repo = Arc::new(SqlxUserSettingsRepo::new(db.clone()));
 		let quality_profiles_repo = Arc::new(SqlxQualityProfileRepo::new(db.clone()));
 		let downloads_repo = Arc::new(SqlxDownloadRepo::new(db.clone()));
+		let jobs_repo = Arc::new(SqlxJobRepo::new(db.clone()));
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
 
@@ -69,10 +71,12 @@ impl AppState {
 			metadata_cache_repo,
 			settings.clone(),
 		));
+		let jobs = Arc::new(JobService::new(jobs_repo));
 		let requests = Arc::new(RequestService::new(
 			requests_repo.clone(),
 			user_settings_repo,
 			metadata.clone(),
+			jobs.clone(),
 		));
 
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
@@ -105,6 +109,7 @@ impl AppState {
 			releases,
 			quality_profiles,
 			grabs,
+			jobs,
 		})
 	}
 }

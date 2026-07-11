@@ -17,6 +17,10 @@ impl JobService {
 		Self { jobs }
 	}
 
+	pub fn repo(&self) -> Arc<dyn JobRepo> {
+		self.jobs.clone()
+	}
+
 	pub async fn enqueue(&self, job_type: JobType, payload: String) -> Result<Job> {
 		let now = Utc::now();
 		let job = Job {

@@ -106,12 +106,14 @@ impl JobRepo for SqlxJobRepo {
 
 			let claimed = sqlx::query(
 				"UPDATE jobs SET status = 'running', locked_by = ?, locked_at = ?, \
-				 attempts = attempts + 1, updated_at = ? WHERE id = ? AND status = 'pending'",
+				 attempts = attempts + 1, updated_at = ? \
+				 WHERE id = ? AND status = 'pending' AND run_after <= ?",
 			)
 			.bind(worker_id)
 			.bind(&now)
 			.bind(&now)
 			.bind(&id)
+			.bind(&now)
 			.execute(&self.db)
 			.await
 			.map_err(db_error)?;

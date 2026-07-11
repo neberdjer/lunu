@@ -3,15 +3,16 @@ use std::sync::Arc;
 use chrono::{Duration, Utc};
 
 use crate::consts::reasons;
-use crate::models::{Request, RequestStatus, User, UserSettings};
+use crate::models::{GrabPayload, JobType, Request, RequestStatus, User, UserSettings};
 use crate::repo::{RequestRepo, UserSettingsRepo};
-use crate::services::{MetadataService, new_id};
+use crate::services::{JobService, MetadataService, new_id};
 use crate::{Error, Result};
 
 pub struct RequestService {
 	requests: Arc<dyn RequestRepo>,
 	user_settings: Arc<dyn UserSettingsRepo>,
 	metadata: Arc<MetadataService>,
+	jobs: Arc<JobService>,
 }
 
 impl RequestService {
@@ -19,12 +20,22 @@ impl RequestService {
 		requests: Arc<dyn RequestRepo>,
 		user_settings: Arc<dyn UserSettingsRepo>,
 		metadata: Arc<MetadataService>,
+		jobs: Arc<JobService>,
 	) -> Self {
 		Self {
 			requests,
 			user_settings,
 			metadata,
+			jobs,
 		}
+	}
+
+	async fn enqueue_fulfillment(&self, request_id: &str) -> Result<()> {
+		let payload = serde_json::to_string(&GrabPayload {
+			request_id: request_id.to_string(),
+		})?;
+		self.jobs.enqueue(JobType::Grab, payload).await?;
+		Ok(())
 	}
 
 	pub async fn create(&self, user: &User, asin: &str) -> Result<Request> {
@@ -74,6 +85,9 @@ impl RequestService {
 		};
 
 		self.requests.create(&request).await?;
+		if request.status == RequestStatus::Approved {
+			self.enqueue_fulfillment(&request.id).await?;
+		}
 		Ok(request)
 	}
 
@@ -125,6 +139,9 @@ impl RequestService {
 		request.approved_by = Some(admin_id.to_string());
 		request.updated_at = Utc::now();
 		self.requests.update(&request).await?;
+		if status == RequestStatus::Approved {
+			self.enqueue_fulfillment(&request.id).await?;
+		}
 		Ok(request)
 	}
 

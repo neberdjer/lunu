@@ -59,4 +59,10 @@ impl Error {
 	}
 }
 
+impl From<serde_json::Error> for Error {
+	fn from(error: serde_json::Error) -> Self {
+		Error::Internal(error.to_string())
+	}
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
