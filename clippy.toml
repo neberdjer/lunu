@@ -1,0 +1,7 @@
+disallowed-types = [
+    { path = "chrono::offset::Local", reason = "all timestamps are UTC; use chrono::Utc" },
+]
+
+disallowed-methods = [
+    { path = "chrono::offset::Local::now", reason = "all timestamps are UTC; use chrono::Utc::now" },
+]
