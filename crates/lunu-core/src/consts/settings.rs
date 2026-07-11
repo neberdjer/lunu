@@ -14,6 +14,7 @@ pub const QBITTORRENT_API_KEY: &str = "qbittorrent_api_key";
 pub const QBITTORRENT_USERNAME: &str = "qbittorrent_username";
 pub const QBITTORRENT_PASSWORD: &str = "qbittorrent_password";
 pub const DOWNLOAD_DIR: &str = "download_dir";
+pub const ABS_URL: &str = "abs_url";
 
 pub enum SettingKind {
 	Text,
@@ -134,6 +135,12 @@ pub const REGISTRY: &[SettingSpec] = &[
 		kind: SettingKind::Enum(VALID_METADATA_REGIONS),
 		secret: false,
 		default: Some(DEFAULT_METADATA_REGION),
+	},
+	SettingSpec {
+		key: ABS_URL,
+		kind: SettingKind::Url,
+		secret: false,
+		default: None,
 	},
 ];
 

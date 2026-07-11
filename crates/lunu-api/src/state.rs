@@ -19,6 +19,7 @@ use lunu_db::repos::{
 
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
+use lunu_integrations::auth::AudiobookshelfProvider;
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::HardlinkImporter;
@@ -63,11 +64,13 @@ impl AppState {
 		let blocklist_repo = Arc::new(SqlxBlocklistRepo::new(db.clone()));
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
+		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
 
 		let auth = Arc::new(AuthService::new(
 			users_repo.clone(),
 			sessions_repo.clone(),
 			invites_repo.clone(),
+			Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
 		));
 		let users = Arc::new(UserService::new(
 			users_repo,
@@ -76,7 +79,6 @@ impl AppState {
 		));
 		let api_keys = Arc::new(ApiKeyService::new(api_keys_repo));
 		let invites = Arc::new(InviteService::new(invites_repo));
-		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
 
 		let provider = Arc::new(AudnexusProvider::new());
 		let metadata = Arc::new(MetadataService::new(

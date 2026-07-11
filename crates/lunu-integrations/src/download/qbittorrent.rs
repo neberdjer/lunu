@@ -60,9 +60,7 @@ pub struct QbittorrentClient {
 
 impl QbittorrentClient {
 	pub fn new(settings: Arc<SettingsService>) -> Self {
-		let http = reqwest::Client::builder()
-			.user_agent(concat!("lunu/", env!("CARGO_PKG_VERSION")))
-			.timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+		let http = crate::http_client_builder(Duration::from_secs(REQUEST_TIMEOUT_SECS))
 			.cookie_store(true)
 			.build()
 			.expect("reqwest client builds with static configuration");

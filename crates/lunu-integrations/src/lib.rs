@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod download;
 pub mod indexer;
 pub mod library;
@@ -6,11 +7,18 @@ pub mod metadata;
 pub(crate) mod http;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use lunu_core::services::SettingsService;
 
 pub(crate) fn integration_error(error: impl std::fmt::Display) -> lunu_core::Error {
 	lunu_core::Error::Integration(error.to_string())
+}
+
+pub(crate) fn http_client_builder(timeout: Duration) -> reqwest::ClientBuilder {
+	reqwest::Client::builder()
+		.user_agent(concat!("lunu/", env!("CARGO_PKG_VERSION")))
+		.timeout(timeout)
 }
 
 pub(crate) async fn optional_setting(

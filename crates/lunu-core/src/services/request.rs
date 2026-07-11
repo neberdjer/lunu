@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
@@ -133,6 +134,26 @@ impl RequestService {
 
 	pub async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
 		self.requests.list_for_user(user_id).await
+	}
+
+	pub async fn status_by_asin(&self, user_id: &str) -> Result<HashMap<String, RequestStatus>> {
+		let mut statuses = HashMap::new();
+		for request in self.requests.list_for_user(user_id).await? {
+			statuses.entry(request.asin).or_insert(request.status);
+		}
+		Ok(statuses)
+	}
+
+	pub async fn status_for_asin(
+		&self,
+		user_id: &str,
+		asin: &str,
+	) -> Result<Option<RequestStatus>> {
+		Ok(self
+			.requests
+			.find_by_user_and_asin(user_id, asin)
+			.await?
+			.map(|request| request.status))
 	}
 
 	pub async fn list_page(

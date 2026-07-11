@@ -8,8 +8,10 @@ use crate::crypto::{generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{InviteRepo, SessionRepo, UserRepo};
 use crate::services::{
-	build_local_user, ensure_username_available, new_id, require_user, validate_password,
+	build_external_user, build_local_user, ensure_username_available, new_id, require_user,
+	validate_password,
 };
+use crate::traits::{AuthProvider, ExternalIdentity};
 use crate::{Error, Result};
 
 pub struct Authenticated {
@@ -21,6 +23,7 @@ pub struct AuthService {
 	users: Arc<dyn UserRepo>,
 	sessions: Arc<dyn SessionRepo>,
 	invites: Arc<dyn InviteRepo>,
+	provider: Option<Arc<dyn AuthProvider>>,
 }
 
 impl AuthService {
@@ -28,11 +31,13 @@ impl AuthService {
 		users: Arc<dyn UserRepo>,
 		sessions: Arc<dyn SessionRepo>,
 		invites: Arc<dyn InviteRepo>,
+		provider: Option<Arc<dyn AuthProvider>>,
 	) -> Self {
 		Self {
 			users,
 			sessions,
 			invites,
+			provider,
 		}
 	}
 
@@ -53,29 +58,66 @@ impl AuthService {
 		let user = build_local_user(username, password, email, Role::Admin)?;
 		self.users.create(&user).await?;
 
-		let session_token = self.create_session(&user.id).await?;
-		Ok(Authenticated {
-			user,
-			session_token,
-		})
+		self.issue(user).await
 	}
 
 	pub async fn login(&self, username: &str, password: &str) -> Result<Authenticated> {
-		let user = self
-			.users
-			.find_by_username(username)
-			.await?
-			.ok_or(Error::Unauthorized)?;
+		if let Some(user) = self.users.find_by_username(username).await? {
+			if !user.enabled {
+				return Err(Error::Forbidden);
+			}
+			if user.auth_source == AuthSource::Local {
+				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
+				if !verify_password(password, hash)? {
+					return Err(Error::Unauthorized);
+				}
+				return self.issue(user).await;
+			}
+			if self
+				.authenticate_external(username, password)
+				.await?
+				.is_none()
+			{
+				return Err(Error::Unauthorized);
+			}
+			return self.issue(user).await;
+		}
 
+		let Some(identity) = self.authenticate_external(username, password).await? else {
+			return Err(Error::Unauthorized);
+		};
+		let user = self.provision_external(identity).await?;
 		if !user.enabled {
 			return Err(Error::Forbidden);
 		}
+		self.issue(user).await
+	}
 
-		let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
-		if !verify_password(password, hash)? {
-			return Err(Error::Unauthorized);
+	async fn authenticate_external(
+		&self,
+		username: &str,
+		password: &str,
+	) -> Result<Option<ExternalIdentity>> {
+		match &self.provider {
+			Some(provider) => provider.authenticate(username, password).await,
+			None => Ok(None),
+		}
+	}
+
+	async fn provision_external(&self, identity: ExternalIdentity) -> Result<User> {
+		if let Some(existing) = self.users.find_by_username(&identity.username).await? {
+			if existing.auth_source == AuthSource::Local {
+				return Err(Error::Unauthorized);
+			}
+			return Ok(existing);
 		}
 
+		let user = build_external_user(identity, Role::User);
+		self.users.create(&user).await?;
+		Ok(user)
+	}
+
+	async fn issue(&self, user: User) -> Result<Authenticated> {
 		let session_token = self.create_session(&user.id).await?;
 		Ok(Authenticated {
 			user,
@@ -130,11 +172,7 @@ impl AuthService {
 		self.users.update(&user).await?;
 
 		self.sessions.delete_for_user(user_id).await?;
-		let session_token = self.create_session(user_id).await?;
-		Ok(Authenticated {
-			user,
-			session_token,
-		})
+		self.issue(user).await
 	}
 
 	pub async fn logout(&self, token: &str) -> Result<()> {
@@ -169,11 +207,7 @@ impl AuthService {
 		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
 		self.users.create(&user).await?;
 
-		let session_token = self.create_session(&user.id).await?;
-		Ok(Authenticated {
-			user,
-			session_token,
-		})
+		self.issue(user).await
 	}
 
 	async fn create_session(&self, user_id: &str) -> Result<String> {

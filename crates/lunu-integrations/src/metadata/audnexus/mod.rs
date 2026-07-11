@@ -18,9 +18,7 @@ pub struct AudnexusProvider {
 
 impl AudnexusProvider {
 	pub fn new() -> Self {
-		let client = reqwest::Client::builder()
-			.user_agent(concat!("lunu/", env!("CARGO_PKG_VERSION")))
-			.timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+		let client = crate::http_client_builder(Duration::from_secs(REQUEST_TIMEOUT_SECS))
 			.build()
 			.expect("reqwest client builds with static configuration");
 

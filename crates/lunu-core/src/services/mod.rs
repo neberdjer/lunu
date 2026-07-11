@@ -35,6 +35,7 @@ use crate::consts::reasons;
 use crate::crypto::hash_password;
 use crate::models::{AuthSource, Role, User};
 use crate::repo::UserRepo;
+use crate::traits::ExternalIdentity;
 use crate::{Error, Result};
 
 pub(crate) fn validate_password(password: &str) -> Result<()> {
@@ -80,6 +81,21 @@ pub(crate) async fn require_user(users: &dyn UserRepo, id: &str) -> Result<User>
 		.find_by_id(id)
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("user {id}")))
+}
+
+pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> User {
+	let now = Utc::now();
+	User {
+		id: new_id(),
+		username: identity.username,
+		email: identity.email,
+		password_hash: None,
+		role,
+		auth_source: AuthSource::Abs,
+		enabled: true,
+		created_at: now,
+		updated_at: now,
+	}
 }
 
 pub(crate) fn build_local_user(

@@ -18,7 +18,10 @@ use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
 	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService, UserService,
 };
-use lunu_core::traits::{DownloadClient, EventPublisher, Importer, Indexer, MetadataProvider};
+use lunu_core::traits::{
+	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer,
+	MetadataProvider,
+};
 use lunu_core::{Error, Result as CoreResult};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
@@ -206,7 +209,105 @@ fn auth_service(db: &Db) -> AuthService {
 		Arc::new(SqlxUserRepo::new(db.clone())),
 		Arc::new(SqlxSessionRepo::new(db.clone())),
 		Arc::new(SqlxInviteRepo::new(db.clone())),
+		None,
 	)
+}
+
+fn auth_service_with_provider(db: &Db, provider: Arc<dyn AuthProvider>) -> AuthService {
+	AuthService::new(
+		Arc::new(SqlxUserRepo::new(db.clone())),
+		Arc::new(SqlxSessionRepo::new(db.clone())),
+		Arc::new(SqlxInviteRepo::new(db.clone())),
+		Some(provider),
+	)
+}
+
+struct FakeAuthProvider {
+	username: String,
+	password: String,
+	identity: ExternalIdentity,
+}
+
+#[async_trait]
+impl AuthProvider for FakeAuthProvider {
+	fn name(&self) -> &'static str {
+		"fake"
+	}
+	async fn authenticate(
+		&self,
+		username: &str,
+		password: &str,
+	) -> CoreResult<Option<ExternalIdentity>> {
+		if username == self.username && password == self.password {
+			Ok(Some(self.identity.clone()))
+		} else {
+			Ok(None)
+		}
+	}
+}
+
+#[tokio::test]
+async fn abs_login_provisions_and_links_external_user() {
+	let db = memory_db().await;
+	let provider = Arc::new(FakeAuthProvider {
+		username: "absuser".to_string(),
+		password: "abspass".to_string(),
+		identity: ExternalIdentity {
+			username: "absuser".to_string(),
+			email: Some("abs@example.com".to_string()),
+		},
+	});
+	let auth = auth_service_with_provider(&db, provider);
+
+	assert!(matches!(
+		auth.login("absuser", "wrong").await,
+		Err(Error::Unauthorized)
+	));
+
+	let first = auth.login("absuser", "abspass").await.unwrap();
+	assert_eq!(first.user.auth_source, AuthSource::Abs);
+	assert_eq!(first.user.email.as_deref(), Some("abs@example.com"));
+	assert!(first.user.password_hash.is_none());
+	assert!(
+		auth.validate_session(&first.session_token)
+			.await
+			.unwrap()
+			.is_some()
+	);
+
+	let second = auth.login("absuser", "abspass").await.unwrap();
+	assert_eq!(second.user.id, first.user.id);
+	assert_eq!(SqlxUserRepo::new(db.clone()).count().await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn abs_credentials_cannot_unlock_local_account() {
+	let db = memory_db().await;
+	let users = UserService::new(
+		Arc::new(SqlxUserRepo::new(db.clone())),
+		Arc::new(SqlxSessionRepo::new(db.clone())),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+	);
+	users
+		.create("alice", "password123", None, Role::User)
+		.await
+		.unwrap();
+
+	let provider = Arc::new(FakeAuthProvider {
+		username: "ghost".to_string(),
+		password: "ghostpass".to_string(),
+		identity: ExternalIdentity {
+			username: "alice".to_string(),
+			email: None,
+		},
+	});
+	let auth = auth_service_with_provider(&db, provider);
+
+	assert!(matches!(
+		auth.login("ghost", "ghostpass").await,
+		Err(Error::Unauthorized)
+	));
+	assert!(auth.login("alice", "password123").await.is_ok());
 }
 
 #[tokio::test]
@@ -597,6 +698,60 @@ async fn request_list_page_filters_and_counts() {
 	let pending = repo.list_page(None, Some("pending"), 10, 0).await.unwrap();
 	assert_eq!(pending.len(), 2);
 	assert!(pending.iter().all(|r| r.status == RequestStatus::Pending));
+}
+
+#[tokio::test]
+async fn status_by_asin_scopes_to_user_and_keeps_newest() {
+	let db = memory_db().await;
+	let repo = SqlxRequestRepo::new(db.clone());
+
+	let make =
+		|id: &str, user: &str, asin: &str, status: RequestStatus, at: chrono::DateTime<Utc>| {
+			Request {
+				id: id.to_string(),
+				user_id: user.to_string(),
+				asin: asin.to_string(),
+				title: "t".to_string(),
+				author: None,
+				cover_url: None,
+				status,
+				approved_by: None,
+				created_at: at,
+				updated_at: at,
+			}
+		};
+	let older = Utc::now() - chrono::Duration::days(1);
+	let newer = Utc::now();
+	repo.create(&make("1", "u1", "asinX", RequestStatus::Declined, older))
+		.await
+		.unwrap();
+	repo.create(&make("2", "u1", "asinX", RequestStatus::Available, newer))
+		.await
+		.unwrap();
+	repo.create(&make("3", "u1", "asinY", RequestStatus::Pending, newer))
+		.await
+		.unwrap();
+	repo.create(&make("4", "u2", "asinZ", RequestStatus::Pending, newer))
+		.await
+		.unwrap();
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let service = request_service(&db, jobs);
+
+	let map = service.status_by_asin("u1").await.unwrap();
+	assert_eq!(map.len(), 2);
+	assert_eq!(map.get("asinX"), Some(&RequestStatus::Available));
+	assert_eq!(map.get("asinY"), Some(&RequestStatus::Pending));
+	assert!(!map.contains_key("asinZ"));
+
+	assert_eq!(
+		service.status_for_asin("u1", "asinX").await.unwrap(),
+		Some(RequestStatus::Available)
+	);
+	assert_eq!(
+		service.status_for_asin("u1", "missing").await.unwrap(),
+		None
+	);
 }
 
 fn caller(id: &str, role: Role) -> User {
