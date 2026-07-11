@@ -165,7 +165,9 @@ pub(crate) struct DownloadResponse {
 	pub release_title: String,
 	pub indexer: String,
 	pub download_url: String,
+	pub info_hash: Option<String>,
 	pub state: String,
+	pub progress: i64,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }
@@ -180,7 +182,9 @@ impl From<&Download> for DownloadResponse {
 			release_title: download.release_title.clone(),
 			indexer: download.indexer.clone(),
 			download_url: download.download_url.clone(),
+			info_hash: download.info_hash.clone(),
 			state: download.state.to_string(),
+			progress: download.progress,
 			created_at: download.created_at,
 			updated_at: download.updated_at,
 		}

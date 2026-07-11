@@ -7,6 +7,11 @@ use crate::crypto::Encryptor;
 use crate::models::Setting;
 use crate::repo::SettingsRepo;
 
+pub struct SettingView {
+	pub secret: bool,
+	pub value: Option<String>,
+}
+
 pub struct SettingsService {
 	repo: Arc<dyn SettingsRepo>,
 	encryptor: Encryptor,
@@ -29,6 +34,23 @@ impl SettingsService {
 		};
 
 		Ok(Some(value))
+	}
+
+	pub async fn view(&self, key: &str) -> Result<Option<SettingView>> {
+		let Some(setting) = self.repo.get(key).await? else {
+			return Ok(None);
+		};
+
+		let value = if setting.encrypted {
+			None
+		} else {
+			Some(setting.value)
+		};
+
+		Ok(Some(SettingView {
+			secret: setting.encrypted,
+			value,
+		}))
 	}
 
 	pub async fn set(&self, key: &str, value: &str, secret: bool) -> Result<()> {

@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
 use actix_web::{HttpResponse, web};
-use lunu_core::Error;
 use lunu_core::models::RequestStatus;
 use lunu_core::services::ReleaseSelection;
 use serde::Deserialize;
 
-use crate::dto::{DownloadResponse, RequestResponse};
+use crate::dto::{ActivityResponse, DownloadResponse, RequestResponse};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::pagination::{Page, Pagination};
@@ -70,14 +69,21 @@ pub async fn get(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	let id = id.into_inner();
-	let request = state
-		.requests
-		.get(&id)
-		.await?
-		.filter(|request| user.role.is_admin() || request.user_id == user.id)
-		.ok_or_else(|| Error::NotFound(format!("request {id}")))?;
-
+	let request = state.requests.get_for(&user, &id).await?;
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
+}
+
+pub async fn activity(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let id = id.into_inner();
+	state.requests.get_for(&user, &id).await?;
+
+	let activity = state.activity.for_request(&id).await?;
+	let items: Vec<ActivityResponse> = activity.iter().map(ActivityResponse::from).collect();
+	Ok(HttpResponse::Ok().json(items))
 }
 
 pub async fn approve(

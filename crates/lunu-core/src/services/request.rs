@@ -148,6 +148,14 @@ impl RequestService {
 		self.requests.find_by_id(id).await
 	}
 
+	pub async fn get_for(&self, caller: &User, id: &str) -> Result<Request> {
+		self.requests
+			.find_by_id(id)
+			.await?
+			.filter(|request| caller.role.is_admin() || request.user_id == caller.id)
+			.ok_or_else(|| Error::NotFound(format!("request {id}")))
+	}
+
 	pub async fn approve(&self, admin_id: &str, id: &str) -> Result<Request> {
 		self.transition(id, RequestStatus::Approved, admin_id).await
 	}

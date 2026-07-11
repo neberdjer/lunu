@@ -25,13 +25,13 @@ pub async fn get(
 	key: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	let key = key.into_inner();
-	let value = state
+	let view = state
 		.settings
-		.get(&key)
+		.view(&key)
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("setting {key}")))?;
 
-	Ok(HttpResponse::Ok().json(json!({ "key": key, "value": value })))
+	Ok(HttpResponse::Ok().json(json!({ "key": key, "secret": view.secret, "value": view.value })))
 }
 
 pub async fn set(

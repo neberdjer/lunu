@@ -25,7 +25,7 @@ pub use monitor::MonitorService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};
 pub use release::ReleaseService;
 pub use request::RequestService;
-pub use settings::SettingsService;
+pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
 
 use chrono::Utc;

@@ -304,6 +304,32 @@ async fn settings_encrypts_secret_values() {
 }
 
 #[tokio::test]
+async fn settings_view_masks_secrets() {
+	let db = memory_db().await;
+	let settings = settings_service(&db);
+
+	settings
+		.set("qbittorrent_password", "s3cret", true)
+		.await
+		.unwrap();
+	settings.set("download_dir", "/data", false).await.unwrap();
+
+	let secret = settings
+		.view("qbittorrent_password")
+		.await
+		.unwrap()
+		.unwrap();
+	assert!(secret.secret);
+	assert!(secret.value.is_none());
+
+	let plain = settings.view("download_dir").await.unwrap().unwrap();
+	assert!(!plain.secret);
+	assert_eq!(plain.value.as_deref(), Some("/data"));
+
+	assert!(settings.view("missing").await.unwrap().is_none());
+}
+
+#[tokio::test]
 async fn api_key_issue_verify_revoke() {
 	let db = memory_db().await;
 	let keys = ApiKeyService::new(Arc::new(SqlxApiKeyRepo::new(db.clone())));

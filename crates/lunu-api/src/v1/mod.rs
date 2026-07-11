@@ -40,6 +40,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/requests", web::get().to(requests::list));
 	cfg.route("/requests", web::post().to(requests::create));
 	cfg.route("/requests/{id}", web::get().to(requests::get));
+	cfg.route("/requests/{id}/activity", web::get().to(requests::activity));
 	cfg.route("/requests/{id}/approve", web::post().to(requests::approve));
 	cfg.route("/requests/{id}/decline", web::post().to(requests::decline));
 	cfg.route("/requests/{id}/releases", web::get().to(requests::releases));
