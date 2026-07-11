@@ -42,7 +42,7 @@ fn map_state(state: &str, progress: f64) -> DownloadState {
 	}
 }
 
-const PROVIDER_ID: &str = "qbittorrent";
+const PROVIDER_ID: &str = lunu_core::consts::settings::QBITTORRENT;
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 const OK_BODY: &str = "Ok.";
 
@@ -191,6 +191,23 @@ impl DownloadClient for QbittorrentClient {
 			progress: torrent.progress,
 			content_path: torrent.content_path,
 		}))
+	}
+
+	async fn test_connection(&self) -> Result<()> {
+		let (base_url, api_key) = self.prepare().await?;
+
+		let response = send_with_retry(|| {
+			authorize(
+				self.http
+					.get(format!("{base_url}/api/v2/app/version"))
+					.header(REFERER, base_url.as_str()),
+				&api_key,
+			)
+		})
+		.await?;
+
+		self.check_response(response)?;
+		Ok(())
 	}
 }
 

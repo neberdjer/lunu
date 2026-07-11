@@ -4,6 +4,9 @@ use crate::consts::metadata::{
 };
 use crate::consts::reasons;
 
+pub const PROWLARR: &str = "prowlarr";
+pub const QBITTORRENT: &str = "qbittorrent";
+
 pub const PROWLARR_URL: &str = "prowlarr_url";
 pub const PROWLARR_API_KEY: &str = "prowlarr_api_key";
 pub const QBITTORRENT_URL: &str = "qbittorrent_url";

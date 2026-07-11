@@ -61,6 +61,10 @@ impl ReleaseService {
 			.await
 	}
 
+	pub async fn test_indexer(&self) -> Result<()> {
+		self.indexer.test_connection().await
+	}
+
 	pub async fn search(&self, query: &str) -> Result<Vec<ScoredRelease>> {
 		let releases = self.indexer.search(query).await?;
 		let profile = self.default_profile().await?;

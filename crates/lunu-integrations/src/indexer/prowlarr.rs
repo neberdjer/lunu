@@ -13,7 +13,7 @@ use serde::Deserialize;
 use crate::http::send_with_retry;
 use crate::{integration_error, required_setting};
 
-const PROVIDER_ID: &str = "prowlarr";
+const PROVIDER_ID: &str = lunu_core::consts::settings::PROWLARR;
 const AUDIOBOOK_CATEGORY: &str = "3030";
 const ALL_INDEXERS: &str = "-1";
 const SEARCH_TYPE: &str = "search";
@@ -39,6 +39,15 @@ impl ProwlarrClient {
 
 	async fn setting(&self, key: &str) -> Result<String> {
 		required_setting(&self.settings, key, reasons::PROWLARR_NOT_CONFIGURED).await
+	}
+
+	fn check_response(&self, response: reqwest::Response) -> Result<reqwest::Response> {
+		if response.status() == StatusCode::UNAUTHORIZED {
+			return Err(Error::Validation(
+				reasons::PROWLARR_UNAUTHORIZED.to_string(),
+			));
+		}
+		response.error_for_status().map_err(integration_error)
 	}
 }
 
@@ -66,18 +75,24 @@ impl Indexer for ProwlarrClient {
 		})
 		.await?;
 
-		if response.status() == StatusCode::UNAUTHORIZED {
-			return Err(Error::Validation(
-				reasons::PROWLARR_UNAUTHORIZED.to_string(),
-			));
-		}
-
-		let response = response.error_for_status().map_err(integration_error)?;
+		let response = self.check_response(response)?;
 		let results: Vec<ProwlarrRelease> = response.json().await.map_err(integration_error)?;
 		Ok(results
 			.into_iter()
 			.filter_map(ProwlarrRelease::into_release)
 			.collect())
+	}
+
+	async fn test_connection(&self) -> Result<()> {
+		let base_url = self.setting(SETTING_URL).await?;
+		let api_key = self.setting(SETTING_API_KEY).await?;
+
+		let url = format!("{}/api/v1/system/status", base_url.trim_end_matches('/'));
+		let response =
+			send_with_retry(|| self.http.get(&url).header("X-Api-Key", api_key.as_str())).await?;
+
+		self.check_response(response)?;
+		Ok(())
 	}
 }
 

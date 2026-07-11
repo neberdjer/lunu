@@ -85,6 +85,10 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/invites/{id}", web::delete().to(invites::delete));
 
 	cfg.route("/settings", web::get().to(settings::list));
+	cfg.route(
+		"/settings/test/{integration}",
+		web::post().to(settings::test),
+	);
 	cfg.route("/settings/{key}", web::get().to(settings::get));
 	cfg.route("/settings/{key}", web::put().to(settings::set));
 	cfg.route("/settings/{key}", web::delete().to(settings::delete));

@@ -7,4 +7,5 @@ use crate::models::Release;
 pub trait Indexer: Send + Sync {
 	fn id(&self) -> &'static str;
 	async fn search(&self, query: &str) -> Result<Vec<Release>>;
+	async fn test_connection(&self) -> Result<()>;
 }

@@ -63,3 +63,17 @@ pub async fn delete(
 	state.settings.delete(&key).await?;
 	Ok(HttpResponse::NoContent().finish())
 }
+
+pub async fn test(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	integration: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let integration = integration.into_inner();
+	match integration.as_str() {
+		settings::PROWLARR => state.releases.test_indexer().await,
+		settings::QBITTORRENT => state.grabs.test_download().await,
+		_ => return Err(Error::NotFound(format!("integration {integration}")).into()),
+	}?;
+	Ok(HttpResponse::Ok().json(json!({ "ok": true })))
+}

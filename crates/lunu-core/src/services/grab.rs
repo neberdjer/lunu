@@ -51,6 +51,10 @@ impl GrabService {
 		}
 	}
 
+	pub async fn test_download(&self) -> Result<()> {
+		self.client.test_connection().await
+	}
+
 	pub async fn grab(
 		&self,
 		request_id: &str,

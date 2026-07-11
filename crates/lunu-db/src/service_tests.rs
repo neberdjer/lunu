@@ -569,6 +569,9 @@ impl Indexer for FakeIndexer {
 	async fn search(&self, _query: &str) -> CoreResult<Vec<Release>> {
 		Ok(self.releases.clone())
 	}
+	async fn test_connection(&self) -> CoreResult<()> {
+		Ok(())
+	}
 }
 
 #[tokio::test]
@@ -841,6 +844,9 @@ impl DownloadClient for FakeClient {
 	}
 	async fn status(&self, _info_hash: &str) -> CoreResult<Option<DownloadStatus>> {
 		Ok(self.response.clone())
+	}
+	async fn test_connection(&self) -> CoreResult<()> {
+		Ok(())
 	}
 }
 
