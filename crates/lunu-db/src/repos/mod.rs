@@ -1,6 +1,7 @@
 mod api_key;
 mod download;
 mod invite;
+mod job;
 mod metadata_cache;
 mod quality_profile;
 mod request;
@@ -12,6 +13,7 @@ mod user_settings;
 pub use api_key::SqlxApiKeyRepo;
 pub use download::SqlxDownloadRepo;
 pub use invite::SqlxInviteRepo;
+pub use job::SqlxJobRepo;
 pub use metadata_cache::SqlxMetadataCacheRepo;
 pub use quality_profile::SqlxQualityProfileRepo;
 pub use request::SqlxRequestRepo;

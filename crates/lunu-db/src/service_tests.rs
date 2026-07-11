@@ -4,18 +4,18 @@ use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
-	Download, DownloadState, MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role,
-	UserSettings,
+	Download, DownloadState, Job, JobStatus, JobType, MetadataCacheEntry, QualityProfile, Request,
+	RequestStatus, Role, UserSettings,
 };
 use lunu_core::repo::{
-	DownloadRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo,
-	UserSettingsRepo,
+	DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo,
+	UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxMetadataCacheRepo,
+	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMetadataCacheRepo,
 	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
 	SqlxUserSettingsRepo,
 };
@@ -338,6 +338,108 @@ async fn download_create_and_set_state() {
 		DownloadState::Downloading
 	);
 	assert_eq!(repo.list().await.unwrap().len(), 1);
+}
+
+fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {
+	Job {
+		id: id.to_string(),
+		job_type: JobType::Grab,
+		payload: "{\"request\":\"r1\"}".to_string(),
+		status: JobStatus::Pending,
+		attempts: 0,
+		max_attempts: 3,
+		run_after: at,
+		locked_by: None,
+		locked_at: None,
+		last_error: None,
+		created_at: at,
+		updated_at: at,
+	}
+}
+
+#[tokio::test]
+async fn job_claim_is_atomic_and_lifecycle_transitions() {
+	let db = memory_db().await;
+	let repo = SqlxJobRepo::new(db.clone());
+
+	let now = Utc::now();
+	repo.create(&pending_job("j1", now)).await.unwrap();
+
+	let claimed = repo
+		.claim_next("worker-a", Utc::now())
+		.await
+		.unwrap()
+		.unwrap();
+	assert_eq!(claimed.id, "j1");
+	assert_eq!(claimed.status, JobStatus::Running);
+	assert_eq!(claimed.attempts, 1);
+	assert_eq!(claimed.locked_by.as_deref(), Some("worker-a"));
+
+	assert!(
+		repo.claim_next("worker-b", Utc::now())
+			.await
+			.unwrap()
+			.is_none()
+	);
+
+	let future = Utc::now() + chrono::Duration::seconds(30);
+	repo.reschedule("j1", "temporary", future, Utc::now())
+		.await
+		.unwrap();
+	let after = repo.find_by_id("j1").await.unwrap().unwrap();
+	assert_eq!(after.status, JobStatus::Pending);
+	assert_eq!(after.attempts, 1);
+	assert_eq!(after.last_error.as_deref(), Some("temporary"));
+	assert!(after.locked_by.is_none());
+
+	assert!(
+		repo.claim_next("worker-a", Utc::now())
+			.await
+			.unwrap()
+			.is_none()
+	);
+
+	let reclaimed = repo
+		.claim_next("worker-a", future + chrono::Duration::seconds(1))
+		.await
+		.unwrap()
+		.unwrap();
+	assert_eq!(reclaimed.attempts, 2);
+
+	repo.complete("j1", Utc::now()).await.unwrap();
+	assert_eq!(
+		repo.find_by_id("j1").await.unwrap().unwrap().status,
+		JobStatus::Completed
+	);
+	assert_eq!(repo.list().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn reap_stale_returns_running_jobs_to_pending() {
+	let db = memory_db().await;
+	let repo = SqlxJobRepo::new(db.clone());
+
+	let now = Utc::now();
+	repo.create(&pending_job("j2", now)).await.unwrap();
+	repo.claim_next("worker-a", now).await.unwrap().unwrap();
+
+	assert_eq!(
+		repo.reap_stale(now - chrono::Duration::seconds(300), Utc::now())
+			.await
+			.unwrap(),
+		0
+	);
+
+	let reaped = repo
+		.reap_stale(now + chrono::Duration::seconds(1), Utc::now())
+		.await
+		.unwrap();
+	assert_eq!(reaped, 1);
+
+	let after = repo.find_by_id("j2").await.unwrap().unwrap();
+	assert_eq!(after.status, JobStatus::Pending);
+	assert!(after.locked_by.is_none());
+	assert_eq!(after.attempts, 1);
 }
 
 #[tokio::test]

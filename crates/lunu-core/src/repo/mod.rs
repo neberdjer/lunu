@@ -1,6 +1,7 @@
 pub mod api_key;
 pub mod download;
 pub mod invite;
+pub mod job;
 pub mod metadata_cache;
 pub mod quality_profile;
 pub mod request;
@@ -12,6 +13,7 @@ pub mod user_settings;
 pub use api_key::ApiKeyRepo;
 pub use download::DownloadRepo;
 pub use invite::InviteRepo;
+pub use job::JobRepo;
 pub use metadata_cache::MetadataCacheRepo;
 pub use quality_profile::QualityProfileRepo;
 pub use request::RequestRepo;

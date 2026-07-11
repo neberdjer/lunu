@@ -1667,8 +1667,12 @@ dependencies = [
 name = "lunu-jobs"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "chrono",
  "lunu-core",
  "lunu-db",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

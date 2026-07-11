@@ -18,6 +18,8 @@ pub const INVALID_REGION: &str = "invalid-region";
 pub const ALREADY_EXISTS: &str = "already-exists";
 pub const NO_RELEASES: &str = "no-releases";
 pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
+pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
+pub const JOB_STATUS_UNKNOWN: &str = "job-status-unknown";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -40,4 +42,6 @@ pub const ALL: &[&str] = &[
 	ALREADY_EXISTS,
 	NO_RELEASES,
 	DOWNLOAD_STATE_UNKNOWN,
+	JOB_TYPE_UNKNOWN,
+	JOB_STATUS_UNKNOWN,
 ];

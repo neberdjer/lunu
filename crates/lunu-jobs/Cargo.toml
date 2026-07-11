@@ -11,3 +11,7 @@ repository.workspace = true
 [dependencies]
 lunu-core.workspace = true
 lunu-db.workspace = true
+async-trait = "0.1"
+chrono.workspace = true
+tokio.workspace = true
+tracing.workspace = true
