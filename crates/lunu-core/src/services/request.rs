@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 
+use crate::consts::reasons;
 use crate::models::{Request, RequestStatus, User, UserSettings};
 use crate::repo::{RequestRepo, UserSettingsRepo};
 use crate::services::{MetadataService, new_id};
@@ -31,12 +32,12 @@ impl RequestService {
 			.metadata
 			.get_book(asin)
 			.await?
-			.ok_or_else(|| Error::Validation("invalid-asin".to_string()))?;
+			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
 		if let Some(existing) = self.requests.find_by_user_and_asin(&user.id, asin).await?
 			&& !existing.status.is_reopenable()
 		{
-			return Err(Error::Conflict("already-requested".to_string()));
+			return Err(Error::Conflict(reasons::ALREADY_REQUESTED.to_string()));
 		}
 
 		let auto_approve = if user.role.is_admin() {
@@ -104,7 +105,7 @@ impl RequestService {
 			.ok_or_else(|| Error::NotFound(format!("request {id}")))?;
 
 		if !request.status.is_pending() {
-			return Err(Error::Conflict("request-not-pending".to_string()));
+			return Err(Error::Conflict(reasons::REQUEST_NOT_PENDING.to_string()));
 		}
 
 		request.status = status;
@@ -129,7 +130,7 @@ impl RequestService {
 
 		let since = Utc::now() - Duration::days(days);
 		if self.requests.count_for_user_since(user_id, since).await? >= quota {
-			return Err(Error::Validation("quota-exceeded".to_string()));
+			return Err(Error::Validation(reasons::QUOTA_EXCEEDED.to_string()));
 		}
 
 		Ok(())

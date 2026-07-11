@@ -88,4 +88,14 @@ mod tests {
 			);
 		}
 	}
+
+	#[test]
+	fn every_reason_key_has_a_catalog_message() {
+		let locale = lunu_i18n::default_locale();
+		for reason in lunu_core::consts::reasons::ALL {
+			let key = format!("error-{reason}");
+			let message = lunu_i18n::t(&locale, &key);
+			assert_ne!(message, key, "no catalog message for reason key '{reason}'");
+		}
+	}
 }

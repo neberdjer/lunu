@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use crate::consts::reasons;
 use crate::crypto::{generate_token, hash_token};
 use crate::models::{Invite, Role};
 use crate::repo::InviteRepo;
@@ -31,7 +32,7 @@ impl InviteService {
 		expires_at: Option<DateTime<Utc>>,
 	) -> Result<IssuedInvite> {
 		if max_uses < 1 {
-			return Err(Error::Validation("invite-max-uses".to_string()));
+			return Err(Error::Validation(reasons::INVITE_MAX_USES.to_string()));
 		}
 
 		let code = generate_token();

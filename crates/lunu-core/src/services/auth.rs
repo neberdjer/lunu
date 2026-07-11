@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{Duration, Utc};
 
 use crate::consts::auth::SESSION_TTL_DAYS;
+use crate::consts::reasons;
 use crate::crypto::{generate_token, hash_token, verify_password};
 use crate::models::{Role, Session, User};
 use crate::repo::{InviteRepo, SessionRepo, UserRepo};
@@ -44,7 +45,7 @@ impl AuthService {
 		email: Option<String>,
 	) -> Result<Authenticated> {
 		if self.users.count().await? > 0 {
-			return Err(Error::Conflict("setup-completed".to_string()));
+			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
 		}
 
 		let user = build_local_user(username, password, email, Role::Admin)?;
@@ -121,10 +122,10 @@ impl AuthService {
 			.invites
 			.find_by_code_hash(&hash_token(code))
 			.await?
-			.ok_or_else(|| Error::Validation("invite-invalid".to_string()))?;
+			.ok_or_else(|| Error::Validation(reasons::INVITE_INVALID.to_string()))?;
 
 		if !invite.is_redeemable(Utc::now()) {
-			return Err(Error::Validation("invite-unusable".to_string()));
+			return Err(Error::Validation(reasons::INVITE_UNUSABLE.to_string()));
 		}
 
 		ensure_username_available(self.users.as_ref(), username).await?;

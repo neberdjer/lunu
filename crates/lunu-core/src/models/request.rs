@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 
+use crate::consts::reasons;
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +60,9 @@ impl FromStr for RequestStatus {
 			"importing" => Ok(RequestStatus::Importing),
 			"available" => Ok(RequestStatus::Available),
 			"failed" => Ok(RequestStatus::Failed),
-			_ => Err(Error::Validation("request-status-unknown".to_string())),
+			_ => Err(Error::Validation(
+				reasons::REQUEST_STATUS_UNKNOWN.to_string(),
+			)),
 		}
 	}
 }

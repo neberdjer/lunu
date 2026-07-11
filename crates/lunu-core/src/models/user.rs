@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 
+use crate::consts::reasons;
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +38,7 @@ impl FromStr for Role {
 		match value {
 			"admin" => Ok(Role::Admin),
 			"user" => Ok(Role::User),
-			_ => Err(Error::Validation("role-unknown".to_string())),
+			_ => Err(Error::Validation(reasons::ROLE_UNKNOWN.to_string())),
 		}
 	}
 }
@@ -70,7 +71,7 @@ impl FromStr for AuthSource {
 		match value {
 			"local" => Ok(AuthSource::Local),
 			"abs" => Ok(AuthSource::Abs),
-			_ => Err(Error::Validation("auth-source-unknown".to_string())),
+			_ => Err(Error::Validation(reasons::AUTH_SOURCE_UNKNOWN.to_string())),
 		}
 	}
 }

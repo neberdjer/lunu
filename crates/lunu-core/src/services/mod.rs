@@ -16,6 +16,7 @@ pub use user::UserService;
 
 use chrono::Utc;
 
+use crate::consts::reasons;
 use crate::crypto::hash_password;
 use crate::models::{AuthSource, Role, User};
 use crate::repo::UserRepo;
@@ -27,7 +28,7 @@ pub(crate) fn new_id() -> String {
 
 pub(crate) async fn ensure_username_available(users: &dyn UserRepo, username: &str) -> Result<()> {
 	if users.find_by_username(username).await?.is_some() {
-		return Err(Error::Conflict("username-taken".to_string()));
+		return Err(Error::Conflict(reasons::USERNAME_TAKEN.to_string()));
 	}
 	Ok(())
 }
