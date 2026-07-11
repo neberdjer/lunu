@@ -46,3 +46,7 @@ error-download-state-unknown = That download state is not recognized.
 error-job-type-unknown = That job type is not recognized.
 error-job-status-unknown = That job status is not recognized.
 error-library-not-configured = No library directory is configured. Set the library path in settings.
+error-unknown-setting = That setting is not recognized.
+error-setting-empty = This setting cannot be empty.
+error-setting-invalid-url = Enter a valid URL starting with http:// or https://.
+error-setting-invalid-choice = That value is not one of the allowed choices.

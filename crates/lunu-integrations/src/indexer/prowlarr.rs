@@ -18,8 +18,8 @@ const AUDIOBOOK_CATEGORY: &str = "3030";
 const ALL_INDEXERS: &str = "-1";
 const SEARCH_TYPE: &str = "search";
 const REQUEST_TIMEOUT_SECS: u64 = 60;
-const SETTING_URL: &str = "prowlarr_url";
-const SETTING_API_KEY: &str = "prowlarr_api_key";
+const SETTING_URL: &str = lunu_core::consts::settings::PROWLARR_URL;
+const SETTING_API_KEY: &str = lunu_core::consts::settings::PROWLARR_API_KEY;
 
 pub struct ProwlarrClient {
 	http: reqwest::Client,

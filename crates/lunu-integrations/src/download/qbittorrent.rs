@@ -46,11 +46,11 @@ const PROVIDER_ID: &str = "qbittorrent";
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 const OK_BODY: &str = "Ok.";
 
-const SETTING_URL: &str = "qbittorrent_url";
-const SETTING_API_KEY: &str = "qbittorrent_api_key";
-const SETTING_USERNAME: &str = "qbittorrent_username";
-const SETTING_PASSWORD: &str = "qbittorrent_password";
-const SETTING_DOWNLOAD_DIR: &str = "download_dir";
+const SETTING_URL: &str = lunu_core::consts::settings::QBITTORRENT_URL;
+const SETTING_API_KEY: &str = lunu_core::consts::settings::QBITTORRENT_API_KEY;
+const SETTING_USERNAME: &str = lunu_core::consts::settings::QBITTORRENT_USERNAME;
+const SETTING_PASSWORD: &str = lunu_core::consts::settings::QBITTORRENT_PASSWORD;
+const SETTING_DOWNLOAD_DIR: &str = lunu_core::consts::settings::DOWNLOAD_DIR;
 
 pub struct QbittorrentClient {
 	http: reqwest::Client,

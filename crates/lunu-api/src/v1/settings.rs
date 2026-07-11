@@ -1,5 +1,6 @@
 use actix_web::{HttpResponse, web};
 use lunu_core::Error;
+use lunu_core::consts::settings;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -10,13 +11,23 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct SetSettingRequest {
 	value: String,
-	#[serde(default)]
-	secret: bool,
 }
 
 pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let keys = state.settings.keys().await?;
-	Ok(HttpResponse::Ok().json(json!({ "keys": keys })))
+	let catalog: Vec<_> = settings::REGISTRY
+		.iter()
+		.map(|spec| {
+			json!({
+				"key": spec.key,
+				"kind": spec.kind.as_str(),
+				"choices": spec.kind.choices(),
+				"secret": spec.secret,
+				"default": spec.default,
+			})
+		})
+		.collect();
+	Ok(HttpResponse::Ok().json(json!({ "keys": keys, "catalog": catalog })))
 }
 
 pub async fn get(
@@ -40,7 +51,7 @@ pub async fn set(
 	key: web::Path<String>,
 	body: web::Json<SetSettingRequest>,
 ) -> Result<HttpResponse, ApiError> {
-	state.settings.set(&key, &body.value, body.secret).await?;
+	state.settings.set(&key, &body.value).await?;
 	Ok(HttpResponse::NoContent().finish())
 }
 

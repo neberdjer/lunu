@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
-use crate::Result;
+use crate::consts::reasons;
+use crate::consts::settings;
 use crate::crypto::Encryptor;
 use crate::models::Setting;
 use crate::repo::SettingsRepo;
+use crate::{Error, Result};
 
 pub struct SettingView {
 	pub secret: bool,
@@ -53,18 +55,23 @@ impl SettingsService {
 		}))
 	}
 
-	pub async fn set(&self, key: &str, value: &str, secret: bool) -> Result<()> {
-		let value = if secret {
+	pub async fn set(&self, key: &str, value: &str) -> Result<()> {
+		let spec = settings::lookup(key)
+			.ok_or_else(|| Error::Validation(reasons::UNKNOWN_SETTING.to_string()))?;
+		spec.validate(value)
+			.map_err(|reason| Error::Validation(reason.to_string()))?;
+
+		let stored = if spec.secret {
 			self.encryptor.encrypt(value)?
 		} else {
-			value.to_string()
+			value.trim().to_string()
 		};
 
 		self.repo
 			.set(&Setting {
 				key: key.to_string(),
-				value,
-				encrypted: secret,
+				value: stored,
+				encrypted: spec.secret,
 				updated_at: Utc::now(),
 			})
 			.await

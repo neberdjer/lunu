@@ -7,3 +7,4 @@ pub mod library;
 pub mod metadata;
 pub mod reasons;
 pub mod scoring;
+pub mod settings;

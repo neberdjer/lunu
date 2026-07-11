@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use lunu_core::Result as CoreResult;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::Encryptor;
@@ -20,6 +19,7 @@ use lunu_core::services::{
 	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService,
 };
 use lunu_core::traits::{DownloadClient, EventPublisher, Importer, Indexer, MetadataProvider};
+use lunu_core::{Error, Result as CoreResult};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
@@ -273,15 +273,54 @@ async fn register_with_invite_then_exhausted() {
 }
 
 #[tokio::test]
+async fn settings_reject_unknown_key_and_invalid_values() {
+	let db = memory_db().await;
+	let settings = settings_service(&db);
+
+	assert!(matches!(
+		settings.set("not_a_real_setting", "x").await,
+		Err(Error::Validation(_))
+	));
+	assert!(matches!(
+		settings.set("prowlarr_url", "localhost").await,
+		Err(Error::Validation(_))
+	));
+	assert!(matches!(
+		settings.set("metadata_region", "zz").await,
+		Err(Error::Validation(_))
+	));
+}
+
+#[tokio::test]
+async fn settings_derive_secret_flag_from_registry() {
+	let db = memory_db().await;
+	let settings = settings_service(&db);
+
+	settings.set("prowlarr_api_key", "topsecret").await.unwrap();
+
+	let stored = SqlxSettingsRepo::new(db.clone())
+		.get("prowlarr_api_key")
+		.await
+		.unwrap()
+		.unwrap();
+	assert!(stored.encrypted);
+	assert_ne!(stored.value, "topsecret");
+	assert_eq!(
+		settings.get("prowlarr_api_key").await.unwrap().as_deref(),
+		Some("topsecret")
+	);
+}
+
+#[tokio::test]
 async fn settings_encrypts_secret_values() {
 	let db = memory_db().await;
 	let settings = settings_service(&db);
 
 	settings
-		.set("qbittorrent_password", "s3cret", true)
+		.set("qbittorrent_password", "s3cret")
 		.await
 		.unwrap();
-	settings.set("download_dir", "/data", false).await.unwrap();
+	settings.set("download_dir", "/data").await.unwrap();
 
 	assert_eq!(
 		settings
@@ -311,10 +350,10 @@ async fn settings_view_masks_secrets() {
 	let settings = settings_service(&db);
 
 	settings
-		.set("qbittorrent_password", "s3cret", true)
+		.set("qbittorrent_password", "s3cret")
 		.await
 		.unwrap();
-	settings.set("download_dir", "/data", false).await.unwrap();
+	settings.set("download_dir", "/data").await.unwrap();
 
 	let secret = settings
 		.view("qbittorrent_password")
@@ -652,8 +691,6 @@ async fn blocklisted_release_excluded_from_for_request() {
 
 #[tokio::test]
 async fn duplicate_username_is_conflict_not_db_error() {
-	use lunu_core::Error;
-
 	let db = memory_db().await;
 	let repo = SqlxUserRepo::new(db.clone());
 
@@ -835,10 +872,7 @@ async fn import_places_content_and_marks_available() {
 
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
 	let settings = settings_service(&db);
-	settings
-		.set("library_dir", "/library", false)
-		.await
-		.unwrap();
+	settings.set("library_dir", "/library").await.unwrap();
 	let importer = Arc::new(FakeImporter::default());
 	let imports = ImportService::new(
 		Arc::new(SqlxDownloadRepo::new(db.clone())),

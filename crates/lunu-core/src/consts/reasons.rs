@@ -22,6 +22,10 @@ pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const JOB_STATUS_UNKNOWN: &str = "job-status-unknown";
 pub const LIBRARY_NOT_CONFIGURED: &str = "library-not-configured";
+pub const UNKNOWN_SETTING: &str = "unknown-setting";
+pub const SETTING_EMPTY: &str = "setting-empty";
+pub const SETTING_INVALID_URL: &str = "setting-invalid-url";
+pub const SETTING_INVALID_CHOICE: &str = "setting-invalid-choice";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -48,4 +52,8 @@ pub const ALL: &[&str] = &[
 	JOB_TYPE_UNKNOWN,
 	JOB_STATUS_UNKNOWN,
 	LIBRARY_NOT_CONFIGURED,
+	UNKNOWN_SETTING,
+	SETTING_EMPTY,
+	SETTING_INVALID_URL,
+	SETTING_INVALID_CHOICE,
 ];
