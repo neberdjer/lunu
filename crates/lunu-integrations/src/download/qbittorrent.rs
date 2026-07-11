@@ -1,16 +1,46 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use lunu_core::consts::reasons;
+use lunu_core::models::{DownloadState, DownloadStatus};
 use lunu_core::services::SettingsService;
 use lunu_core::traits::DownloadClient;
 use lunu_core::{Error, Result};
-use reqwest::StatusCode;
 use reqwest::header::REFERER;
 use reqwest::multipart::Form;
+use reqwest::{RequestBuilder, StatusCode};
+use serde::Deserialize;
 
+use crate::http::send_with_retry;
 use crate::{integration_error, optional_setting, required_setting};
+
+#[derive(Deserialize)]
+struct TorrentInfo {
+	state: String,
+	progress: f64,
+	content_path: Option<String>,
+}
+
+fn auth_failed() -> Error {
+	Error::Validation(reasons::QBITTORRENT_AUTH_FAILED.to_string())
+}
+
+fn authorize(request: RequestBuilder, api_key: &Option<String>) -> RequestBuilder {
+	match api_key {
+		Some(key) => request.bearer_auth(key),
+		None => request,
+	}
+}
+
+fn map_state(state: &str, progress: f64) -> DownloadState {
+	match state {
+		"error" | "missingFiles" => DownloadState::Failed,
+		_ if progress >= 1.0 => DownloadState::Completed,
+		_ => DownloadState::Downloading,
+	}
+}
 
 const PROVIDER_ID: &str = "qbittorrent";
 const REQUEST_TIMEOUT_SECS: u64 = 30;
@@ -25,6 +55,7 @@ const SETTING_DOWNLOAD_DIR: &str = "download_dir";
 pub struct QbittorrentClient {
 	http: reqwest::Client,
 	settings: Arc<SettingsService>,
+	logged_in: AtomicBool,
 }
 
 impl QbittorrentClient {
@@ -36,11 +67,39 @@ impl QbittorrentClient {
 			.build()
 			.expect("reqwest client builds with static configuration");
 
-		Self { http, settings }
+		Self {
+			http,
+			settings,
+			logged_in: AtomicBool::new(false),
+		}
 	}
 
 	async fn required(&self, key: &str) -> Result<String> {
 		required_setting(&self.settings, key, reasons::QBITTORRENT_NOT_CONFIGURED).await
+	}
+
+	async fn prepare(&self) -> Result<(String, Option<String>)> {
+		let base_url = self.required(SETTING_URL).await?;
+		let base_url = base_url.trim_end_matches('/').to_string();
+		let api_key = self.authenticate(&base_url).await?;
+		Ok((base_url, api_key))
+	}
+
+	async fn authenticate(&self, base_url: &str) -> Result<Option<String>> {
+		let api_key = optional_setting(&self.settings, SETTING_API_KEY).await?;
+		if api_key.is_none() && !self.logged_in.load(Ordering::Relaxed) {
+			self.login(base_url).await?;
+			self.logged_in.store(true, Ordering::Relaxed);
+		}
+		Ok(api_key)
+	}
+
+	fn check_response(&self, response: reqwest::Response) -> Result<reqwest::Response> {
+		if response.status() == StatusCode::FORBIDDEN {
+			self.logged_in.store(false, Ordering::Relaxed);
+			return Err(auth_failed());
+		}
+		response.error_for_status().map_err(integration_error)
 	}
 
 	async fn login(&self, base_url: &str) -> Result<()> {
@@ -57,16 +116,12 @@ impl QbittorrentClient {
 			.map_err(integration_error)?;
 
 		if response.status() == StatusCode::FORBIDDEN {
-			return Err(Error::Validation(
-				reasons::QBITTORRENT_AUTH_FAILED.to_string(),
-			));
+			return Err(auth_failed());
 		}
 
 		let body = response.text().await.map_err(integration_error)?;
 		if body.trim() != OK_BODY {
-			return Err(Error::Validation(
-				reasons::QBITTORRENT_AUTH_FAILED.to_string(),
-			));
+			return Err(auth_failed());
 		}
 
 		Ok(())
@@ -80,13 +135,7 @@ impl DownloadClient for QbittorrentClient {
 	}
 
 	async fn add(&self, download_url: &str, category: &str) -> Result<()> {
-		let base_url = self.required(SETTING_URL).await?;
-		let base_url = base_url.trim_end_matches('/');
-
-		let api_key = optional_setting(&self.settings, SETTING_API_KEY).await?;
-		if api_key.is_none() {
-			self.login(base_url).await?;
-		}
+		let (base_url, api_key) = self.prepare().await?;
 
 		let mut form = Form::new()
 			.text("urls", download_url.to_string())
@@ -97,22 +146,17 @@ impl DownloadClient for QbittorrentClient {
 			form = form.text("savepath", dir);
 		}
 
-		let mut request = self
+		let request = self
 			.http
 			.post(format!("{base_url}/api/v2/torrents/add"))
-			.header(REFERER, base_url)
+			.header(REFERER, base_url.as_str())
 			.multipart(form);
-		if let Some(key) = &api_key {
-			request = request.bearer_auth(key);
-		}
-
-		let response = request.send().await.map_err(integration_error)?;
-		if response.status() == StatusCode::FORBIDDEN {
-			return Err(Error::Validation(
-				reasons::QBITTORRENT_AUTH_FAILED.to_string(),
-			));
-		}
-		let response = response.error_for_status().map_err(integration_error)?;
+		let response = self.check_response(
+			authorize(request, &api_key)
+				.send()
+				.await
+				.map_err(integration_error)?,
+		)?;
 
 		let body = response.text().await.map_err(integration_error)?;
 		if body.trim() != OK_BODY {
@@ -123,5 +167,53 @@ impl DownloadClient for QbittorrentClient {
 		}
 
 		Ok(())
+	}
+
+	async fn status(&self, info_hash: &str) -> Result<Option<DownloadStatus>> {
+		let (base_url, api_key) = self.prepare().await?;
+		let hashes = info_hash.to_ascii_lowercase();
+
+		let response = send_with_retry(|| {
+			authorize(
+				self.http
+					.get(format!("{base_url}/api/v2/torrents/info"))
+					.header(REFERER, base_url.as_str())
+					.query(&[("hashes", hashes.as_str())]),
+				&api_key,
+			)
+		})
+		.await?;
+		let response = self.check_response(response)?;
+
+		let torrents: Vec<TorrentInfo> = response.json().await.map_err(integration_error)?;
+		Ok(torrents.into_iter().next().map(|torrent| DownloadStatus {
+			state: map_state(&torrent.state, torrent.progress),
+			progress: torrent.progress,
+			content_path: torrent.content_path,
+		}))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn maps_error_states_to_failed() {
+		assert_eq!(map_state("error", 0.5), DownloadState::Failed);
+		assert_eq!(map_state("missingFiles", 1.0), DownloadState::Failed);
+	}
+
+	#[test]
+	fn maps_finished_progress_to_completed() {
+		assert_eq!(map_state("uploading", 1.0), DownloadState::Completed);
+		assert_eq!(map_state("stalledUP", 1.0), DownloadState::Completed);
+	}
+
+	#[test]
+	fn maps_in_progress_to_downloading() {
+		assert_eq!(map_state("downloading", 0.4), DownloadState::Downloading);
+		assert_eq!(map_state("metaDL", 0.0), DownloadState::Downloading);
+		assert_eq!(map_state("stalledDL", 0.9), DownloadState::Downloading);
 	}
 }

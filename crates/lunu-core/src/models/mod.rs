@@ -12,9 +12,9 @@ pub mod user;
 pub mod user_settings;
 
 pub use api_key::ApiKey;
-pub use download::{Download, DownloadState};
+pub use download::{Download, DownloadState, DownloadStatus};
 pub use invite::Invite;
-pub use job::{GrabPayload, Job, JobStatus, JobType};
+pub use job::{GrabPayload, Job, JobStatus, JobType, MonitorPayload};
 pub use metadata::{Book, Chapter, Chapters, MetadataCacheEntry, SeriesRef};
 pub use quality_profile::QualityProfile;
 pub use release::{Protocol, Release, ScoredRelease};

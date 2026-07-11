@@ -4,20 +4,21 @@ use async_trait::async_trait;
 use chrono::Utc;
 use lunu_core::Result as CoreResult;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
+use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
-	Book, Chapters, Download, DownloadState, Job, JobStatus, JobType, MetadataCacheEntry,
-	QualityProfile, Request, RequestStatus, Role, UserSettings,
+	Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus, JobType,
+	MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role, UserSettings,
 };
 use lunu_core::repo::{
 	DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo,
 	UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
-	ApiKeyService, AuthService, InviteService, JobService, MetadataService, RequestService,
-	SettingsService,
+	ApiKeyService, AuthService, InviteService, JobService, MetadataService, MonitorService,
+	RequestService, SettingsService,
 };
-use lunu_core::traits::MetadataProvider;
+use lunu_core::traits::{DownloadClient, MetadataProvider};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
@@ -325,7 +326,9 @@ async fn download_create_and_set_state() {
 		release_title: "The Hobbit [M4B]".to_string(),
 		indexer: "MyTracker".to_string(),
 		download_url: "magnet:?xt=urn:btih:abc".to_string(),
+		info_hash: Some("abc".to_string()),
 		state: DownloadState::Queued,
+		progress: 0,
 		created_at: now,
 		updated_at: now,
 	};
@@ -335,14 +338,14 @@ async fn download_create_and_set_state() {
 	assert_eq!(found.id, "d1");
 	assert_eq!(found.state, DownloadState::Queued);
 	assert_eq!(found.release_title, "The Hobbit [M4B]");
+	assert_eq!(found.info_hash.as_deref(), Some("abc"));
 
-	repo.set_state("d1", DownloadState::Downloading, Utc::now())
+	repo.update_status("d1", DownloadState::Downloading, 42, Utc::now())
 		.await
 		.unwrap();
-	assert_eq!(
-		repo.find_by_id("d1").await.unwrap().unwrap().state,
-		DownloadState::Downloading
-	);
+	let updated = repo.find_by_id("d1").await.unwrap().unwrap();
+	assert_eq!(updated.state, DownloadState::Downloading);
+	assert_eq!(updated.progress, 42);
 	assert_eq!(repo.list().await.unwrap().len(), 1);
 }
 
@@ -368,24 +371,8 @@ impl MetadataProvider for StubProvider {
 async fn approving_a_request_enqueues_a_grab_job() {
 	let db = memory_db().await;
 
-	let requests_repo = Arc::new(SqlxRequestRepo::new(db.clone()));
-	let encryptor = Encryptor::new("dev-master-key-value", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
-	let settings = Arc::new(SettingsService::new(
-		Arc::new(SqlxSettingsRepo::new(db.clone())),
-		encryptor,
-	));
-	let metadata = Arc::new(MetadataService::new(
-		Arc::new(StubProvider),
-		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
-		settings,
-	));
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let requests = RequestService::new(
-		requests_repo.clone(),
-		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
-		metadata,
-		jobs.clone(),
-	);
+	let requests = request_service(&db, jobs.clone());
 
 	let now = Utc::now();
 	let request = Request {
@@ -400,7 +387,10 @@ async fn approving_a_request_enqueues_a_grab_job() {
 		created_at: now,
 		updated_at: now,
 	};
-	requests_repo.create(&request).await.unwrap();
+	SqlxRequestRepo::new(db.clone())
+		.create(&request)
+		.await
+		.unwrap();
 
 	let approved = requests.approve("admin", "r1").await.unwrap();
 	assert_eq!(approved.status, RequestStatus::Approved);
@@ -409,6 +399,179 @@ async fn approving_a_request_enqueues_a_grab_job() {
 	assert_eq!(listed.len(), 1);
 	assert_eq!(listed[0].job_type, JobType::Grab);
 	assert!(listed[0].payload.contains("r1"));
+}
+
+struct FakeClient {
+	response: Option<DownloadStatus>,
+}
+
+#[async_trait]
+impl DownloadClient for FakeClient {
+	fn id(&self) -> &'static str {
+		"fake"
+	}
+	async fn add(&self, _download_url: &str, _category: &str) -> CoreResult<()> {
+		Ok(())
+	}
+	async fn status(&self, _info_hash: &str) -> CoreResult<Option<DownloadStatus>> {
+		Ok(self.response.clone())
+	}
+}
+
+fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
+	let encryptor = Encryptor::new("dev-master-key-value", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
+	let settings = Arc::new(SettingsService::new(
+		Arc::new(SqlxSettingsRepo::new(db.clone())),
+		encryptor,
+	));
+	let metadata = Arc::new(MetadataService::new(
+		Arc::new(StubProvider),
+		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
+		settings,
+	));
+	Arc::new(RequestService::new(
+		Arc::new(SqlxRequestRepo::new(db.clone())),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+		metadata,
+		jobs,
+	))
+}
+
+async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
+	SqlxRequestRepo::new(db.clone())
+		.create(&Request {
+			id: "r1".to_string(),
+			user_id: "u1".to_string(),
+			asin: "B01".to_string(),
+			title: "The Hobbit".to_string(),
+			author: None,
+			cover_url: None,
+			status: RequestStatus::Downloading,
+			approved_by: Some("admin".to_string()),
+			created_at: at,
+			updated_at: at,
+		})
+		.await
+		.unwrap();
+	SqlxDownloadRepo::new(db.clone())
+		.create(&Download {
+			id: "d1".to_string(),
+			request_id: "r1".to_string(),
+			client: "qbittorrent".to_string(),
+			category: "lunu".to_string(),
+			release_title: "The Hobbit [M4B]".to_string(),
+			indexer: "MyTracker".to_string(),
+			download_url: "magnet:?xt=urn:btih:abc".to_string(),
+			info_hash: Some("abc".to_string()),
+			state: DownloadState::Downloading,
+			progress: 10,
+			created_at: at,
+			updated_at: at,
+		})
+		.await
+		.unwrap();
+}
+
+#[tokio::test]
+async fn monitor_marks_request_importing_on_completion() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let downloads = Arc::new(SqlxDownloadRepo::new(db.clone()));
+	let client = Arc::new(FakeClient {
+		response: Some(DownloadStatus {
+			state: DownloadState::Completed,
+			progress: 1.0,
+			content_path: Some("/library/x".to_string()),
+		}),
+	});
+	let monitor = MonitorService::new(
+		downloads.clone(),
+		client,
+		request_service(&db, jobs.clone()),
+		jobs.clone(),
+	);
+
+	monitor.poll("d1", 0).await.unwrap();
+
+	assert_eq!(
+		SqlxRequestRepo::new(db.clone())
+			.find_by_id("r1")
+			.await
+			.unwrap()
+			.unwrap()
+			.status,
+		RequestStatus::Importing
+	);
+	let download = downloads.find_by_id("d1").await.unwrap().unwrap();
+	assert_eq!(download.state, DownloadState::Completed);
+	assert_eq!(download.progress, 100);
+}
+
+#[tokio::test]
+async fn monitor_reschedules_while_downloading() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let downloads = Arc::new(SqlxDownloadRepo::new(db.clone()));
+	let client = Arc::new(FakeClient {
+		response: Some(DownloadStatus {
+			state: DownloadState::Downloading,
+			progress: 0.5,
+			content_path: None,
+		}),
+	});
+	let monitor = MonitorService::new(
+		downloads.clone(),
+		client,
+		request_service(&db, jobs.clone()),
+		jobs.clone(),
+	);
+
+	monitor.poll("d1", 0).await.unwrap();
+
+	let listed = jobs.list().await.unwrap();
+	assert_eq!(listed.len(), 1);
+	assert_eq!(listed[0].job_type, JobType::MonitorDownload);
+	assert_eq!(
+		downloads.find_by_id("d1").await.unwrap().unwrap().progress,
+		50
+	);
+}
+
+#[tokio::test]
+async fn monitor_fails_after_max_misses() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let downloads = Arc::new(SqlxDownloadRepo::new(db.clone()));
+	let client = Arc::new(FakeClient { response: None });
+	let monitor = MonitorService::new(
+		downloads.clone(),
+		client,
+		request_service(&db, jobs.clone()),
+		jobs.clone(),
+	);
+
+	monitor.poll("d1", MONITOR_MAX_MISSES - 1).await.unwrap();
+
+	assert_eq!(
+		downloads.find_by_id("d1").await.unwrap().unwrap().state,
+		DownloadState::Failed
+	);
+	assert_eq!(
+		SqlxRequestRepo::new(db.clone())
+			.find_by_id("r1")
+			.await
+			.unwrap()
+			.unwrap()
+			.status,
+		RequestStatus::Failed
+	);
+	assert_eq!(jobs.list().await.unwrap().len(), 0);
 }
 
 fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {

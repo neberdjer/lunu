@@ -10,6 +10,12 @@ pub trait DownloadRepo: Send + Sync {
 	async fn find_by_id(&self, id: &str) -> Result<Option<Download>>;
 	async fn find_by_request(&self, request_id: &str) -> Result<Option<Download>>;
 	async fn list(&self) -> Result<Vec<Download>>;
-	async fn set_state(&self, id: &str, state: DownloadState, at: DateTime<Utc>) -> Result<()>;
+	async fn update_status(
+		&self,
+		id: &str,
+		state: DownloadState,
+		progress: i64,
+		at: DateTime<Utc>,
+	) -> Result<()>;
 	async fn delete(&self, id: &str) -> Result<()>;
 }

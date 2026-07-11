@@ -88,6 +88,7 @@ mod tests {
 			seeders,
 			leechers: 0,
 			download_url: "magnet:?x".to_string(),
+			info_hash: None,
 			info_url: None,
 			publish_date: None,
 		}

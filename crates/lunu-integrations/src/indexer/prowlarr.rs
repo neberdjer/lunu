@@ -91,6 +91,7 @@ struct ProwlarrRelease {
 	leechers: Option<i64>,
 	protocol: Option<String>,
 	download_url: Option<String>,
+	info_hash: Option<String>,
 	info_url: Option<String>,
 	publish_date: Option<String>,
 }
@@ -109,6 +110,7 @@ impl ProwlarrRelease {
 			seeders: self.seeders.unwrap_or(0),
 			leechers: self.leechers.unwrap_or(0),
 			download_url: self.download_url?,
+			info_hash: self.info_hash,
 			info_url: self.info_url,
 			publish_date: self.publish_date,
 		})

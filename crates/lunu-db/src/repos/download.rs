@@ -33,7 +33,9 @@ fn map_download(row: &AnyRow) -> Result<Download> {
 		release_title: row.try_get("release_title").map_err(db_error)?,
 		indexer: row.try_get("indexer").map_err(db_error)?,
 		download_url: row.try_get("download_url").map_err(db_error)?,
+		info_hash: row.try_get("info_hash").map_err(db_error)?,
 		state: parse_enum::<DownloadState>(&state)?,
+		progress: row.try_get("progress").map_err(db_error)?,
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
@@ -44,8 +46,8 @@ impl DownloadRepo for SqlxDownloadRepo {
 	async fn create(&self, download: &Download) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO downloads \
-			 (id, request_id, client, category, release_title, indexer, download_url, state, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 (id, request_id, client, category, release_title, indexer, download_url, info_hash, state, progress, created_at, updated_at) \
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(&download.id)
 		.bind(&download.request_id)
@@ -54,7 +56,9 @@ impl DownloadRepo for SqlxDownloadRepo {
 		.bind(&download.release_title)
 		.bind(&download.indexer)
 		.bind(&download.download_url)
+		.bind(download.info_hash.as_deref())
 		.bind(download.state.as_str())
+		.bind(download.progress)
 		.bind(format_dt(download.created_at))
 		.bind(format_dt(download.updated_at))
 		.execute(&self.db)
@@ -91,9 +95,16 @@ impl DownloadRepo for SqlxDownloadRepo {
 		map_rows(rows, map_download)
 	}
 
-	async fn set_state(&self, id: &str, state: DownloadState, at: DateTime<Utc>) -> Result<()> {
-		sqlx::query("UPDATE downloads SET state = ?, updated_at = ? WHERE id = ?")
+	async fn update_status(
+		&self,
+		id: &str,
+		state: DownloadState,
+		progress: i64,
+		at: DateTime<Utc>,
+	) -> Result<()> {
+		sqlx::query("UPDATE downloads SET state = ?, progress = ?, updated_at = ? WHERE id = ?")
 			.bind(state.as_str())
+			.bind(progress)
 			.bind(format_dt(at))
 			.bind(id)
 			.execute(&self.db)

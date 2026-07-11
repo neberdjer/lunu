@@ -13,6 +13,12 @@ pub struct GrabPayload {
 	pub request_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitorPayload {
+	pub download_id: String,
+	pub misses: i64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStatus {
 	Pending,

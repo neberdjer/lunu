@@ -27,6 +27,7 @@ pub struct Release {
 	pub seeders: i64,
 	pub leechers: i64,
 	pub download_url: String,
+	pub info_hash: Option<String>,
 	pub info_url: Option<String>,
 	pub publish_date: Option<String>,
 }

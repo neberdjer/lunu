@@ -96,6 +96,7 @@ pub async fn grab(
 		download_url,
 		title: body.title,
 		indexer: body.indexer,
+		info_hash: None,
 	});
 
 	let download = state.grabs.grab(&id, selection).await?;

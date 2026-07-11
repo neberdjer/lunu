@@ -6,7 +6,8 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ApiKeyService, AuthService, GrabService, InviteService, JobService, MetadataService,
-	QualityProfileService, ReleaseService, RequestService, SettingsService, UserService,
+	MonitorService, QualityProfileService, ReleaseService, RequestService, SettingsService,
+	UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
@@ -33,6 +34,7 @@ pub struct AppState {
 	pub quality_profiles: Arc<QualityProfileService>,
 	pub grabs: Arc<GrabService>,
 	pub jobs: Arc<JobService>,
+	pub monitor: Arc<MonitorService>,
 }
 
 impl AppState {
@@ -88,11 +90,18 @@ impl AppState {
 		let quality_profiles = Arc::new(QualityProfileService::new(quality_profiles_repo));
 
 		let download_client = Arc::new(QbittorrentClient::new(settings.clone()));
+		let monitor = Arc::new(MonitorService::new(
+			downloads_repo.clone(),
+			download_client.clone(),
+			requests.clone(),
+			jobs.clone(),
+		));
 		let grabs = Arc::new(GrabService::new(
 			downloads_repo,
 			requests.clone(),
 			releases.clone(),
 			download_client,
+			jobs.clone(),
 		));
 
 		Ok(Self {
@@ -110,6 +119,7 @@ impl AppState {
 			quality_profiles,
 			grabs,
 			jobs,
+			monitor,
 		})
 	}
 }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 use crate::Result;
 use crate::consts::jobs::DEFAULT_MAX_ATTEMPTS;
@@ -21,16 +22,29 @@ impl JobService {
 		self.jobs.clone()
 	}
 
-	pub async fn enqueue(&self, job_type: JobType, payload: String) -> Result<Job> {
+	pub async fn enqueue<T: Serialize + ?Sized>(
+		&self,
+		job_type: JobType,
+		payload: &T,
+	) -> Result<Job> {
+		self.enqueue_at(job_type, payload, Utc::now()).await
+	}
+
+	pub async fn enqueue_at<T: Serialize + ?Sized>(
+		&self,
+		job_type: JobType,
+		payload: &T,
+		run_after: DateTime<Utc>,
+	) -> Result<Job> {
 		let now = Utc::now();
 		let job = Job {
 			id: new_id(),
 			job_type,
-			payload,
+			payload: serde_json::to_string(payload)?,
 			status: JobStatus::Pending,
 			attempts: 0,
 			max_attempts: DEFAULT_MAX_ATTEMPTS,
-			run_after: now,
+			run_after,
 			locked_by: None,
 			locked_at: None,
 			last_error: None,

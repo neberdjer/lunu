@@ -31,10 +31,10 @@ impl RequestService {
 	}
 
 	async fn enqueue_fulfillment(&self, request_id: &str) -> Result<()> {
-		let payload = serde_json::to_string(&GrabPayload {
+		let payload = GrabPayload {
 			request_id: request_id.to_string(),
-		})?;
-		self.jobs.enqueue(JobType::Grab, payload).await?;
+		};
+		self.jobs.enqueue(JobType::Grab, &payload).await?;
 		Ok(())
 	}
 
@@ -108,13 +108,25 @@ impl RequestService {
 	}
 
 	pub async fn mark_downloading(&self, id: &str) -> Result<Request> {
+		self.set_status(id, RequestStatus::Downloading).await
+	}
+
+	pub async fn mark_importing(&self, id: &str) -> Result<Request> {
+		self.set_status(id, RequestStatus::Importing).await
+	}
+
+	pub async fn mark_failed(&self, id: &str) -> Result<Request> {
+		self.set_status(id, RequestStatus::Failed).await
+	}
+
+	async fn set_status(&self, id: &str, status: RequestStatus) -> Result<Request> {
 		let mut request = self
 			.requests
 			.find_by_id(id)
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("request {id}")))?;
 
-		request.status = RequestStatus::Downloading;
+		request.status = status;
 		request.updated_at = Utc::now();
 		self.requests.update(&request).await?;
 		Ok(request)
