@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod api_key;
+pub mod blocklist;
 pub mod download;
 pub mod invite;
 pub mod job;
@@ -14,6 +15,7 @@ pub mod user_settings;
 
 pub use activity::Activity;
 pub use api_key::ApiKey;
+pub use blocklist::BlocklistEntry;
 pub use download::{Download, DownloadState, DownloadStatus};
 pub use invite::Invite;
 pub use job::{GrabPayload, ImportPayload, Job, JobStatus, JobType, MonitorPayload};

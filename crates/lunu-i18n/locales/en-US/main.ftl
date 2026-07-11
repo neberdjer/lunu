@@ -34,6 +34,7 @@ error-already-requested = You have already requested this title.
 error-invalid-asin = No audiobook was found for that identifier.
 error-quota-exceeded = You have reached your request limit. Try again later.
 error-request-not-pending = That request has already been processed.
+error-request-not-retryable = Only a failed request can be retried.
 error-prowlarr-not-configured = Prowlarr is not configured. Set its URL and API key in settings.
 error-prowlarr-unauthorized = Prowlarr rejected the API key. Check the key in settings.
 error-qbittorrent-not-configured = qBittorrent is not configured. Set its URL, username, and password in settings.

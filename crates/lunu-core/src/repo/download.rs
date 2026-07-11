@@ -20,4 +20,5 @@ pub trait DownloadRepo: Send + Sync {
 		at: DateTime<Utc>,
 	) -> Result<()>;
 	async fn delete(&self, id: &str) -> Result<()>;
+	async fn delete_for_request(&self, request_id: &str) -> Result<()>;
 }

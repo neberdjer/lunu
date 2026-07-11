@@ -9,4 +9,5 @@ pub trait ActivityRepo: Send + Sync {
 	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Activity>>;
 	async fn count(&self) -> Result<i64>;
 	async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>>;
+	async fn delete_for_request(&self, request_id: &str) -> Result<()>;
 }

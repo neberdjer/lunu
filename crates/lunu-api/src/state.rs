@@ -12,8 +12,8 @@ use lunu_core::services::{
 };
 use lunu_db::Db;
 use lunu_db::repos::{
-	SqlxActivityRepo, SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo,
-	SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
+	SqlxJobRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
 	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 
@@ -60,6 +60,7 @@ impl AppState {
 		let downloads_repo = Arc::new(SqlxDownloadRepo::new(db.clone()));
 		let jobs_repo = Arc::new(SqlxJobRepo::new(db.clone()));
 		let activity_repo = Arc::new(SqlxActivityRepo::new(db.clone()));
+		let blocklist_repo = Arc::new(SqlxBlocklistRepo::new(db.clone()));
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
 
@@ -96,6 +97,7 @@ impl AppState {
 			metadata.clone(),
 			jobs.clone(),
 			activity.clone(),
+			downloads_repo.clone(),
 		));
 
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
@@ -103,6 +105,7 @@ impl AppState {
 			indexer,
 			quality_profiles_repo.clone(),
 			requests_repo.clone(),
+			blocklist_repo,
 		));
 		let quality_profiles = Arc::new(QualityProfileService::new(quality_profiles_repo));
 

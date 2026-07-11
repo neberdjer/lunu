@@ -4,7 +4,7 @@ use chrono::{Duration, Utc};
 
 use crate::consts::reasons;
 use crate::models::{GrabPayload, JobType, Request, RequestStatus, User, UserSettings};
-use crate::repo::{RequestRepo, UserSettingsRepo};
+use crate::repo::{DownloadRepo, RequestRepo, UserSettingsRepo};
 use crate::services::{ActivityService, JobService, MetadataService, new_id};
 use crate::{Error, Result};
 
@@ -14,6 +14,7 @@ pub struct RequestService {
 	metadata: Arc<MetadataService>,
 	jobs: Arc<JobService>,
 	activity: Arc<ActivityService>,
+	downloads: Arc<dyn DownloadRepo>,
 }
 
 impl RequestService {
@@ -23,6 +24,7 @@ impl RequestService {
 		metadata: Arc<MetadataService>,
 		jobs: Arc<JobService>,
 		activity: Arc<ActivityService>,
+		downloads: Arc<dyn DownloadRepo>,
 	) -> Self {
 		Self {
 			requests,
@@ -30,7 +32,27 @@ impl RequestService {
 			metadata,
 			jobs,
 			activity,
+			downloads,
 		}
+	}
+
+	pub async fn delete(&self, caller: &User, id: &str) -> Result<()> {
+		self.get_for(caller, id).await?;
+		self.downloads.delete_for_request(id).await?;
+		self.activity.delete_for_request(id).await?;
+		self.requests.delete(id).await
+	}
+
+	pub async fn retry(&self, caller: &User, id: &str) -> Result<Request> {
+		let mut request = self.get_for(caller, id).await?;
+		if request.status != RequestStatus::Failed {
+			return Err(Error::Conflict(reasons::REQUEST_NOT_RETRYABLE.to_string()));
+		}
+		request.status = RequestStatus::Approved;
+		request.updated_at = Utc::now();
+		self.persist(&request).await?;
+		self.enqueue_fulfillment(id).await?;
+		Ok(request)
 	}
 
 	async fn enqueue_fulfillment(&self, request_id: &str) -> Result<()> {

@@ -142,4 +142,13 @@ impl DownloadRepo for SqlxDownloadRepo {
 			.map_err(db_error)?;
 		Ok(())
 	}
+
+	async fn delete_for_request(&self, request_id: &str) -> Result<()> {
+		sqlx::query("DELETE FROM downloads WHERE request_id = $1")
+			.bind(request_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
 }

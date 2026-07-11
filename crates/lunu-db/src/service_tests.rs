@@ -7,23 +7,24 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
-	Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus, JobType,
-	MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role, UserSettings,
+	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus,
+	JobType, MetadataCacheEntry, Protocol, QualityProfile, Release, Request, RequestStatus, Role,
+	User, UserSettings,
 };
 use lunu_core::repo::{
-	DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo,
-	UserRepo, UserSettingsRepo,
+	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo,
+	SettingsRepo, UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
-	MetadataService, MonitorService, RequestService, SettingsService,
+	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService,
 };
-use lunu_core::traits::{DownloadClient, EventPublisher, Importer, MetadataProvider};
+use lunu_core::traits::{DownloadClient, EventPublisher, Importer, Indexer, MetadataProvider};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxActivityRepo, SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxJobRepo,
-	SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
+	SqlxJobRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
 	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
@@ -188,6 +189,7 @@ async fn migrations_apply_and_every_table_is_queryable() {
 		"downloads",
 		"jobs",
 		"activity",
+		"blocklist",
 	];
 
 	for table in tables {
@@ -486,10 +488,171 @@ async fn request_list_page_filters_and_counts() {
 	assert!(pending.iter().all(|r| r.status == RequestStatus::Pending));
 }
 
+fn caller(id: &str, role: Role) -> User {
+	let now = Utc::now();
+	User {
+		id: id.to_string(),
+		username: id.to_string(),
+		email: None,
+		password_hash: None,
+		role,
+		auth_source: AuthSource::Local,
+		enabled: true,
+		created_at: now,
+		updated_at: now,
+	}
+}
+
+fn release(download_url: &str) -> Release {
+	Release {
+		title: "Book m4b".to_string(),
+		indexer: "trk".to_string(),
+		protocol: Protocol::Torrent,
+		size: 500 * 1024 * 1024,
+		seeders: 10,
+		leechers: 0,
+		download_url: download_url.to_string(),
+		info_hash: None,
+		info_url: None,
+		publish_date: None,
+	}
+}
+
+struct FakeIndexer {
+	releases: Vec<Release>,
+}
+
+#[async_trait]
+impl Indexer for FakeIndexer {
+	fn id(&self) -> &'static str {
+		"fake"
+	}
+	async fn search(&self, _query: &str) -> CoreResult<Vec<Release>> {
+		Ok(self.releases.clone())
+	}
+}
+
+#[tokio::test]
+async fn delete_request_cascades_to_downloads_and_activity() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+	SqlxActivityRepo::new(db.clone())
+		.create(&Activity {
+			id: "act1".to_string(),
+			request_id: "r1".to_string(),
+			event: "downloading".to_string(),
+			detail: None,
+			at: Utc::now(),
+		})
+		.await
+		.unwrap();
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs);
+	requests
+		.delete(&caller("admin", Role::Admin), "r1")
+		.await
+		.unwrap();
+
+	assert!(
+		SqlxRequestRepo::new(db.clone())
+			.find_by_id("r1")
+			.await
+			.unwrap()
+			.is_none()
+	);
+	assert!(
+		SqlxDownloadRepo::new(db.clone())
+			.find_by_id("d1")
+			.await
+			.unwrap()
+			.is_none()
+	);
+	assert_eq!(
+		SqlxActivityRepo::new(db.clone())
+			.for_request("r1")
+			.await
+			.unwrap()
+			.len(),
+		0
+	);
+}
+
+#[tokio::test]
+async fn retry_reopens_failed_request_and_enqueues_grab() {
+	let db = memory_db().await;
+	let now = Utc::now();
+	SqlxRequestRepo::new(db.clone())
+		.create(&Request {
+			id: "r1".to_string(),
+			user_id: "u1".to_string(),
+			asin: "B01".to_string(),
+			title: "Book".to_string(),
+			author: None,
+			cover_url: None,
+			status: RequestStatus::Failed,
+			approved_by: None,
+			created_at: now,
+			updated_at: now,
+		})
+		.await
+		.unwrap();
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs.clone());
+	let owner = caller("u1", Role::User);
+
+	let updated = requests.retry(&owner, "r1").await.unwrap();
+	assert_eq!(updated.status, RequestStatus::Approved);
+
+	let listed = jobs.list().await.unwrap();
+	assert_eq!(listed.len(), 1);
+	assert_eq!(listed[0].job_type, JobType::Grab);
+
+	assert!(requests.retry(&owner, "r1").await.is_err());
+}
+
+#[tokio::test]
+async fn blocklisted_release_excluded_from_for_request() {
+	let db = memory_db().await;
+	let now = Utc::now();
+	SqlxRequestRepo::new(db.clone())
+		.create(&Request {
+			id: "r1".to_string(),
+			user_id: "u1".to_string(),
+			asin: "B01".to_string(),
+			title: "Book".to_string(),
+			author: None,
+			cover_url: None,
+			status: RequestStatus::Pending,
+			approved_by: None,
+			created_at: now,
+			updated_at: now,
+		})
+		.await
+		.unwrap();
+
+	let indexer = Arc::new(FakeIndexer {
+		releases: vec![release("magnet:a"), release("magnet:b")],
+	});
+	let releases = ReleaseService::new(
+		indexer,
+		Arc::new(SqlxQualityProfileRepo::new(db.clone())),
+		Arc::new(SqlxRequestRepo::new(db.clone())),
+		Arc::new(SqlxBlocklistRepo::new(db.clone())),
+	);
+
+	assert_eq!(releases.for_request("r1").await.unwrap().len(), 2);
+
+	releases.blocklist_release("r1", "magnet:a").await.unwrap();
+	let after = releases.for_request("r1").await.unwrap();
+	assert_eq!(after.len(), 1);
+	assert_eq!(after[0].release.download_url, "magnet:b");
+}
+
 #[tokio::test]
 async fn duplicate_username_is_conflict_not_db_error() {
 	use lunu_core::Error;
-	use lunu_core::models::{AuthSource, User};
 
 	let db = memory_db().await;
 	let repo = SqlxUserRepo::new(db.clone());
@@ -821,6 +984,7 @@ fn request_service_with_activity(
 		metadata,
 		jobs,
 		activity,
+		Arc::new(SqlxDownloadRepo::new(db.clone())),
 	))
 }
 

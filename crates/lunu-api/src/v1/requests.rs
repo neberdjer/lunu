@@ -26,6 +26,42 @@ pub struct GrabBody {
 }
 
 #[derive(Deserialize)]
+pub struct BlocklistBody {
+	download_url: String,
+}
+
+pub async fn delete(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	state.requests.delete(&user, &id.into_inner()).await?;
+	Ok(HttpResponse::NoContent().finish())
+}
+
+pub async fn retry(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let request = state.requests.retry(&user, &id.into_inner()).await?;
+	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
+}
+
+pub async fn blocklist(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+	body: web::Json<BlocklistBody>,
+) -> Result<HttpResponse, ApiError> {
+	state
+		.releases
+		.blocklist_release(&id.into_inner(), &body.download_url)
+		.await?;
+	Ok(HttpResponse::NoContent().finish())
+}
+
+#[derive(Deserialize)]
 pub struct RequestListParams {
 	page: Option<i64>,
 	limit: Option<i64>,

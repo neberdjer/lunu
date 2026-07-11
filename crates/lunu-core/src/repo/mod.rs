@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod api_key;
+pub mod blocklist;
 pub mod download;
 pub mod invite;
 pub mod job;
@@ -13,6 +14,7 @@ pub mod user_settings;
 
 pub use activity::ActivityRepo;
 pub use api_key::ApiKeyRepo;
+pub use blocklist::BlocklistRepo;
 pub use download::DownloadRepo;
 pub use invite::InviteRepo;
 pub use job::JobRepo;

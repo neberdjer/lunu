@@ -10,6 +10,7 @@ pub const INVALID_ASIN: &str = "invalid-asin";
 pub const ALREADY_REQUESTED: &str = "already-requested";
 pub const QUOTA_EXCEEDED: &str = "quota-exceeded";
 pub const REQUEST_NOT_PENDING: &str = "request-not-pending";
+pub const REQUEST_NOT_RETRYABLE: &str = "request-not-retryable";
 pub const PROWLARR_NOT_CONFIGURED: &str = "prowlarr-not-configured";
 pub const PROWLARR_UNAUTHORIZED: &str = "prowlarr-unauthorized";
 pub const QBITTORRENT_NOT_CONFIGURED: &str = "qbittorrent-not-configured";
@@ -35,6 +36,7 @@ pub const ALL: &[&str] = &[
 	ALREADY_REQUESTED,
 	QUOTA_EXCEEDED,
 	REQUEST_NOT_PENDING,
+	REQUEST_NOT_RETRYABLE,
 	PROWLARR_NOT_CONFIGURED,
 	PROWLARR_UNAUTHORIZED,
 	QBITTORRENT_NOT_CONFIGURED,

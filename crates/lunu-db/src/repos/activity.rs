@@ -74,4 +74,13 @@ impl ActivityRepo for SqlxActivityRepo {
 			.map_err(db_error)?;
 		map_rows(rows, map_activity)
 	}
+
+	async fn delete_for_request(&self, request_id: &str) -> Result<()> {
+		sqlx::query("DELETE FROM activity WHERE request_id = $1")
+			.bind(request_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
 }

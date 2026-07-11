@@ -42,4 +42,8 @@ impl ActivityService {
 	pub async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>> {
 		self.activity.for_request(request_id).await
 	}
+
+	pub async fn delete_for_request(&self, request_id: &str) -> Result<()> {
+		self.activity.delete_for_request(request_id).await
+	}
 }

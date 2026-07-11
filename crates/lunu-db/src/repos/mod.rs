@@ -1,5 +1,6 @@
 mod activity;
 mod api_key;
+mod blocklist;
 mod download;
 mod invite;
 mod job;
@@ -13,6 +14,7 @@ mod user_settings;
 
 pub use activity::SqlxActivityRepo;
 pub use api_key::SqlxApiKeyRepo;
+pub use blocklist::SqlxBlocklistRepo;
 pub use download::SqlxDownloadRepo;
 pub use invite::SqlxInviteRepo;
 pub use job::SqlxJobRepo;
