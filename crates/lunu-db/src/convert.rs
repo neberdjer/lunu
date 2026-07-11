@@ -35,11 +35,11 @@ pub(crate) fn int_to_bool(value: i64) -> bool {
 	value != 0
 }
 
-pub(crate) fn join_scopes(scopes: &[String]) -> String {
-	scopes.join(",")
+pub(crate) fn join_list(items: &[String]) -> String {
+	items.join(",")
 }
 
-pub(crate) fn split_scopes(value: &str) -> Vec<String> {
+pub(crate) fn split_list(value: &str) -> Vec<String> {
 	if value.is_empty() {
 		Vec::new()
 	} else {

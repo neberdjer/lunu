@@ -10,6 +10,7 @@ pub const INVALID_ASIN: &str = "invalid-asin";
 pub const ALREADY_REQUESTED: &str = "already-requested";
 pub const QUOTA_EXCEEDED: &str = "quota-exceeded";
 pub const REQUEST_NOT_PENDING: &str = "request-not-pending";
+pub const PROWLARR_NOT_CONFIGURED: &str = "prowlarr-not-configured";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -24,4 +25,5 @@ pub const ALL: &[&str] = &[
 	ALREADY_REQUESTED,
 	QUOTA_EXCEEDED,
 	REQUEST_NOT_PENDING,
+	PROWLARR_NOT_CONFIGURED,
 ];

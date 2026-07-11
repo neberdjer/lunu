@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use lunu_core::models::{ApiKey, Invite, Request, User, UserSettings};
+use lunu_core::models::{ApiKey, Invite, QualityProfile, Request, User, UserSettings};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -100,6 +100,41 @@ impl From<&UserSettings> for UserSettingsResponse {
 			auto_approve: settings.auto_approve,
 			request_quota: settings.request_quota,
 			quota_days: settings.quota_days,
+		}
+	}
+}
+
+#[derive(Serialize)]
+pub(crate) struct QualityProfileResponse {
+	pub id: String,
+	pub name: String,
+	pub allowed_formats: Vec<String>,
+	pub preferred_formats: Vec<String>,
+	pub min_seeders: i64,
+	pub min_size_mb: Option<i64>,
+	pub max_size_mb: Option<i64>,
+	pub seeder_weight: i64,
+	pub format_weight: i64,
+	pub is_default: bool,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+}
+
+impl From<&QualityProfile> for QualityProfileResponse {
+	fn from(profile: &QualityProfile) -> Self {
+		Self {
+			id: profile.id.clone(),
+			name: profile.name.clone(),
+			allowed_formats: profile.allowed_formats.clone(),
+			preferred_formats: profile.preferred_formats.clone(),
+			min_seeders: profile.min_seeders,
+			min_size_mb: profile.min_size_mb,
+			max_size_mb: profile.max_size_mb,
+			seeder_weight: profile.seeder_weight,
+			format_weight: profile.format_weight,
+			is_default: profile.is_default,
+			created_at: profile.created_at,
+			updated_at: profile.updated_at,
 		}
 	}
 }

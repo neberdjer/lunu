@@ -8,7 +8,7 @@ use sqlx::any::AnyRow;
 
 use super::{map_row_opt, map_rows};
 use crate::convert::{
-	bool_to_int, format_dt, int_to_bool, join_scopes, parse_dt, parse_dt_opt, split_scopes,
+	bool_to_int, format_dt, int_to_bool, join_list, parse_dt, parse_dt_opt, split_list,
 };
 use crate::{Db, db_error};
 
@@ -35,7 +35,7 @@ fn map_api_key(row: &AnyRow) -> Result<ApiKey> {
 		name: row.try_get("name").map_err(db_error)?,
 		prefix: row.try_get("prefix").map_err(db_error)?,
 		key_hash: row.try_get("key_hash").map_err(db_error)?,
-		scopes: split_scopes(&scopes),
+		scopes: split_list(&scopes),
 		created_at: parse_dt(&created_at)?,
 		last_used_at: parse_dt_opt(last_used_at)?,
 		expires_at: parse_dt_opt(expires_at)?,
@@ -56,7 +56,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 		.bind(&key.name)
 		.bind(&key.prefix)
 		.bind(&key.key_hash)
-		.bind(join_scopes(&key.scopes))
+		.bind(join_list(&key.scopes))
 		.bind(format_dt(key.created_at))
 		.bind(key.last_used_at.map(format_dt))
 		.bind(key.expires_at.map(format_dt))

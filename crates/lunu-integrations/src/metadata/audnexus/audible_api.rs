@@ -4,7 +4,8 @@ use lunu_core::Result;
 use lunu_core::models::{Book, SeriesRef};
 use serde::Deserialize;
 
-use super::{Named, integration_error, names};
+use super::{Named, names};
+use crate::integration_error;
 
 const SEARCH_RESULT_LIMIT: &str = "10";
 

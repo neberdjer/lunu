@@ -3,7 +3,8 @@ use lunu_core::models::{Book, Chapter, Chapters, SeriesRef};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
-use super::{Named, integration_error, names};
+use super::{Named, names};
+use crate::integration_error;
 
 const AUDNEXUS_BASE: &str = "https://api.audnex.us";
 

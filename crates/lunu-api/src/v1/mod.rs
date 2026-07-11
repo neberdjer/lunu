@@ -3,6 +3,7 @@ mod auth;
 mod health;
 mod invites;
 mod metadata;
+mod quality_profiles;
 mod requests;
 mod settings;
 mod setup;
@@ -37,6 +38,25 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/requests/{id}", web::get().to(requests::get));
 	cfg.route("/requests/{id}/approve", web::post().to(requests::approve));
 	cfg.route("/requests/{id}/decline", web::post().to(requests::decline));
+	cfg.route("/requests/{id}/releases", web::get().to(requests::releases));
+
+	cfg.route("/quality-profiles", web::get().to(quality_profiles::list));
+	cfg.route(
+		"/quality-profiles",
+		web::post().to(quality_profiles::create),
+	);
+	cfg.route(
+		"/quality-profiles/{id}",
+		web::get().to(quality_profiles::get),
+	);
+	cfg.route(
+		"/quality-profiles/{id}",
+		web::put().to(quality_profiles::update),
+	);
+	cfg.route(
+		"/quality-profiles/{id}",
+		web::delete().to(quality_profiles::delete),
+	);
 
 	cfg.route("/api-keys", web::get().to(api_keys::list));
 	cfg.route("/api-keys", web::post().to(api_keys::create));

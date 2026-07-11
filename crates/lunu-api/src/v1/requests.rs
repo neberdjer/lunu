@@ -65,3 +65,12 @@ pub async fn decline(
 	let request = state.requests.decline(&admin.id, &id).await?;
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
+
+pub async fn releases(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let releases = state.releases.for_request(&id).await?;
+	Ok(HttpResponse::Ok().json(releases))
+}

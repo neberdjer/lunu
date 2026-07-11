@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use lunu_core::Result;
 use lunu_core::models::{Book, Chapters};
 use lunu_core::traits::MetadataProvider;
-use lunu_core::{Error, Result};
 use serde::Deserialize;
 
 mod audible_api;
@@ -54,10 +54,6 @@ impl MetadataProvider for AudnexusProvider {
 	async fn get_chapters(&self, asin: &str) -> Result<Option<Chapters>> {
 		audnex_api::get_chapters(&self.client, &self.region, asin).await
 	}
-}
-
-fn integration_error(error: impl std::fmt::Display) -> Error {
-	Error::Integration(error.to_string())
 }
 
 #[derive(Deserialize)]

@@ -1,0 +1,93 @@
+use std::sync::Arc;
+
+use chrono::Utc;
+
+use crate::models::QualityProfile;
+use crate::repo::QualityProfileRepo;
+use crate::services::new_id;
+use crate::{Error, Result};
+
+pub struct QualityProfileInput {
+	pub name: String,
+	pub allowed_formats: Vec<String>,
+	pub preferred_formats: Vec<String>,
+	pub min_seeders: i64,
+	pub min_size_mb: Option<i64>,
+	pub max_size_mb: Option<i64>,
+	pub seeder_weight: i64,
+	pub format_weight: i64,
+	pub is_default: bool,
+}
+
+pub struct QualityProfileService {
+	repo: Arc<dyn QualityProfileRepo>,
+}
+
+impl QualityProfileService {
+	pub fn new(repo: Arc<dyn QualityProfileRepo>) -> Self {
+		Self { repo }
+	}
+
+	pub async fn list(&self) -> Result<Vec<QualityProfile>> {
+		self.repo.list().await
+	}
+
+	pub async fn get(&self, id: &str) -> Result<Option<QualityProfile>> {
+		self.repo.find_by_id(id).await
+	}
+
+	pub async fn create(&self, input: QualityProfileInput) -> Result<QualityProfile> {
+		if input.is_default {
+			self.repo.clear_default().await?;
+		}
+
+		let now = Utc::now();
+		let profile = QualityProfile {
+			id: new_id(),
+			name: input.name,
+			allowed_formats: input.allowed_formats,
+			preferred_formats: input.preferred_formats,
+			min_seeders: input.min_seeders,
+			min_size_mb: input.min_size_mb,
+			max_size_mb: input.max_size_mb,
+			seeder_weight: input.seeder_weight,
+			format_weight: input.format_weight,
+			is_default: input.is_default,
+			created_at: now,
+			updated_at: now,
+		};
+
+		self.repo.create(&profile).await?;
+		Ok(profile)
+	}
+
+	pub async fn update(&self, id: &str, input: QualityProfileInput) -> Result<QualityProfile> {
+		let mut profile = self
+			.repo
+			.find_by_id(id)
+			.await?
+			.ok_or_else(|| Error::NotFound(format!("quality profile {id}")))?;
+
+		if input.is_default && !profile.is_default {
+			self.repo.clear_default().await?;
+		}
+
+		profile.name = input.name;
+		profile.allowed_formats = input.allowed_formats;
+		profile.preferred_formats = input.preferred_formats;
+		profile.min_seeders = input.min_seeders;
+		profile.min_size_mb = input.min_size_mb;
+		profile.max_size_mb = input.max_size_mb;
+		profile.seeder_weight = input.seeder_weight;
+		profile.format_weight = input.format_weight;
+		profile.is_default = input.is_default;
+		profile.updated_at = Utc::now();
+
+		self.repo.update(&profile).await?;
+		Ok(profile)
+	}
+
+	pub async fn delete(&self, id: &str) -> Result<()> {
+		self.repo.delete(id).await
+	}
+}

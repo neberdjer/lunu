@@ -1,6 +1,7 @@
 pub mod api_key;
 pub mod invite;
 pub mod metadata_cache;
+pub mod quality_profile;
 pub mod request;
 pub mod session;
 pub mod settings;
@@ -10,6 +11,7 @@ pub mod user_settings;
 pub use api_key::ApiKeyRepo;
 pub use invite::InviteRepo;
 pub use metadata_cache::MetadataCacheRepo;
+pub use quality_profile::QualityProfileRepo;
 pub use request::RequestRepo;
 pub use session::SessionRepo;
 pub use settings::SettingsRepo;

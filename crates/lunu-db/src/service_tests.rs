@@ -3,14 +3,18 @@ use std::sync::Arc;
 use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
-use lunu_core::models::{MetadataCacheEntry, Request, RequestStatus, Role, UserSettings};
-use lunu_core::repo::{MetadataCacheRepo, RequestRepo, SettingsRepo, UserSettingsRepo};
+use lunu_core::models::{
+	MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role, UserSettings,
+};
+use lunu_core::repo::{
+	MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserSettingsRepo,
+};
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxRequestRepo, SqlxSessionRepo,
-	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -268,4 +272,38 @@ async fn user_settings_upsert() {
 	assert!(loaded.auto_approve);
 	assert_eq!(loaded.request_quota, Some(5));
 	assert_eq!(loaded.quota_days, Some(7));
+}
+
+#[tokio::test]
+async fn quality_profile_crud_and_default() {
+	let db = memory_db().await;
+	let repo = SqlxQualityProfileRepo::new(db.clone());
+
+	let now = Utc::now();
+	let profile = QualityProfile {
+		id: "p1".to_string(),
+		name: "Audiobook".to_string(),
+		allowed_formats: vec!["m4b".to_string(), "mp3".to_string()],
+		preferred_formats: vec!["m4b".to_string()],
+		min_seeders: 2,
+		min_size_mb: Some(10),
+		max_size_mb: None,
+		seeder_weight: 1,
+		format_weight: 100,
+		is_default: true,
+		created_at: now,
+		updated_at: now,
+	};
+	repo.create(&profile).await.unwrap();
+
+	let loaded = repo.find_by_id("p1").await.unwrap().unwrap();
+	assert_eq!(loaded.allowed_formats, vec!["m4b", "mp3"]);
+	assert_eq!(loaded.min_seeders, 2);
+	assert_eq!(loaded.min_size_mb, Some(10));
+	assert!(loaded.is_default);
+
+	assert_eq!(repo.find_default().await.unwrap().unwrap().id, "p1");
+	repo.clear_default().await.unwrap();
+	assert!(repo.find_default().await.unwrap().is_none());
+	assert_eq!(repo.list().await.unwrap().len(), 1);
 }
