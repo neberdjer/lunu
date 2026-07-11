@@ -56,6 +56,7 @@ pub struct QbittorrentClient {
 	http: reqwest::Client,
 	settings: Arc<SettingsService>,
 	logged_in: AtomicBool,
+	category_ready: AtomicBool,
 }
 
 impl QbittorrentClient {
@@ -69,7 +70,38 @@ impl QbittorrentClient {
 			http,
 			settings,
 			logged_in: AtomicBool::new(false),
+			category_ready: AtomicBool::new(false),
 		}
+	}
+
+	async fn ensure_category(
+		&self,
+		base_url: &str,
+		api_key: &Option<String>,
+		category: &str,
+	) -> Result<()> {
+		if self.category_ready.load(Ordering::Relaxed) {
+			return Ok(());
+		}
+
+		let mut form = vec![("category", category.to_string())];
+		if let Some(dir) = optional_setting(&self.settings, SETTING_DOWNLOAD_DIR).await? {
+			form.push(("savePath", dir));
+		}
+
+		authorize(
+			self.http
+				.post(format!("{base_url}/api/v2/torrents/createCategory"))
+				.header(REFERER, base_url)
+				.form(&form),
+			api_key,
+		)
+		.send()
+		.await
+		.map_err(integration_error)?;
+
+		self.category_ready.store(true, Ordering::Relaxed);
+		Ok(())
 	}
 
 	async fn required(&self, key: &str) -> Result<String> {
@@ -134,6 +166,7 @@ impl DownloadClient for QbittorrentClient {
 
 	async fn add(&self, download_url: &str, category: &str) -> Result<()> {
 		let (base_url, api_key) = self.prepare().await?;
+		let _ = self.ensure_category(&base_url, &api_key, category).await;
 
 		let mut form = Form::new()
 			.text("urls", download_url.to_string())
