@@ -43,7 +43,7 @@ impl InviteRepo for SqlxInviteRepo {
 		sqlx::query(
 			"INSERT INTO invites \
 			 (id, code_hash, role, email, created_by, max_uses, used_count, created_at, expires_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
 		)
 		.bind(&invite.id)
 		.bind(&invite.code_hash)
@@ -61,7 +61,7 @@ impl InviteRepo for SqlxInviteRepo {
 	}
 
 	async fn find_by_code_hash(&self, code_hash: &str) -> Result<Option<Invite>> {
-		let row = sqlx::query("SELECT * FROM invites WHERE code_hash = ?")
+		let row = sqlx::query("SELECT * FROM invites WHERE code_hash = $1")
 			.bind(code_hash)
 			.fetch_optional(&self.db)
 			.await
@@ -71,7 +71,7 @@ impl InviteRepo for SqlxInviteRepo {
 
 	async fn redeem(&self, id: &str) -> Result<bool> {
 		let result = sqlx::query(
-			"UPDATE invites SET used_count = used_count + 1 WHERE id = ? AND used_count < max_uses",
+			"UPDATE invites SET used_count = used_count + 1 WHERE id = $1 AND used_count < max_uses",
 		)
 		.bind(id)
 		.execute(&self.db)
@@ -89,7 +89,7 @@ impl InviteRepo for SqlxInviteRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM invites WHERE id = ?")
+		sqlx::query("DELETE FROM invites WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

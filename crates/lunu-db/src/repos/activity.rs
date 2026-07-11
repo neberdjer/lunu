@@ -35,7 +35,7 @@ fn map_activity(row: &AnyRow) -> Result<Activity> {
 impl ActivityRepo for SqlxActivityRepo {
 	async fn create(&self, activity: &Activity) -> Result<()> {
 		sqlx::query(
-			"INSERT INTO activity (id, request_id, event, detail, at) VALUES (?, ?, ?, ?, ?)",
+			"INSERT INTO activity (id, request_id, event, detail, at) VALUES ($1, $2, $3, $4, $5)",
 		)
 		.bind(&activity.id)
 		.bind(&activity.request_id)
@@ -49,7 +49,7 @@ impl ActivityRepo for SqlxActivityRepo {
 	}
 
 	async fn recent(&self, limit: i64) -> Result<Vec<Activity>> {
-		let rows = sqlx::query("SELECT * FROM activity ORDER BY at DESC LIMIT ?")
+		let rows = sqlx::query("SELECT * FROM activity ORDER BY at DESC LIMIT $1")
 			.bind(limit)
 			.fetch_all(&self.db)
 			.await
@@ -58,7 +58,7 @@ impl ActivityRepo for SqlxActivityRepo {
 	}
 
 	async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>> {
-		let rows = sqlx::query("SELECT * FROM activity WHERE request_id = ? ORDER BY at DESC")
+		let rows = sqlx::query("SELECT * FROM activity WHERE request_id = $1 ORDER BY at DESC")
 			.bind(request_id)
 			.fetch_all(&self.db)
 			.await

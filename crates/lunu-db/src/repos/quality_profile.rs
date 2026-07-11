@@ -49,7 +49,7 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			"INSERT INTO quality_profiles \
 			 (id, name, allowed_formats, preferred_formats, min_seeders, min_size_mb, max_size_mb, \
 			 seeder_weight, format_weight, is_default, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		)
 		.bind(&profile.id)
 		.bind(&profile.name)
@@ -72,9 +72,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 	async fn update(&self, profile: &QualityProfile) -> Result<()> {
 		sqlx::query(
 			"UPDATE quality_profiles SET \
-			 name = ?, allowed_formats = ?, preferred_formats = ?, min_seeders = ?, \
-			 min_size_mb = ?, max_size_mb = ?, seeder_weight = ?, format_weight = ?, \
-			 is_default = ?, updated_at = ? WHERE id = ?",
+			 name = $1, allowed_formats = $2, preferred_formats = $3, min_seeders = $4, \
+			 min_size_mb = $5, max_size_mb = $6, seeder_weight = $7, format_weight = $8, \
+			 is_default = $9, updated_at = $10 WHERE id = $11",
 		)
 		.bind(&profile.name)
 		.bind(join_list(&profile.allowed_formats))
@@ -94,7 +94,7 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<QualityProfile>> {
-		let row = sqlx::query("SELECT * FROM quality_profiles WHERE id = ?")
+		let row = sqlx::query("SELECT * FROM quality_profiles WHERE id = $1")
 			.bind(id)
 			.fetch_optional(&self.db)
 			.await
@@ -119,7 +119,7 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 	}
 
 	async fn set_default(&self, id: &str) -> Result<()> {
-		sqlx::query("UPDATE quality_profiles SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END")
+		sqlx::query("UPDATE quality_profiles SET is_default = CASE WHEN id = $1 THEN 1 ELSE 0 END")
 			.bind(id)
 			.execute(&self.db)
 			.await
@@ -128,7 +128,7 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM quality_profiles WHERE id = ?")
+		sqlx::query("DELETE FROM quality_profiles WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

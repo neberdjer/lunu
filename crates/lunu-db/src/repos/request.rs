@@ -45,7 +45,7 @@ impl RequestRepo for SqlxRequestRepo {
 		sqlx::query(
 			"INSERT INTO requests \
 			 (id, user_id, asin, title, author, cover_url, status, approved_by, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
 		)
 		.bind(&request.id)
 		.bind(&request.user_id)
@@ -64,19 +64,21 @@ impl RequestRepo for SqlxRequestRepo {
 	}
 
 	async fn update(&self, request: &Request) -> Result<()> {
-		sqlx::query("UPDATE requests SET status = ?, approved_by = ?, updated_at = ? WHERE id = ?")
-			.bind(request.status.as_str())
-			.bind(request.approved_by.as_deref())
-			.bind(format_dt(request.updated_at))
-			.bind(&request.id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
+		sqlx::query(
+			"UPDATE requests SET status = $1, approved_by = $2, updated_at = $3 WHERE id = $4",
+		)
+		.bind(request.status.as_str())
+		.bind(request.approved_by.as_deref())
+		.bind(format_dt(request.updated_at))
+		.bind(&request.id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
 		Ok(())
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<Request>> {
-		let row = sqlx::query("SELECT * FROM requests WHERE id = ?")
+		let row = sqlx::query("SELECT * FROM requests WHERE id = $1")
 			.bind(id)
 			.fetch_optional(&self.db)
 			.await
@@ -86,7 +88,7 @@ impl RequestRepo for SqlxRequestRepo {
 
 	async fn find_by_user_and_asin(&self, user_id: &str, asin: &str) -> Result<Option<Request>> {
 		let row = sqlx::query(
-			"SELECT * FROM requests WHERE user_id = ? AND asin = ? ORDER BY created_at DESC LIMIT 1",
+			"SELECT * FROM requests WHERE user_id = $1 AND asin = $2 ORDER BY created_at DESC LIMIT 1",
 		)
 		.bind(user_id)
 		.bind(asin)
@@ -105,17 +107,18 @@ impl RequestRepo for SqlxRequestRepo {
 	}
 
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
-		let rows = sqlx::query("SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC")
-			.bind(user_id)
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
+		let rows =
+			sqlx::query("SELECT * FROM requests WHERE user_id = $1 ORDER BY created_at DESC")
+				.bind(user_id)
+				.fetch_all(&self.db)
+				.await
+				.map_err(db_error)?;
 		map_rows(rows, map_request)
 	}
 
 	async fn count_for_user_since(&self, user_id: &str, since: DateTime<Utc>) -> Result<i64> {
 		let row = sqlx::query(
-			"SELECT COUNT(*) AS count FROM requests WHERE user_id = ? AND created_at >= ?",
+			"SELECT COUNT(*) AS count FROM requests WHERE user_id = $1 AND created_at >= $2",
 		)
 		.bind(user_id)
 		.bind(format_dt(since))
@@ -126,7 +129,7 @@ impl RequestRepo for SqlxRequestRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM requests WHERE id = ?")
+		sqlx::query("DELETE FROM requests WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

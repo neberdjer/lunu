@@ -34,7 +34,7 @@ fn map_setting(row: &AnyRow) -> Result<Setting> {
 #[async_trait]
 impl SettingsRepo for SqlxSettingsRepo {
 	async fn get(&self, key: &str) -> Result<Option<Setting>> {
-		let row = sqlx::query("SELECT * FROM settings WHERE key = ?")
+		let row = sqlx::query("SELECT * FROM settings WHERE key = $1")
 			.bind(key)
 			.fetch_optional(&self.db)
 			.await
@@ -44,7 +44,7 @@ impl SettingsRepo for SqlxSettingsRepo {
 
 	async fn set(&self, setting: &Setting) -> Result<()> {
 		sqlx::query(
-			"INSERT INTO settings (key, value, encrypted, updated_at) VALUES (?, ?, ?, ?) \
+			"INSERT INTO settings (key, value, encrypted, updated_at) VALUES ($1, $2, $3, $4) \
 			 ON CONFLICT(key) DO UPDATE SET \
 			 value = excluded.value, encrypted = excluded.encrypted, updated_at = excluded.updated_at",
 		)
@@ -67,7 +67,7 @@ impl SettingsRepo for SqlxSettingsRepo {
 	}
 
 	async fn delete(&self, key: &str) -> Result<()> {
-		sqlx::query("DELETE FROM settings WHERE key = ?")
+		sqlx::query("DELETE FROM settings WHERE key = $1")
 			.bind(key)
 			.execute(&self.db)
 			.await

@@ -49,7 +49,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 		sqlx::query(
 			"INSERT INTO api_keys \
 			 (id, user_id, name, prefix, key_hash, scopes, created_at, last_used_at, expires_at, revoked) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
 		)
 		.bind(&key.id)
 		.bind(&key.user_id)
@@ -68,7 +68,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn find_by_key_hash(&self, key_hash: &str) -> Result<Option<ApiKey>> {
-		let row = sqlx::query("SELECT * FROM api_keys WHERE key_hash = ?")
+		let row = sqlx::query("SELECT * FROM api_keys WHERE key_hash = $1")
 			.bind(key_hash)
 			.fetch_optional(&self.db)
 			.await
@@ -77,7 +77,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<ApiKey>> {
-		let rows = sqlx::query("SELECT * FROM api_keys WHERE user_id = ? ORDER BY created_at")
+		let rows = sqlx::query("SELECT * FROM api_keys WHERE user_id = $1 ORDER BY created_at")
 			.bind(user_id)
 			.fetch_all(&self.db)
 			.await
@@ -86,7 +86,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn touch_last_used(&self, id: &str, at: DateTime<Utc>) -> Result<()> {
-		sqlx::query("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
+		sqlx::query("UPDATE api_keys SET last_used_at = $1 WHERE id = $2")
 			.bind(format_dt(at))
 			.bind(id)
 			.execute(&self.db)
@@ -96,7 +96,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn set_revoked(&self, id: &str, revoked: bool) -> Result<()> {
-		sqlx::query("UPDATE api_keys SET revoked = ? WHERE id = ?")
+		sqlx::query("UPDATE api_keys SET revoked = $1 WHERE id = $2")
 			.bind(bool_to_int(revoked))
 			.bind(id)
 			.execute(&self.db)
@@ -106,7 +106,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn revoke_owned(&self, id: &str, user_id: &str) -> Result<bool> {
-		let result = sqlx::query("UPDATE api_keys SET revoked = ? WHERE id = ? AND user_id = ?")
+		let result = sqlx::query("UPDATE api_keys SET revoked = $1 WHERE id = $2 AND user_id = $3")
 			.bind(bool_to_int(true))
 			.bind(id)
 			.bind(user_id)
@@ -117,7 +117,7 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM api_keys WHERE id = ?")
+		sqlx::query("DELETE FROM api_keys WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

@@ -35,7 +35,7 @@ fn map_settings(row: &AnyRow) -> Result<UserSettings> {
 #[async_trait]
 impl UserSettingsRepo for SqlxUserSettingsRepo {
 	async fn get(&self, user_id: &str) -> Result<Option<UserSettings>> {
-		let row = sqlx::query("SELECT * FROM user_settings WHERE user_id = ?")
+		let row = sqlx::query("SELECT * FROM user_settings WHERE user_id = $1")
 			.bind(user_id)
 			.fetch_optional(&self.db)
 			.await
@@ -47,7 +47,7 @@ impl UserSettingsRepo for SqlxUserSettingsRepo {
 		sqlx::query(
 			"INSERT INTO user_settings \
 			 (user_id, auto_approve, request_quota, quota_days, updated_at) \
-			 VALUES (?, ?, ?, ?, ?) \
+			 VALUES ($1, $2, $3, $4, $5) \
 			 ON CONFLICT(user_id) DO UPDATE SET \
 			 auto_approve = excluded.auto_approve, request_quota = excluded.request_quota, \
 			 quota_days = excluded.quota_days, updated_at = excluded.updated_at",
@@ -64,7 +64,7 @@ impl UserSettingsRepo for SqlxUserSettingsRepo {
 	}
 
 	async fn delete(&self, user_id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM user_settings WHERE user_id = ?")
+		sqlx::query("DELETE FROM user_settings WHERE user_id = $1")
 			.bind(user_id)
 			.execute(&self.db)
 			.await

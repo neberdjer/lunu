@@ -45,7 +45,7 @@ impl UserRepo for SqlxUserRepo {
 		sqlx::query(
 			"INSERT INTO users \
 			 (id, username, email, password_hash, role, auth_source, enabled, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
 		)
 		.bind(&user.id)
 		.bind(&user.username)
@@ -65,8 +65,8 @@ impl UserRepo for SqlxUserRepo {
 	async fn update(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"UPDATE users SET \
-			 username = ?, email = ?, password_hash = ?, role = ?, auth_source = ?, \
-			 enabled = ?, updated_at = ? WHERE id = ?",
+			 username = $1, email = $2, password_hash = $3, role = $4, auth_source = $5, \
+			 enabled = $6, updated_at = $7 WHERE id = $8",
 		)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
@@ -83,7 +83,7 @@ impl UserRepo for SqlxUserRepo {
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<User>> {
-		let row = sqlx::query("SELECT * FROM users WHERE id = ?")
+		let row = sqlx::query("SELECT * FROM users WHERE id = $1")
 			.bind(id)
 			.fetch_optional(&self.db)
 			.await
@@ -92,7 +92,7 @@ impl UserRepo for SqlxUserRepo {
 	}
 
 	async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
-		let row = sqlx::query("SELECT * FROM users WHERE username = ?")
+		let row = sqlx::query("SELECT * FROM users WHERE username = $1")
 			.bind(username)
 			.fetch_optional(&self.db)
 			.await
@@ -101,7 +101,7 @@ impl UserRepo for SqlxUserRepo {
 	}
 
 	async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
-		let row = sqlx::query("SELECT * FROM users WHERE email = ?")
+		let row = sqlx::query("SELECT * FROM users WHERE email = $1")
 			.bind(email)
 			.fetch_optional(&self.db)
 			.await
@@ -126,7 +126,7 @@ impl UserRepo for SqlxUserRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM users WHERE id = ?")
+		sqlx::query("DELETE FROM users WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

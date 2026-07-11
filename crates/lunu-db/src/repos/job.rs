@@ -50,7 +50,7 @@ impl JobRepo for SqlxJobRepo {
 		sqlx::query(
 			"INSERT INTO jobs \
 			 (id, job_type, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		)
 		.bind(&job.id)
 		.bind(job.job_type.as_str())
@@ -71,7 +71,7 @@ impl JobRepo for SqlxJobRepo {
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<Job>> {
-		let row = sqlx::query("SELECT * FROM jobs WHERE id = ?")
+		let row = sqlx::query("SELECT * FROM jobs WHERE id = $1")
 			.bind(id)
 			.fetch_optional(&self.db)
 			.await
@@ -91,7 +91,7 @@ impl JobRepo for SqlxJobRepo {
 		let now = format_dt(now);
 		loop {
 			let row = sqlx::query(
-				"SELECT id FROM jobs WHERE status = 'pending' AND run_after <= ? \
+				"SELECT id FROM jobs WHERE status = 'pending' AND run_after <= $1 \
 				 ORDER BY run_after LIMIT 1",
 			)
 			.bind(&now)
@@ -105,9 +105,9 @@ impl JobRepo for SqlxJobRepo {
 			let id: String = row.try_get("id").map_err(db_error)?;
 
 			let claimed = sqlx::query(
-				"UPDATE jobs SET status = 'running', locked_by = ?, locked_at = ?, \
-				 attempts = attempts + 1, updated_at = ? \
-				 WHERE id = ? AND status = 'pending' AND run_after <= ?",
+				"UPDATE jobs SET status = 'running', locked_by = $1, locked_at = $2, \
+				 attempts = attempts + 1, updated_at = $3 \
+				 WHERE id = $4 AND status = 'pending' AND run_after <= $5",
 			)
 			.bind(worker_id)
 			.bind(&now)
@@ -129,7 +129,7 @@ impl JobRepo for SqlxJobRepo {
 	async fn complete(&self, id: &str, at: DateTime<Utc>) -> Result<()> {
 		sqlx::query(
 			"UPDATE jobs SET status = 'completed', locked_by = NULL, locked_at = NULL, \
-			 updated_at = ? WHERE id = ?",
+			 updated_at = $1 WHERE id = $2",
 		)
 		.bind(format_dt(at))
 		.bind(id)
@@ -147,8 +147,8 @@ impl JobRepo for SqlxJobRepo {
 		at: DateTime<Utc>,
 	) -> Result<()> {
 		sqlx::query(
-			"UPDATE jobs SET status = 'pending', run_after = ?, last_error = ?, \
-			 locked_by = NULL, locked_at = NULL, updated_at = ? WHERE id = ?",
+			"UPDATE jobs SET status = 'pending', run_after = $1, last_error = $2, \
+			 locked_by = NULL, locked_at = NULL, updated_at = $3 WHERE id = $4",
 		)
 		.bind(format_dt(run_after))
 		.bind(error)
@@ -162,8 +162,8 @@ impl JobRepo for SqlxJobRepo {
 
 	async fn fail(&self, id: &str, error: &str, at: DateTime<Utc>) -> Result<()> {
 		sqlx::query(
-			"UPDATE jobs SET status = 'failed', last_error = ?, locked_by = NULL, \
-			 locked_at = NULL, updated_at = ? WHERE id = ?",
+			"UPDATE jobs SET status = 'failed', last_error = $1, locked_by = NULL, \
+			 locked_at = NULL, updated_at = $2 WHERE id = $3",
 		)
 		.bind(error)
 		.bind(format_dt(at))
@@ -177,7 +177,7 @@ impl JobRepo for SqlxJobRepo {
 	async fn reap_stale(&self, older_than: DateTime<Utc>, at: DateTime<Utc>) -> Result<u64> {
 		let reaped = sqlx::query(
 			"UPDATE jobs SET status = 'pending', locked_by = NULL, locked_at = NULL, \
-			 updated_at = ? WHERE status = 'running' AND locked_at < ?",
+			 updated_at = $1 WHERE status = 'running' AND locked_at < $2",
 		)
 		.bind(format_dt(at))
 		.bind(format_dt(older_than))

@@ -47,7 +47,7 @@ impl DownloadRepo for SqlxDownloadRepo {
 		sqlx::query(
 			"INSERT INTO downloads \
 			 (id, request_id, client, category, release_title, indexer, download_url, info_hash, state, progress, created_at, updated_at) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		)
 		.bind(&download.id)
 		.bind(&download.request_id)
@@ -68,7 +68,7 @@ impl DownloadRepo for SqlxDownloadRepo {
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<Download>> {
-		let row = sqlx::query("SELECT * FROM downloads WHERE id = ?")
+		let row = sqlx::query("SELECT * FROM downloads WHERE id = $1")
 			.bind(id)
 			.fetch_optional(&self.db)
 			.await
@@ -78,7 +78,7 @@ impl DownloadRepo for SqlxDownloadRepo {
 
 	async fn find_by_request(&self, request_id: &str) -> Result<Option<Download>> {
 		let row = sqlx::query(
-			"SELECT * FROM downloads WHERE request_id = ? ORDER BY created_at DESC LIMIT 1",
+			"SELECT * FROM downloads WHERE request_id = $1 ORDER BY created_at DESC LIMIT 1",
 		)
 		.bind(request_id)
 		.fetch_optional(&self.db)
@@ -102,19 +102,21 @@ impl DownloadRepo for SqlxDownloadRepo {
 		progress: i64,
 		at: DateTime<Utc>,
 	) -> Result<()> {
-		sqlx::query("UPDATE downloads SET state = ?, progress = ?, updated_at = ? WHERE id = ?")
-			.bind(state.as_str())
-			.bind(progress)
-			.bind(format_dt(at))
-			.bind(id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
+		sqlx::query(
+			"UPDATE downloads SET state = $1, progress = $2, updated_at = $3 WHERE id = $4",
+		)
+		.bind(state.as_str())
+		.bind(progress)
+		.bind(format_dt(at))
+		.bind(id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
 		Ok(())
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM downloads WHERE id = ?")
+		sqlx::query("DELETE FROM downloads WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await

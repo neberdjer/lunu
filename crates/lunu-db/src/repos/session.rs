@@ -42,7 +42,7 @@ impl SessionRepo for SqlxSessionRepo {
 		sqlx::query(
 			"INSERT INTO sessions \
 			 (id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent) \
-			 VALUES (?, ?, ?, ?, ?, ?, ?)",
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)",
 		)
 		.bind(&session.id)
 		.bind(&session.user_id)
@@ -58,7 +58,7 @@ impl SessionRepo for SqlxSessionRepo {
 	}
 
 	async fn find_by_token_hash(&self, token_hash: &str) -> Result<Option<Session>> {
-		let row = sqlx::query("SELECT * FROM sessions WHERE token_hash = ?")
+		let row = sqlx::query("SELECT * FROM sessions WHERE token_hash = $1")
 			.bind(token_hash)
 			.fetch_optional(&self.db)
 			.await
@@ -67,7 +67,7 @@ impl SessionRepo for SqlxSessionRepo {
 	}
 
 	async fn touch(&self, id: &str, last_seen_at: DateTime<Utc>) -> Result<()> {
-		sqlx::query("UPDATE sessions SET last_seen_at = ? WHERE id = ?")
+		sqlx::query("UPDATE sessions SET last_seen_at = $1 WHERE id = $2")
 			.bind(format_dt(last_seen_at))
 			.bind(id)
 			.execute(&self.db)
@@ -77,7 +77,7 @@ impl SessionRepo for SqlxSessionRepo {
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM sessions WHERE id = ?")
+		sqlx::query("DELETE FROM sessions WHERE id = $1")
 			.bind(id)
 			.execute(&self.db)
 			.await
@@ -86,7 +86,7 @@ impl SessionRepo for SqlxSessionRepo {
 	}
 
 	async fn delete_for_user(&self, user_id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM sessions WHERE user_id = ?")
+		sqlx::query("DELETE FROM sessions WHERE user_id = $1")
 			.bind(user_id)
 			.execute(&self.db)
 			.await
@@ -95,7 +95,7 @@ impl SessionRepo for SqlxSessionRepo {
 	}
 
 	async fn delete_expired(&self, now: DateTime<Utc>) -> Result<()> {
-		sqlx::query("DELETE FROM sessions WHERE expires_at <= ?")
+		sqlx::query("DELETE FROM sessions WHERE expires_at <= $1")
 			.bind(format_dt(now))
 			.execute(&self.db)
 			.await
