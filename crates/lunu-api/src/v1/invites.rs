@@ -10,6 +10,7 @@ use serde_json::json;
 use crate::dto::InviteResponse;
 use crate::error::ApiError;
 use crate::extract::AdminUser;
+use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -20,10 +21,19 @@ pub struct CreateInviteRequest {
 	expires_in_days: Option<i64>,
 }
 
-pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	let invites = state.invites.list().await?;
-	let response: Vec<InviteResponse> = invites.iter().map(InviteResponse::from).collect();
-	Ok(HttpResponse::Ok().json(response))
+pub async fn list(
+	_admin: AdminUser,
+	query: web::Query<PageParams>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let pagination = Pagination::resolve(query.page, query.limit);
+	let invites = state
+		.invites
+		.list_page(pagination.limit, pagination.offset)
+		.await?;
+	let total = state.invites.count().await?;
+	let items: Vec<InviteResponse> = invites.iter().map(InviteResponse::from).collect();
+	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
 pub async fn create(

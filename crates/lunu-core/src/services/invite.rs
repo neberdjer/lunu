@@ -52,8 +52,12 @@ impl InviteService {
 		Ok(IssuedInvite { invite, code })
 	}
 
-	pub async fn list(&self) -> Result<Vec<Invite>> {
-		self.invites.list().await
+	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Invite>> {
+		self.invites.list_page(limit, offset).await
+	}
+
+	pub async fn count(&self) -> Result<i64> {
+		self.invites.count().await
 	}
 
 	pub async fn delete(&self, id: &str) -> Result<()> {

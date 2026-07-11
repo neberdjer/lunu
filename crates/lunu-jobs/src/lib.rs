@@ -146,6 +146,12 @@ mod tests {
 		async fn list(&self) -> Result<Vec<Job>> {
 			Ok(Vec::new())
 		}
+		async fn list_page(&self, _limit: i64, _offset: i64) -> Result<Vec<Job>> {
+			Ok(Vec::new())
+		}
+		async fn count(&self) -> Result<i64> {
+			Ok(0)
+		}
 		async fn claim_next(&self, _worker_id: &str, _now: DateTime<Utc>) -> Result<Option<Job>> {
 			Ok(None)
 		}

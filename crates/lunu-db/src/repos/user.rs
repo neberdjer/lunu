@@ -117,6 +117,16 @@ impl UserRepo for SqlxUserRepo {
 		map_rows(rows, map_user)
 	}
 
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<User>> {
+		let rows = sqlx::query("SELECT * FROM users ORDER BY created_at LIMIT $1 OFFSET $2")
+			.bind(limit)
+			.bind(offset)
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_user)
+	}
+
 	async fn count(&self) -> Result<i64> {
 		fetch_count(&self.db, sqlx::query("SELECT COUNT(*) AS count FROM users")).await
 	}

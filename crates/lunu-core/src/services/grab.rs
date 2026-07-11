@@ -107,8 +107,12 @@ impl GrabService {
 		self.downloads.find_by_request(request_id).await
 	}
 
-	pub async fn list(&self) -> Result<Vec<Download>> {
-		self.downloads.list().await
+	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Download>> {
+		self.downloads.list_page(limit, offset).await
+	}
+
+	pub async fn count(&self) -> Result<i64> {
+		self.downloads.count().await
 	}
 
 	async fn best_release(&self, request_id: &str) -> Result<ReleaseSelection> {

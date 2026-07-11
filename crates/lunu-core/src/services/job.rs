@@ -59,6 +59,14 @@ impl JobService {
 		self.jobs.list().await
 	}
 
+	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Job>> {
+		self.jobs.list_page(limit, offset).await
+	}
+
+	pub async fn count(&self) -> Result<i64> {
+		self.jobs.count().await
+	}
+
 	pub async fn get(&self, id: &str) -> Result<Option<Job>> {
 		self.jobs.find_by_id(id).await
 	}

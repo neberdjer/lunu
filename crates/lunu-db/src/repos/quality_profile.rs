@@ -5,7 +5,7 @@ use lunu_core::repo::QualityProfileRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{bool_to_int, format_dt, int_to_bool, join_list, parse_dt, split_list};
 use crate::{Db, db_error};
 
@@ -116,6 +116,24 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_profile)
+	}
+
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<QualityProfile>> {
+		let rows = sqlx::query("SELECT * FROM quality_profiles ORDER BY name LIMIT $1 OFFSET $2")
+			.bind(limit)
+			.bind(offset)
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_profile)
+	}
+
+	async fn count(&self) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query("SELECT COUNT(*) AS count FROM quality_profiles"),
+		)
+		.await
 	}
 
 	async fn set_default(&self, id: &str) -> Result<()> {

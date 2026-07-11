@@ -6,6 +6,7 @@ use serde_json::json;
 use crate::dto::ApiKeyResponse;
 use crate::error::ApiError;
 use crate::extract::AuthUser;
+use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -16,10 +17,19 @@ pub struct CreateApiKeyRequest {
 	expires_in_days: Option<i64>,
 }
 
-pub async fn list(user: AuthUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	let keys = state.api_keys.list_for_user(&user.id).await?;
-	let response: Vec<ApiKeyResponse> = keys.iter().map(ApiKeyResponse::from).collect();
-	Ok(HttpResponse::Ok().json(response))
+pub async fn list(
+	user: AuthUser,
+	query: web::Query<PageParams>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let pagination = Pagination::resolve(query.page, query.limit);
+	let keys = state
+		.api_keys
+		.list_for_user_page(&user.id, pagination.limit, pagination.offset)
+		.await?;
+	let total = state.api_keys.count_for_user(&user.id).await?;
+	let items: Vec<ApiKeyResponse> = keys.iter().map(ApiKeyResponse::from).collect();
+	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
 pub async fn create(

@@ -5,7 +5,7 @@ use lunu_core::repo::InviteRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_dt_opt, parse_enum};
 use crate::{Db, db_error};
 
@@ -86,6 +86,24 @@ impl InviteRepo for SqlxInviteRepo {
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_invite)
+	}
+
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Invite>> {
+		let rows = sqlx::query("SELECT * FROM invites ORDER BY created_at LIMIT $1 OFFSET $2")
+			.bind(limit)
+			.bind(offset)
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_invite)
+	}
+
+	async fn count(&self) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query("SELECT COUNT(*) AS count FROM invites"),
+		)
+		.await
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {

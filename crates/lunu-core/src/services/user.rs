@@ -52,8 +52,12 @@ impl UserService {
 		Ok(settings)
 	}
 
-	pub async fn list(&self) -> Result<Vec<User>> {
-		self.users.list().await
+	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<User>> {
+		self.users.list_page(limit, offset).await
+	}
+
+	pub async fn count(&self) -> Result<i64> {
+		self.users.count().await
 	}
 
 	pub async fn get(&self, id: &str) -> Result<Option<User>> {

@@ -6,7 +6,7 @@ use lunu_core::repo::JobRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_dt_opt, parse_enum};
 use crate::{Db, db_error};
 
@@ -85,6 +85,20 @@ impl JobRepo for SqlxJobRepo {
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_job)
+	}
+
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Job>> {
+		let rows = sqlx::query("SELECT * FROM jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+			.bind(limit)
+			.bind(offset)
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_job)
+	}
+
+	async fn count(&self) -> Result<i64> {
+		fetch_count(&self.db, sqlx::query("SELECT COUNT(*) AS count FROM jobs")).await
 	}
 
 	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>> {

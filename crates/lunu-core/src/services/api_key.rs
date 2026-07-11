@@ -54,6 +54,19 @@ impl ApiKeyService {
 		self.keys.list_for_user(user_id).await
 	}
 
+	pub async fn list_for_user_page(
+		&self,
+		user_id: &str,
+		limit: i64,
+		offset: i64,
+	) -> Result<Vec<ApiKey>> {
+		self.keys.list_for_user_page(user_id, limit, offset).await
+	}
+
+	pub async fn count_for_user(&self, user_id: &str) -> Result<i64> {
+		self.keys.count_for_user(user_id).await
+	}
+
 	pub async fn verify(&self, secret: &str) -> Result<Option<ApiKey>> {
 		let Some(key) = self.keys.find_by_key_hash(&hash_token(secret)).await? else {
 			return Ok(None);

@@ -9,6 +9,7 @@ use serde::Deserialize;
 use crate::dto::QualityProfileResponse;
 use crate::error::ApiError;
 use crate::extract::AdminUser;
+use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
 fn default_min_seeders() -> i64 {
@@ -58,11 +59,20 @@ impl QualityProfileBody {
 	}
 }
 
-pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	let profiles = state.quality_profiles.list().await?;
-	let response: Vec<QualityProfileResponse> =
+pub async fn list(
+	_admin: AdminUser,
+	query: web::Query<PageParams>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let pagination = Pagination::resolve(query.page, query.limit);
+	let profiles = state
+		.quality_profiles
+		.list_page(pagination.limit, pagination.offset)
+		.await?;
+	let total = state.quality_profiles.count().await?;
+	let items: Vec<QualityProfileResponse> =
 		profiles.iter().map(QualityProfileResponse::from).collect();
-	Ok(HttpResponse::Ok().json(response))
+	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
 pub async fn get(

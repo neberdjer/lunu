@@ -6,7 +6,7 @@ use lunu_core::repo::ApiKeyRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{
 	bool_to_int, format_dt, int_to_bool, join_list, parse_dt, parse_dt_opt, split_list,
 };
@@ -83,6 +83,32 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_api_key)
+	}
+
+	async fn list_for_user_page(
+		&self,
+		user_id: &str,
+		limit: i64,
+		offset: i64,
+	) -> Result<Vec<ApiKey>> {
+		let rows = sqlx::query(
+			"SELECT * FROM api_keys WHERE user_id = $1 ORDER BY created_at LIMIT $2 OFFSET $3",
+		)
+		.bind(user_id)
+		.bind(limit)
+		.bind(offset)
+		.fetch_all(&self.db)
+		.await
+		.map_err(db_error)?;
+		map_rows(rows, map_api_key)
+	}
+
+	async fn count_for_user(&self, user_id: &str) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query("SELECT COUNT(*) AS count FROM api_keys WHERE user_id = $1").bind(user_id),
+		)
+		.await
 	}
 
 	async fn touch_last_used(&self, id: &str, at: DateTime<Utc>) -> Result<()> {

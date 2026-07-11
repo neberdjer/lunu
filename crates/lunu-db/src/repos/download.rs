@@ -6,7 +6,7 @@ use lunu_core::repo::DownloadRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_enum};
 use crate::{Db, db_error};
 
@@ -93,6 +93,25 @@ impl DownloadRepo for SqlxDownloadRepo {
 			.await
 			.map_err(db_error)?;
 		map_rows(rows, map_download)
+	}
+
+	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Download>> {
+		let rows =
+			sqlx::query("SELECT * FROM downloads ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+				.bind(limit)
+				.bind(offset)
+				.fetch_all(&self.db)
+				.await
+				.map_err(db_error)?;
+		map_rows(rows, map_download)
+	}
+
+	async fn count(&self) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query("SELECT COUNT(*) AS count FROM downloads"),
+		)
+		.await
 	}
 
 	async fn update_status(
