@@ -11,6 +11,7 @@ pub const ALREADY_REQUESTED: &str = "already-requested";
 pub const QUOTA_EXCEEDED: &str = "quota-exceeded";
 pub const REQUEST_NOT_PENDING: &str = "request-not-pending";
 pub const PROWLARR_NOT_CONFIGURED: &str = "prowlarr-not-configured";
+pub const PROWLARR_UNAUTHORIZED: &str = "prowlarr-unauthorized";
 pub const INVALID_REGION: &str = "invalid-region";
 pub const ALREADY_EXISTS: &str = "already-exists";
 
@@ -28,6 +29,7 @@ pub const ALL: &[&str] = &[
 	QUOTA_EXCEEDED,
 	REQUEST_NOT_PENDING,
 	PROWLARR_NOT_CONFIGURED,
+	PROWLARR_UNAUTHORIZED,
 	INVALID_REGION,
 	ALREADY_EXISTS,
 ];

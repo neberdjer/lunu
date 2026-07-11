@@ -7,13 +7,17 @@ use lunu_core::models::{Protocol, Release};
 use lunu_core::services::SettingsService;
 use lunu_core::traits::Indexer;
 use lunu_core::{Error, Result};
+use reqwest::StatusCode;
 use serde::Deserialize;
 
+use crate::http::send_with_retry;
 use crate::integration_error;
 
 const PROVIDER_ID: &str = "prowlarr";
 const AUDIOBOOK_CATEGORY: &str = "3030";
-const REQUEST_TIMEOUT_SECS: u64 = 30;
+const ALL_INDEXERS: &str = "-1";
+const SEARCH_TYPE: &str = "search";
+const REQUEST_TIMEOUT_SECS: u64 = 60;
 const SETTING_URL: &str = "prowlarr_url";
 const SETTING_API_KEY: &str = "prowlarr_api_key";
 
@@ -53,21 +57,26 @@ impl Indexer for ProwlarrClient {
 		let api_key = self.setting(SETTING_API_KEY).await?;
 
 		let url = format!("{}/api/v1/search", base_url.trim_end_matches('/'));
-		let response = self
-			.http
-			.get(url)
-			.header("X-Api-Key", api_key)
-			.query(&[
-				("query", query),
-				("categories", AUDIOBOOK_CATEGORY),
-				("type", "search"),
-			])
-			.send()
-			.await
-			.map_err(integration_error)?
-			.error_for_status()
-			.map_err(integration_error)?;
+		let response = send_with_retry(|| {
+			self.http
+				.get(&url)
+				.header("X-Api-Key", api_key.as_str())
+				.query(&[
+					("query", query),
+					("indexerIds", ALL_INDEXERS),
+					("categories", AUDIOBOOK_CATEGORY),
+					("type", SEARCH_TYPE),
+				])
+		})
+		.await?;
 
+		if response.status() == StatusCode::UNAUTHORIZED {
+			return Err(Error::Validation(
+				reasons::PROWLARR_UNAUTHORIZED.to_string(),
+			));
+		}
+
+		let response = response.error_for_status().map_err(integration_error)?;
 		let results: Vec<ProwlarrRelease> = response.json().await.map_err(integration_error)?;
 		Ok(results
 			.into_iter()
@@ -86,7 +95,6 @@ struct ProwlarrRelease {
 	leechers: Option<i64>,
 	protocol: Option<String>,
 	download_url: Option<String>,
-	magnet_url: Option<String>,
 	info_url: Option<String>,
 	publish_date: Option<String>,
 }
@@ -97,7 +105,6 @@ impl ProwlarrRelease {
 			return None;
 		}
 
-		let download_url = self.magnet_url.or(self.download_url)?;
 		Some(Release {
 			title: self.title,
 			indexer: self.indexer.unwrap_or_default(),
@@ -105,7 +112,7 @@ impl ProwlarrRelease {
 			size: self.size.unwrap_or(0),
 			seeders: self.seeders.unwrap_or(0),
 			leechers: self.leechers.unwrap_or(0),
-			download_url,
+			download_url: self.download_url?,
 			info_url: self.info_url,
 			publish_date: self.publish_date,
 		})
@@ -124,7 +131,7 @@ mod tests {
 			"seeders": 42,
 			"leechers": 3,
 			"protocol": "torrent",
-			"magnetUrl": "magnet:?xt=urn:btih:abc",
+			"downloadUrl": "magnet:?xt=urn:btih:abc",
 			"infoUrl": "https://tracker/details",
 			"publishDate": "2020-01-01T00:00:00Z"
 		},
@@ -134,6 +141,11 @@ mod tests {
 			"size": 1,
 			"protocol": "usenet",
 			"downloadUrl": "https://usenet/nzb"
+		},
+		{
+			"title": "Torrent Without Download Url",
+			"indexer": "BrokenTracker",
+			"protocol": "torrent"
 		}
 	]"#;
 

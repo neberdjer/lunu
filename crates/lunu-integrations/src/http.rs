@@ -30,7 +30,7 @@ where
 				return Ok(response);
 			}
 			Err(error) => {
-				if attempt < MAX_RETRIES && (error.is_timeout() || error.is_connect()) {
+				if attempt < MAX_RETRIES && error.is_connect() {
 					sleep(backoff(attempt)).await;
 					attempt += 1;
 					continue;
