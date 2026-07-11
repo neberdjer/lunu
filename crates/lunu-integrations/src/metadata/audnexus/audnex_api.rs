@@ -1,19 +1,14 @@
-use std::time::Duration;
-
 use lunu_core::Result;
 use lunu_core::models::{Book, Chapter, Chapters, SeriesRef};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use tokio::time::sleep;
 
 use super::{Named, names};
+use crate::http::send_with_retry;
 use crate::integration_error;
 
 const AUDNEXUS_BASE: &str = "https://api.audnex.us";
-const MAX_RETRIES: u32 = 3;
-const RETRY_BASE_MS: u64 = 500;
-const RETRY_MAX_WAIT_SECS: u64 = 10;
 
 pub(super) async fn get_book(
 	client: &reqwest::Client,
@@ -45,52 +40,15 @@ async fn get_json<T: DeserializeOwned>(
 	path: &str,
 ) -> Result<Option<T>> {
 	let url = format!("{AUDNEXUS_BASE}/{path}");
-	let mut attempt: u32 = 0;
+	let response = send_with_retry(|| client.get(&url).query(&[("region", region)])).await?;
 
-	loop {
-		let response = match client.get(&url).query(&[("region", region)]).send().await {
-			Ok(response) => response,
-			Err(error) => {
-				if attempt < MAX_RETRIES && (error.is_timeout() || error.is_connect()) {
-					sleep(backoff(attempt)).await;
-					attempt += 1;
-					continue;
-				}
-				return Err(integration_error(error));
-			}
-		};
-
-		let status = response.status();
-		if status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST {
-			return Ok(None);
-		}
-
-		let retryable = status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error();
-		if retryable && attempt < MAX_RETRIES {
-			let wait = retry_after(&response).unwrap_or_else(|| backoff(attempt));
-			sleep(wait).await;
-			attempt += 1;
-			continue;
-		}
-
-		let response = response.error_for_status().map_err(integration_error)?;
-		return Ok(Some(response.json::<T>().await.map_err(integration_error)?));
+	let status = response.status();
+	if status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST {
+		return Ok(None);
 	}
-}
 
-fn backoff(attempt: u32) -> Duration {
-	Duration::from_millis(RETRY_BASE_MS << attempt)
-}
-
-fn retry_after(response: &reqwest::Response) -> Option<Duration> {
-	let seconds = response
-		.headers()
-		.get(reqwest::header::RETRY_AFTER)?
-		.to_str()
-		.ok()?
-		.parse::<u64>()
-		.ok()?;
-	Some(Duration::from_secs(seconds.min(RETRY_MAX_WAIT_SECS)))
+	let response = response.error_for_status().map_err(integration_error)?;
+	Ok(Some(response.json::<T>().await.map_err(integration_error)?))
 }
 
 #[derive(Deserialize)]

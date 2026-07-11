@@ -5,9 +5,11 @@ use lunu_core::models::{Book, SeriesRef};
 use serde::Deserialize;
 
 use super::{Named, names};
+use crate::http::send_with_retry;
 use crate::integration_error;
 
 const SEARCH_RESULT_LIMIT: &str = "10";
+const RESPONSE_GROUPS: &str = "contributors,product_desc,product_attrs,media,series";
 
 pub(super) async fn search(
 	client: &reqwest::Client,
@@ -15,22 +17,17 @@ pub(super) async fn search(
 	query: &str,
 ) -> Result<Vec<Book>> {
 	let url = format!("https://{}/1.0/catalog/products", audible_host(region));
-	let response = client
-		.get(url)
-		.query(&[
+	let response = send_with_retry(|| {
+		client.get(&url).query(&[
 			("num_results", SEARCH_RESULT_LIMIT),
 			("products_sort_by", "Relevance"),
-			(
-				"response_groups",
-				"contributors,product_desc,product_attrs,media,series",
-			),
+			("response_groups", RESPONSE_GROUPS),
 			("keywords", query),
 		])
-		.send()
-		.await
-		.map_err(integration_error)?
-		.error_for_status()
-		.map_err(integration_error)?;
+	})
+	.await?
+	.error_for_status()
+	.map_err(integration_error)?;
 
 	let body: AudibleSearchResponse = response.json().await.map_err(integration_error)?;
 	Ok(body
