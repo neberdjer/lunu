@@ -612,6 +612,45 @@ async fn cannot_disable_or_delete_last_admin() {
 	));
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_admin_removal_never_drops_below_one() {
+	let db = memory_db().await;
+	let first = auth_service(&db)
+		.setup_first_admin("admin1", "password123", None)
+		.await
+		.unwrap()
+		.user;
+	let users = Arc::new(user_service(&db));
+	let second = users
+		.create("admin2", "password123", None, Role::Admin)
+		.await
+		.unwrap();
+
+	let a = users.clone();
+	let b = users.clone();
+	let first_id = first.id.clone();
+	let second_id = second.id.clone();
+	let t1 = tokio::spawn(async move { a.set_enabled(&first_id, false).await });
+	let t2 = tokio::spawn(async move { b.delete(&second_id).await.map(|_| ()) });
+	let r1 = t1.await.unwrap();
+	let r2 = t2.await.unwrap();
+
+	let failures = [r1.is_err(), r2.is_err()]
+		.into_iter()
+		.filter(|e| *e)
+		.count();
+	assert_eq!(
+		failures, 1,
+		"exactly one concurrent admin removal must be rejected"
+	);
+	assert!(
+		SqlxUserRepo::new(db.clone())
+			.count_enabled_admins_excluding("none")
+			.await
+			.unwrap() >= 1
+	);
+}
+
 #[tokio::test]
 async fn create_initial_admin_rejects_second_insert() {
 	let db = memory_db().await;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::consts::reasons;
 use crate::models::{Role, User, UserSettings};
@@ -12,6 +13,7 @@ pub struct UserService {
 	users: Arc<dyn UserRepo>,
 	sessions: Arc<dyn SessionRepo>,
 	settings: Arc<dyn UserSettingsRepo>,
+	admin_lock: Mutex<()>,
 }
 
 impl UserService {
@@ -24,6 +26,7 @@ impl UserService {
 			users,
 			sessions,
 			settings,
+			admin_lock: Mutex::new(()),
 		}
 	}
 
@@ -88,10 +91,7 @@ impl UserService {
 
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
-
-		if !enabled {
-			self.ensure_not_last_admin(&user).await?;
-		}
+		let _guard = self.guard_admin_removal(&user, !enabled).await?;
 
 		user.enabled = enabled;
 		user.updated_at = Utc::now();
@@ -106,19 +106,26 @@ impl UserService {
 
 	pub async fn delete(&self, id: &str) -> Result<()> {
 		let user = require_user(self.users.as_ref(), id).await?;
-		self.ensure_not_last_admin(&user).await?;
+		let _guard = self.guard_admin_removal(&user, true).await?;
+
 		self.sessions.delete_for_user(id).await?;
 		self.settings.delete(id).await?;
 		self.users.delete(id).await
 	}
 
-	async fn ensure_not_last_admin(&self, user: &User) -> Result<()> {
-		if user.role.is_admin()
-			&& user.enabled
-			&& self.users.count_enabled_admins_excluding(&user.id).await? == 0
-		{
+	async fn guard_admin_removal(
+		&self,
+		user: &User,
+		removing: bool,
+	) -> Result<Option<MutexGuard<'_, ()>>> {
+		if !(removing && user.role.is_admin() && user.enabled) {
+			return Ok(None);
+		}
+
+		let guard = self.admin_lock.lock().await;
+		if self.users.count_enabled_admins_excluding(&user.id).await? == 0 {
 			return Err(Error::Conflict(reasons::LAST_ADMIN.to_string()));
 		}
-		Ok(())
+		Ok(Some(guard))
 	}
 }
