@@ -1,5 +1,6 @@
 mod api_key;
 mod auth;
+mod grab;
 mod invite;
 mod metadata;
 mod quality_profile;
@@ -10,6 +11,7 @@ mod user;
 
 pub use api_key::{ApiKeyService, IssuedApiKey};
 pub use auth::{AuthService, Authenticated};
+pub use grab::{GrabService, ReleaseSelection};
 pub use invite::{InviteService, IssuedInvite};
 pub use metadata::MetadataService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};

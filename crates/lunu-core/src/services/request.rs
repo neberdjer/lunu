@@ -93,6 +93,19 @@ impl RequestService {
 		self.transition(id, RequestStatus::Approved, admin_id).await
 	}
 
+	pub async fn mark_downloading(&self, id: &str) -> Result<Request> {
+		let mut request = self
+			.requests
+			.find_by_id(id)
+			.await?
+			.ok_or_else(|| Error::NotFound(format!("request {id}")))?;
+
+		request.status = RequestStatus::Downloading;
+		request.updated_at = Utc::now();
+		self.requests.update(&request).await?;
+		Ok(request)
+	}
+
 	pub async fn decline(&self, admin_id: &str, id: &str) -> Result<Request> {
 		self.transition(id, RequestStatus::Declined, admin_id).await
 	}

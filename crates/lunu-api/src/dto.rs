@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use lunu_core::models::{ApiKey, Invite, QualityProfile, Request, User, UserSettings};
+use lunu_core::models::{ApiKey, Download, Invite, QualityProfile, Request, User, UserSettings};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -100,6 +100,37 @@ impl From<&UserSettings> for UserSettingsResponse {
 			auto_approve: settings.auto_approve,
 			request_quota: settings.request_quota,
 			quota_days: settings.quota_days,
+		}
+	}
+}
+
+#[derive(Serialize)]
+pub(crate) struct DownloadResponse {
+	pub id: String,
+	pub request_id: String,
+	pub client: String,
+	pub category: String,
+	pub release_title: String,
+	pub indexer: String,
+	pub download_url: String,
+	pub state: String,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+}
+
+impl From<&Download> for DownloadResponse {
+	fn from(download: &Download) -> Self {
+		Self {
+			id: download.id.clone(),
+			request_id: download.request_id.clone(),
+			client: download.client.clone(),
+			category: download.category.clone(),
+			release_title: download.release_title.clone(),
+			indexer: download.indexer.clone(),
+			download_url: download.download_url.clone(),
+			state: download.state.to_string(),
+			created_at: download.created_at,
+			updated_at: download.updated_at,
 		}
 	}
 }

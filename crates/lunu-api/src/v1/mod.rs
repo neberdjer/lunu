@@ -1,5 +1,6 @@
 mod api_keys;
 mod auth;
+mod downloads;
 mod health;
 mod invites;
 mod metadata;
@@ -39,6 +40,9 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/requests/{id}/approve", web::post().to(requests::approve));
 	cfg.route("/requests/{id}/decline", web::post().to(requests::decline));
 	cfg.route("/requests/{id}/releases", web::get().to(requests::releases));
+	cfg.route("/requests/{id}/grab", web::post().to(requests::grab));
+
+	cfg.route("/downloads", web::get().to(downloads::list));
 
 	cfg.route("/quality-profiles", web::get().to(quality_profiles::list));
 	cfg.route(

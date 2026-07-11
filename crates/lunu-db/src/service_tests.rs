@@ -4,17 +4,20 @@ use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
-	MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role, UserSettings,
+	Download, DownloadState, MetadataCacheEntry, QualityProfile, Request, RequestStatus, Role,
+	UserSettings,
 };
 use lunu_core::repo::{
-	MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
+	DownloadRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo,
+	UserSettingsRepo,
 };
 use lunu_core::services::{ApiKeyService, AuthService, InviteService, SettingsService};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
-	SqlxApiKeyRepo, SqlxInviteRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxApiKeyRepo, SqlxDownloadRepo, SqlxInviteRepo, SqlxMetadataCacheRepo,
+	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -300,6 +303,41 @@ async fn user_settings_upsert() {
 	assert!(loaded.auto_approve);
 	assert_eq!(loaded.request_quota, Some(5));
 	assert_eq!(loaded.quota_days, Some(7));
+}
+
+#[tokio::test]
+async fn download_create_and_set_state() {
+	let db = memory_db().await;
+	let repo = SqlxDownloadRepo::new(db.clone());
+
+	let now = Utc::now();
+	let download = Download {
+		id: "d1".to_string(),
+		request_id: "r1".to_string(),
+		client: "qbittorrent".to_string(),
+		category: "lunu".to_string(),
+		release_title: "The Hobbit [M4B]".to_string(),
+		indexer: "MyTracker".to_string(),
+		download_url: "magnet:?xt=urn:btih:abc".to_string(),
+		state: DownloadState::Queued,
+		created_at: now,
+		updated_at: now,
+	};
+	repo.create(&download).await.unwrap();
+
+	let found = repo.find_by_request("r1").await.unwrap().unwrap();
+	assert_eq!(found.id, "d1");
+	assert_eq!(found.state, DownloadState::Queued);
+	assert_eq!(found.release_title, "The Hobbit [M4B]");
+
+	repo.set_state("d1", DownloadState::Downloading, Utc::now())
+		.await
+		.unwrap();
+	assert_eq!(
+		repo.find_by_id("d1").await.unwrap().unwrap().state,
+		DownloadState::Downloading
+	);
+	assert_eq!(repo.list().await.unwrap().len(), 1);
 }
 
 #[tokio::test]

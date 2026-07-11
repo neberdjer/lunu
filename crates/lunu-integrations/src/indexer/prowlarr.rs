@@ -11,7 +11,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 
 use crate::http::send_with_retry;
-use crate::integration_error;
+use crate::{integration_error, required_setting};
 
 const PROVIDER_ID: &str = "prowlarr";
 const AUDIOBOOK_CATEGORY: &str = "3030";
@@ -38,11 +38,7 @@ impl ProwlarrClient {
 	}
 
 	async fn setting(&self, key: &str) -> Result<String> {
-		self.settings
-			.get(key)
-			.await?
-			.filter(|value| !value.trim().is_empty())
-			.ok_or_else(|| Error::Validation(reasons::PROWLARR_NOT_CONFIGURED.to_string()))
+		required_setting(&self.settings, key, reasons::PROWLARR_NOT_CONFIGURED).await
 	}
 }
 

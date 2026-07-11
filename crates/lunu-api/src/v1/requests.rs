@@ -1,8 +1,9 @@
 use actix_web::{HttpResponse, web};
 use lunu_core::Error;
+use lunu_core::services::ReleaseSelection;
 use serde::Deserialize;
 
-use crate::dto::RequestResponse;
+use crate::dto::{DownloadResponse, RequestResponse};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::state::AppState;
@@ -10,6 +11,15 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct CreateRequestBody {
 	asin: String,
+}
+
+#[derive(Deserialize, Default)]
+pub struct GrabBody {
+	download_url: Option<String>,
+	#[serde(default)]
+	title: String,
+	#[serde(default)]
+	indexer: String,
 }
 
 pub async fn list(user: AuthUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
@@ -73,4 +83,21 @@ pub async fn releases(
 ) -> Result<HttpResponse, ApiError> {
 	let releases = state.releases.for_request(&id).await?;
 	Ok(HttpResponse::Ok().json(releases))
+}
+
+pub async fn grab(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+	body: web::Json<GrabBody>,
+) -> Result<HttpResponse, ApiError> {
+	let body = body.into_inner();
+	let selection = body.download_url.map(|download_url| ReleaseSelection {
+		download_url,
+		title: body.title,
+		indexer: body.indexer,
+	});
+
+	let download = state.grabs.grab(&id, selection).await?;
+	Ok(HttpResponse::Created().json(DownloadResponse::from(&download)))
 }
