@@ -22,6 +22,8 @@ pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const JOB_STATUS_UNKNOWN: &str = "job-status-unknown";
 pub const LIBRARY_NOT_CONFIGURED: &str = "library-not-configured";
+pub const LAST_ADMIN: &str = "last-admin";
+pub const UNKNOWN_SCOPE: &str = "unknown-scope";
 pub const PASSWORD_TOO_SHORT: &str = "password-too-short";
 pub const PASSWORD_NOT_LOCAL: &str = "password-not-local";
 pub const EMAIL_INVALID: &str = "email-invalid";
@@ -55,6 +57,8 @@ pub const ALL: &[&str] = &[
 	JOB_TYPE_UNKNOWN,
 	JOB_STATUS_UNKNOWN,
 	LIBRARY_NOT_CONFIGURED,
+	LAST_ADMIN,
+	UNKNOWN_SCOPE,
 	PASSWORD_TOO_SHORT,
 	PASSWORD_NOT_LOCAL,
 	EMAIL_INVALID,

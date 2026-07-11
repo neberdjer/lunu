@@ -4,6 +4,9 @@ pub const ENV_BIND: &str = "LUNU_BIND";
 pub const ENV_DATABASE_URL: &str = "LUNU_DATABASE_URL";
 pub const ENV_MASTER_KEY: &str = "LUNU_MASTER_KEY";
 pub const ENV_WORKERS: &str = "LUNU_WORKERS";
+pub const ENV_TRUSTED_PROXY_HOPS: &str = "LUNU_TRUSTED_PROXY_HOPS";
+pub const ENV_TRUSTED_CLIENT_IP_HEADER: &str = "LUNU_TRUSTED_CLIENT_IP_HEADER";
+pub const ENV_SECURE_COOKIES: &str = "LUNU_SECURE_COOKIES";
 
 pub const DEFAULT_BIND: &str = "127.0.0.1:8080";
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/lunu.db?mode=rwc";
@@ -16,6 +19,9 @@ pub struct BootstrapConfig {
 	pub database_url: String,
 	pub master_key: String,
 	pub workers: usize,
+	pub trusted_proxy_hops: usize,
+	pub trusted_client_ip_header: Option<String>,
+	pub secure_cookies: bool,
 }
 
 impl BootstrapConfig {
@@ -82,6 +88,9 @@ impl BootstrapConfig {
 				database_url,
 				master_key,
 				workers,
+				trusted_proxy_hops: env_usize(ENV_TRUSTED_PROXY_HOPS),
+				trusted_client_ip_header: env_optional(ENV_TRUSTED_CLIENT_IP_HEADER),
+				secure_cookies: env_flag(ENV_SECURE_COOKIES),
 			})
 		} else {
 			Err(ConfigError { issues })
@@ -124,6 +133,31 @@ fn env_or(key: &str, default: &str) -> String {
 		.ok()
 		.filter(|value| !value.trim().is_empty())
 		.unwrap_or_else(|| default.to_string())
+}
+
+fn env_flag(key: &str) -> bool {
+	std::env::var(key)
+		.map(|value| {
+			matches!(
+				value.trim().to_ascii_lowercase().as_str(),
+				"1" | "true" | "yes"
+			)
+		})
+		.unwrap_or(false)
+}
+
+fn env_usize(key: &str) -> usize {
+	std::env::var(key)
+		.ok()
+		.and_then(|value| value.trim().parse::<usize>().ok())
+		.unwrap_or(0)
+}
+
+fn env_optional(key: &str) -> Option<String> {
+	std::env::var(key)
+		.ok()
+		.map(|value| value.trim().to_string())
+		.filter(|value| !value.is_empty())
 }
 
 fn is_valid_bind(bind: &str) -> bool {

@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
-use crate::Result;
+use crate::consts::reasons;
 use crate::models::{Role, User, UserSettings};
 use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
 use crate::services::{build_local_user, ensure_username_available, normalize_email, require_user};
+use crate::{Error, Result};
 
 pub struct UserService {
 	users: Arc<dyn UserRepo>,
@@ -88,6 +89,10 @@ impl UserService {
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
+		if !enabled {
+			self.ensure_not_last_admin(&user).await?;
+		}
+
 		user.enabled = enabled;
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
@@ -100,8 +105,20 @@ impl UserService {
 	}
 
 	pub async fn delete(&self, id: &str) -> Result<()> {
+		let user = require_user(self.users.as_ref(), id).await?;
+		self.ensure_not_last_admin(&user).await?;
 		self.sessions.delete_for_user(id).await?;
 		self.settings.delete(id).await?;
 		self.users.delete(id).await
+	}
+
+	async fn ensure_not_last_admin(&self, user: &User) -> Result<()> {
+		if user.role.is_admin()
+			&& user.enabled
+			&& self.users.count_enabled_admins_excluding(&user.id).await? == 0
+		{
+			return Err(Error::Conflict(reasons::LAST_ADMIN.to_string()));
+		}
+		Ok(())
 	}
 }

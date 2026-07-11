@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use rand::rngs::OsRng;
@@ -19,6 +21,13 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
 	Ok(Argon2::default()
 		.verify_password(password.as_bytes(), &parsed)
 		.is_ok())
+}
+
+pub fn dummy_verify(password: &str) {
+	static DUMMY_HASH: OnceLock<String> = OnceLock::new();
+	let hash = DUMMY_HASH
+		.get_or_init(|| hash_password("lunu-timing-equalizer").expect("dummy hash builds"));
+	let _ = verify_password(password, hash);
 }
 
 #[cfg(test)]

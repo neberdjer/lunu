@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
-use crate::consts::auth::{API_KEY_DISPLAY_LEN, API_KEY_PREFIX};
+use crate::consts::auth::{API_KEY_DISPLAY_LEN, API_KEY_PREFIX, KNOWN_API_KEY_SCOPES};
+use crate::consts::reasons;
 use crate::crypto::{generate_token, hash_token};
 use crate::models::ApiKey;
 use crate::repo::ApiKeyRepo;
@@ -30,6 +31,13 @@ impl ApiKeyService {
 		scopes: Vec<String>,
 		expires_at: Option<DateTime<Utc>>,
 	) -> Result<IssuedApiKey> {
+		if scopes
+			.iter()
+			.any(|scope| !KNOWN_API_KEY_SCOPES.contains(&scope.as_str()))
+		{
+			return Err(Error::Validation(reasons::UNKNOWN_SCOPE.to_string()));
+		}
+
 		let secret = format!("{API_KEY_PREFIX}_{}", generate_token());
 		let prefix = secret.chars().take(API_KEY_DISPLAY_LEN).collect();
 

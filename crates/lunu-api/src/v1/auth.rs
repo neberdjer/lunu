@@ -11,11 +11,7 @@ use crate::extract::AuthUser;
 use crate::state::AppState;
 
 fn enforce_auth_rate_limit(req: &HttpRequest, state: &AppState) -> Result<(), ApiError> {
-	let ip = req
-		.connection_info()
-		.realip_remote_addr()
-		.map(str::to_string)
-		.unwrap_or_default();
+	let ip = crate::client_ip::client_ip(req, &state.config);
 	if state.auth_rate_limiter.check(&ip) {
 		Ok(())
 	} else {
@@ -54,7 +50,11 @@ pub async fn login(
 ) -> Result<HttpResponse, ApiError> {
 	enforce_auth_rate_limit(&req, &state)?;
 	let authenticated = state.auth.login(&body.username, &body.password).await?;
-	Ok(authenticated_response(HttpResponse::Ok(), &authenticated))
+	Ok(authenticated_response(
+		HttpResponse::Ok(),
+		&authenticated,
+		state.config.secure_cookies,
+	))
 }
 
 pub async fn register(
@@ -70,6 +70,7 @@ pub async fn register(
 	Ok(authenticated_response(
 		HttpResponse::Created(),
 		&authenticated,
+		state.config.secure_cookies,
 	))
 }
 
@@ -81,7 +82,7 @@ pub async fn logout(
 		state.auth.logout(cookie.value()).await?;
 	}
 	Ok(HttpResponse::Ok()
-		.cookie(clear_session_cookie())
+		.cookie(clear_session_cookie(state.config.secure_cookies))
 		.json(json!({ "status": "ok" })))
 }
 
@@ -112,5 +113,9 @@ pub async fn change_password(
 		.auth
 		.change_password(&user.0.id, &body.current_password, &body.new_password)
 		.await?;
-	Ok(authenticated_response(HttpResponse::Ok(), &authenticated))
+	Ok(authenticated_response(
+		HttpResponse::Ok(),
+		&authenticated,
+		state.config.secure_cookies,
+	))
 }

@@ -81,6 +81,36 @@ impl RequestRepo for SqlxRequestRepo {
 		Ok(())
 	}
 
+	async fn create_within_quota(
+		&self,
+		request: &Request,
+		quota: i64,
+		since: DateTime<Utc>,
+	) -> Result<bool> {
+		let result = sqlx::query(
+			"INSERT INTO requests \
+			 (id, user_id, asin, title, author, cover_url, status, approved_by, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 \
+			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $11) < $12",
+		)
+		.bind(&request.id)
+		.bind(&request.user_id)
+		.bind(&request.asin)
+		.bind(&request.title)
+		.bind(request.author.as_deref())
+		.bind(request.cover_url.as_deref())
+		.bind(request.status.as_str())
+		.bind(request.approved_by.as_deref())
+		.bind(format_dt(request.created_at))
+		.bind(format_dt(request.updated_at))
+		.bind(format_dt(since))
+		.bind(quota)
+		.execute(&self.db)
+		.await
+		.map_err(map_write_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
 	async fn update(&self, request: &Request) -> Result<()> {
 		sqlx::query(
 			"UPDATE requests SET status = $1, approved_by = $2, updated_at = $3 WHERE id = $4",
@@ -172,15 +202,6 @@ impl RequestRepo for SqlxRequestRepo {
 		if let Some(status) = status {
 			query = query.bind(status);
 		}
-		fetch_count(&self.db, query).await
-	}
-
-	async fn count_for_user_since(&self, user_id: &str, since: DateTime<Utc>) -> Result<i64> {
-		let query = sqlx::query(
-			"SELECT COUNT(*) AS count FROM requests WHERE user_id = $1 AND created_at >= $2",
-		)
-		.bind(user_id)
-		.bind(format_dt(since));
 		fetch_count(&self.db, query).await
 	}
 

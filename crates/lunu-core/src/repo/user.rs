@@ -6,6 +6,8 @@ use crate::models::User;
 #[async_trait]
 pub trait UserRepo: Send + Sync {
 	async fn create(&self, user: &User) -> Result<()>;
+	async fn create_initial_admin(&self, user: &User) -> Result<bool>;
+	async fn count_enabled_admins_excluding(&self, id: &str) -> Result<i64>;
 	async fn update(&self, user: &User) -> Result<()>;
 	async fn find_by_id(&self, id: &str) -> Result<Option<User>>;
 	async fn find_by_username(&self, username: &str) -> Result<Option<User>>;

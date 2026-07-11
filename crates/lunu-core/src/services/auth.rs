@@ -4,7 +4,7 @@ use chrono::{Duration, Utc};
 
 use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
-use crate::crypto::{generate_token, hash_password, hash_token, verify_password};
+use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{InviteRepo, SessionRepo, UserRepo};
 use crate::services::{
@@ -56,7 +56,9 @@ impl AuthService {
 		}
 
 		let user = build_local_user(username, password, email, Role::Admin)?;
-		self.users.create(&user).await?;
+		if !self.users.create_initial_admin(&user).await? {
+			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
+		}
 
 		self.issue(user).await
 	}
@@ -84,6 +86,7 @@ impl AuthService {
 		}
 
 		let Some(identity) = self.authenticate_external(username, password).await? else {
+			dummy_verify(password);
 			return Err(Error::Unauthorized);
 		};
 		let user = self.provision_external(identity).await?;

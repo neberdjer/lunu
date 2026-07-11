@@ -62,6 +62,42 @@ impl UserRepo for SqlxUserRepo {
 		Ok(())
 	}
 
+	async fn create_initial_admin(&self, user: &User) -> Result<bool> {
+		let result = sqlx::query(
+			"INSERT INTO users \
+			 (id, username, email, password_hash, role, auth_source, enabled, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9 \
+			 WHERE NOT EXISTS (SELECT 1 FROM users)",
+		)
+		.bind(&user.id)
+		.bind(&user.username)
+		.bind(user.email.as_deref())
+		.bind(user.password_hash.as_deref())
+		.bind(user.role.as_str())
+		.bind(user.auth_source.as_str())
+		.bind(bool_to_int(user.enabled))
+		.bind(format_dt(user.created_at))
+		.bind(format_dt(user.updated_at))
+		.execute(&self.db)
+		.await
+		.map_err(map_write_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
+	async fn count_enabled_admins_excluding(&self, id: &str) -> Result<i64> {
+		fetch_count(
+			&self.db,
+			sqlx::query(
+				"SELECT COUNT(*) AS count FROM users \
+				 WHERE role = $1 AND enabled = $2 AND id <> $3",
+			)
+			.bind(Role::Admin.as_str())
+			.bind(bool_to_int(true))
+			.bind(id),
+		)
+		.await
+	}
+
 	async fn update(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"UPDATE users SET \

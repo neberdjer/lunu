@@ -549,9 +549,15 @@ async fn api_key_issue_verify_revoke() {
 	let keys = ApiKeyService::new(Arc::new(SqlxApiKeyRepo::new(db.clone())));
 
 	let issued = keys
-		.issue("user-1", "cli", vec!["read".to_string()], None)
+		.issue("user-1", "cli", vec!["admin".to_string()], None)
 		.await
 		.unwrap();
+
+	assert!(matches!(
+		keys.issue("user-1", "bad", vec!["read".to_string()], None)
+			.await,
+		Err(Error::Validation(_))
+	));
 
 	let verified = keys.verify(&issued.secret).await.unwrap().unwrap();
 	assert_eq!(verified.user_id, "user-1");
@@ -566,6 +572,102 @@ async fn api_key_issue_verify_revoke() {
 		.await
 		.unwrap();
 	assert!(keys.verify(&issued.secret).await.unwrap().is_none());
+}
+
+fn user_service(db: &Db) -> UserService {
+	UserService::new(
+		Arc::new(SqlxUserRepo::new(db.clone())),
+		Arc::new(SqlxSessionRepo::new(db.clone())),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+	)
+}
+
+#[tokio::test]
+async fn cannot_disable_or_delete_last_admin() {
+	let db = memory_db().await;
+	let admin = auth_service(&db)
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap()
+		.user;
+	let users = user_service(&db);
+
+	assert!(matches!(
+		users.set_enabled(&admin.id, false).await,
+		Err(Error::Conflict(_))
+	));
+	assert!(matches!(
+		users.delete(&admin.id).await,
+		Err(Error::Conflict(_))
+	));
+
+	let second = users
+		.create("admin2", "password123", None, Role::Admin)
+		.await
+		.unwrap();
+	users.delete(&admin.id).await.unwrap();
+	assert!(matches!(
+		users.delete(&second.id).await,
+		Err(Error::Conflict(_))
+	));
+}
+
+#[tokio::test]
+async fn create_initial_admin_rejects_second_insert() {
+	let db = memory_db().await;
+	let repo = SqlxUserRepo::new(db.clone());
+	let mk = |id: &str, name: &str| User {
+		id: id.to_string(),
+		username: name.to_string(),
+		email: None,
+		password_hash: Some("h".to_string()),
+		role: Role::Admin,
+		auth_source: AuthSource::Local,
+		enabled: true,
+		created_at: Utc::now(),
+		updated_at: Utc::now(),
+	};
+
+	assert!(repo.create_initial_admin(&mk("1", "a")).await.unwrap());
+	assert!(!repo.create_initial_admin(&mk("2", "b")).await.unwrap());
+	assert_eq!(repo.count().await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn create_within_quota_enforces_limit() {
+	let db = memory_db().await;
+	let repo = SqlxRequestRepo::new(db.clone());
+	let since = Utc::now() - chrono::Duration::days(30);
+	let mk = |id: &str, asin: &str| Request {
+		id: id.to_string(),
+		user_id: "u1".to_string(),
+		asin: asin.to_string(),
+		title: "t".to_string(),
+		author: None,
+		cover_url: None,
+		status: RequestStatus::Pending,
+		approved_by: None,
+		created_at: Utc::now(),
+		updated_at: Utc::now(),
+	};
+
+	assert!(
+		repo.create_within_quota(&mk("1", "x"), 2, since)
+			.await
+			.unwrap()
+	);
+	assert!(
+		repo.create_within_quota(&mk("2", "y"), 2, since)
+			.await
+			.unwrap()
+	);
+	assert!(
+		!repo
+			.create_within_quota(&mk("3", "z"), 2, since)
+			.await
+			.unwrap()
+	);
+	assert_eq!(repo.count(Some("u1"), None).await.unwrap(), 2);
 }
 
 #[tokio::test]
@@ -649,13 +751,6 @@ async fn request_lifecycle_and_quota_count() {
 		RequestStatus::Approved
 	);
 
-	assert_eq!(
-		requests
-			.count_for_user_since("u1", now - chrono::Duration::days(1))
-			.await
-			.unwrap(),
-		1
-	);
 	assert_eq!(requests.list_for_user("u1").await.unwrap().len(), 1);
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use crate::consts::reasons;
 use crate::models::{GrabPayload, JobType, Request, RequestStatus, User, UserSettings};
@@ -85,17 +85,19 @@ impl RequestService {
 			return Err(Error::Conflict(reasons::ALREADY_REQUESTED.to_string()));
 		}
 
-		let auto_approve = if user.role.is_admin() {
-			true
+		let (auto_approve, quota_guard) = if user.role.is_admin() {
+			(true, None)
 		} else {
 			let settings = self.user_settings.get(&user.id).await?;
 			let approve = settings
 				.as_ref()
 				.is_some_and(|settings| settings.auto_approve);
-			if !approve {
-				self.enforce_quota(&user.id, settings.as_ref()).await?;
-			}
-			approve
+			let guard = if approve {
+				None
+			} else {
+				Self::quota_guard(settings.as_ref())
+			};
+			(approve, guard)
 		};
 
 		let status = if auto_approve {
@@ -118,7 +120,21 @@ impl RequestService {
 			updated_at: now,
 		};
 
-		self.requests.create(&request).await?;
+		let created = match quota_guard {
+			Some((quota, since)) => {
+				self.requests
+					.create_within_quota(&request, quota, since)
+					.await?
+			}
+			None => {
+				self.requests.create(&request).await?;
+				true
+			}
+		};
+		if !created {
+			return Err(Error::Validation(reasons::QUOTA_EXCEEDED.to_string()));
+		}
+
 		self.activity
 			.record(&request.id, request.status.as_str())
 			.await?;
@@ -257,24 +273,13 @@ impl RequestService {
 		Ok(request)
 	}
 
-	async fn enforce_quota(&self, user_id: &str, settings: Option<&UserSettings>) -> Result<()> {
-		let Some(settings) = settings else {
-			return Ok(());
-		};
-
-		let (Some(quota), Some(days)) = (settings.request_quota, settings.quota_days) else {
-			return Ok(());
-		};
-
+	fn quota_guard(settings: Option<&UserSettings>) -> Option<(i64, DateTime<Utc>)> {
+		let settings = settings?;
+		let quota = settings.request_quota?;
+		let days = settings.quota_days?;
 		if quota <= 0 {
-			return Ok(());
+			return None;
 		}
-
-		let since = Utc::now() - Duration::days(days);
-		if self.requests.count_for_user_since(user_id, since).await? >= quota {
-			return Err(Error::Validation(reasons::QUOTA_EXCEEDED.to_string()));
-		}
-
-		Ok(())
+		Some((quota, Utc::now() - Duration::days(days)))
 	}
 }
