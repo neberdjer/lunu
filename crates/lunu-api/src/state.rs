@@ -7,8 +7,8 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
-	JobService, MetadataService, MonitorService, QualityProfileService, ReleaseService,
-	RequestService, SettingsService, UserService,
+	JobService, MetadataService, MonitorService, NotificationService, QualityProfileService,
+	ReleaseService, RequestService, SettingsService, UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
@@ -24,6 +24,7 @@ use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::HardlinkImporter;
 use lunu_integrations::metadata::AudnexusProvider;
+use lunu_integrations::notify::WebhookChannel;
 
 pub struct AppState {
 	pub db: Db,
@@ -43,6 +44,7 @@ pub struct AppState {
 	pub monitor: Arc<MonitorService>,
 	pub imports: Arc<ImportService>,
 	pub activity: Arc<ActivityService>,
+	pub notifications: Arc<NotificationService>,
 	pub hub: Arc<EventHub>,
 	pub auth_rate_limiter: Arc<RateLimiter>,
 }
@@ -133,6 +135,12 @@ impl AppState {
 			importer,
 		));
 
+		let notifications = Arc::new(NotificationService::new(vec![
+			Arc::new(WebhookChannel::generic(settings.clone())),
+			Arc::new(WebhookChannel::discord(settings.clone())),
+			Arc::new(WebhookChannel::slack(settings.clone())),
+		]));
+
 		Ok(Self {
 			db,
 			config: Arc::new(config),
@@ -151,6 +159,7 @@ impl AppState {
 			monitor,
 			imports,
 			activity,
+			notifications,
 			hub,
 			auth_rate_limiter,
 		})

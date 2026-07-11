@@ -3,6 +3,7 @@ pub mod download;
 pub mod indexer;
 pub mod library;
 pub mod metadata;
+pub mod notify;
 
 pub(crate) mod http;
 

@@ -4,7 +4,10 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 
 use crate::consts::reasons;
-use crate::models::{GrabPayload, JobType, Request, RequestStatus, User, UserSettings};
+use crate::models::{
+	GrabPayload, JobType, NotificationEvent, NotificationKind, Request, RequestStatus, User,
+	UserSettings,
+};
 use crate::repo::{DownloadRepo, RequestRepo, UserSettingsRepo};
 use crate::services::{ActivityService, JobService, MetadataService, new_id};
 use crate::{Error, Result};
@@ -66,10 +69,33 @@ impl RequestService {
 
 	async fn persist(&self, request: &Request) -> Result<()> {
 		self.requests.update(request).await?;
+		self.record_status(request).await
+	}
+
+	async fn record_status(&self, request: &Request) -> Result<()> {
 		self.activity
 			.record(&request.id, request.status.as_str())
 			.await?;
+		self.notify_status(request).await;
 		Ok(())
+	}
+
+	async fn notify_status(&self, request: &Request) {
+		let kind = match request.status {
+			RequestStatus::Pending => NotificationKind::RequestPending,
+			RequestStatus::Approved => NotificationKind::RequestApproved,
+			RequestStatus::Declined => NotificationKind::RequestDeclined,
+			RequestStatus::Available => NotificationKind::RequestAvailable,
+			RequestStatus::Failed => NotificationKind::RequestFailed,
+			_ => return,
+		};
+		let event = NotificationEvent {
+			kind,
+			request_id: request.id.clone(),
+			title: request.title.clone(),
+			user_id: request.user_id.clone(),
+		};
+		let _ = self.jobs.enqueue(JobType::Notify, &event).await;
 	}
 
 	pub async fn create(&self, user: &User, asin: &str) -> Result<Request> {
@@ -135,9 +161,7 @@ impl RequestService {
 			return Err(Error::Validation(reasons::QUOTA_EXCEEDED.to_string()));
 		}
 
-		self.activity
-			.record(&request.id, request.status.as_str())
-			.await?;
+		self.record_status(&request).await?;
 		if request.status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}

@@ -5,6 +5,7 @@ pub mod importer;
 pub mod indexer;
 pub mod job_handler;
 pub mod metadata_provider;
+pub mod notifier;
 
 pub use auth_provider::{AuthProvider, ExternalIdentity};
 pub use download_client::DownloadClient;
@@ -13,3 +14,4 @@ pub use importer::Importer;
 pub use indexer::Indexer;
 pub use job_handler::JobHandler;
 pub use metadata_provider::MetadataProvider;
+pub use notifier::Notifier;

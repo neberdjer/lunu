@@ -7,8 +7,8 @@ use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
 	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus,
-	JobType, MetadataCacheEntry, Protocol, QualityProfile, Release, Request, RequestStatus, Role,
-	User, UserSettings,
+	JobType, MetadataCacheEntry, NotificationEvent, NotificationKind, Protocol, QualityProfile,
+	Release, Request, RequestStatus, Role, User, UserSettings,
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo,
@@ -16,11 +16,12 @@ use lunu_core::repo::{
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
-	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService, UserService,
+	MetadataService, MonitorService, NotificationService, ReleaseService, RequestService,
+	SettingsService, UserService,
 };
 use lunu_core::traits::{
 	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer,
-	MetadataProvider,
+	MetadataProvider, Notifier,
 };
 use lunu_core::{Error, Result as CoreResult};
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
@@ -1009,8 +1010,12 @@ async fn retry_reopens_failed_request_and_enqueues_grab() {
 	assert_eq!(updated.status, RequestStatus::Approved);
 
 	let listed = jobs.list().await.unwrap();
-	assert_eq!(listed.len(), 1);
-	assert_eq!(listed[0].job_type, JobType::Grab);
+	let grabs: Vec<_> = listed
+		.iter()
+		.filter(|job| job.job_type == JobType::Grab)
+		.collect();
+	assert_eq!(grabs.len(), 1);
+	assert!(listed.iter().any(|job| job.job_type == JobType::Notify));
 
 	assert!(requests.retry(&owner, "r1").await.is_err());
 }
@@ -1186,9 +1191,87 @@ async fn approving_a_request_enqueues_a_grab_job() {
 	assert_eq!(approved.status, RequestStatus::Approved);
 
 	let listed = jobs.list().await.unwrap();
-	assert_eq!(listed.len(), 1);
-	assert_eq!(listed[0].job_type, JobType::Grab);
-	assert!(listed[0].payload.contains("r1"));
+	let grabs: Vec<_> = listed
+		.iter()
+		.filter(|job| job.job_type == JobType::Grab)
+		.collect();
+	assert_eq!(grabs.len(), 1);
+	assert!(grabs[0].payload.contains("r1"));
+	assert!(listed.iter().any(|job| job.job_type == JobType::Notify));
+}
+
+#[tokio::test]
+async fn marking_available_enqueues_a_notification() {
+	let db = memory_db().await;
+	let now = Utc::now();
+	SqlxRequestRepo::new(db.clone())
+		.create(&Request {
+			id: "r1".to_string(),
+			user_id: "u1".to_string(),
+			asin: "B01".to_string(),
+			title: "The Hobbit".to_string(),
+			author: None,
+			cover_url: None,
+			status: RequestStatus::Importing,
+			approved_by: None,
+			created_at: now,
+			updated_at: now,
+		})
+		.await
+		.unwrap();
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs.clone());
+
+	requests.mark_available("r1").await.unwrap();
+
+	let listed = jobs.list().await.unwrap();
+	let notifies: Vec<_> = listed
+		.iter()
+		.filter(|job| job.job_type == JobType::Notify)
+		.collect();
+	assert_eq!(notifies.len(), 1);
+	assert!(notifies[0].payload.contains("request-available"));
+	assert!(notifies[0].payload.contains("The Hobbit"));
+}
+
+#[derive(Default)]
+struct RecordingNotifier {
+	events: std::sync::Mutex<Vec<String>>,
+}
+
+#[async_trait]
+impl Notifier for RecordingNotifier {
+	fn id(&self) -> &'static str {
+		"recording"
+	}
+	async fn deliver(&self, event: &NotificationEvent) -> CoreResult<()> {
+		self.events.lock().unwrap().push(event.message());
+		Ok(())
+	}
+}
+
+#[tokio::test]
+async fn notification_service_dispatches_to_every_notifier() {
+	let a = Arc::new(RecordingNotifier::default());
+	let b = Arc::new(RecordingNotifier::default());
+	let service = NotificationService::new(vec![a.clone(), b.clone()]);
+
+	let event = NotificationEvent {
+		kind: NotificationKind::RequestAvailable,
+		request_id: "r1".to_string(),
+		title: "Dune".to_string(),
+		user_id: "u1".to_string(),
+	};
+	service.dispatch(&event).await.unwrap();
+
+	assert_eq!(
+		a.events.lock().unwrap().as_slice(),
+		&["Now available: Dune"]
+	);
+	assert_eq!(
+		b.events.lock().unwrap().as_slice(),
+		&["Now available: Dune"]
+	);
 }
 
 struct FakeClient {
@@ -1523,7 +1606,12 @@ async fn monitor_fails_after_max_misses() {
 			.status,
 		RequestStatus::Failed
 	);
-	assert_eq!(jobs.list().await.unwrap().len(), 0);
+	let listed = jobs.list().await.unwrap();
+	assert!(
+		!listed
+			.iter()
+			.any(|job| matches!(job.job_type, JobType::Grab | JobType::MonitorDownload))
+	);
 }
 
 fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {

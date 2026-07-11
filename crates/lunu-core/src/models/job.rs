@@ -71,6 +71,7 @@ pub enum JobType {
 	MonitorDownload,
 	Import,
 	Finalize,
+	Notify,
 }
 
 impl JobType {
@@ -81,6 +82,7 @@ impl JobType {
 			JobType::MonitorDownload => "monitor-download",
 			JobType::Import => "import",
 			JobType::Finalize => "finalize",
+			JobType::Notify => "notify",
 		}
 	}
 }
@@ -101,6 +103,7 @@ impl FromStr for JobType {
 			"monitor-download" => Ok(JobType::MonitorDownload),
 			"import" => Ok(JobType::Import),
 			"finalize" => Ok(JobType::Finalize),
+			"notify" => Ok(JobType::Notify),
 			_ => Err(Error::Validation(reasons::JOB_TYPE_UNKNOWN.to_string())),
 		}
 	}

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use lunu_core::models::{GrabPayload, ImportPayload, Job, JobType, MonitorPayload};
-use lunu_core::services::{GrabService, ImportService, MonitorService};
+use lunu_core::models::{
+	GrabPayload, ImportPayload, Job, JobType, MonitorPayload, NotificationEvent,
+};
+use lunu_core::services::{GrabService, ImportService, MonitorService, NotificationService};
 use lunu_core::traits::JobHandler;
 use lunu_core::{Error, Result};
 
@@ -10,6 +12,7 @@ pub struct PipelineHandler {
 	grabs: Arc<GrabService>,
 	monitor: Arc<MonitorService>,
 	imports: Arc<ImportService>,
+	notifications: Arc<NotificationService>,
 }
 
 impl PipelineHandler {
@@ -17,12 +20,19 @@ impl PipelineHandler {
 		grabs: Arc<GrabService>,
 		monitor: Arc<MonitorService>,
 		imports: Arc<ImportService>,
+		notifications: Arc<NotificationService>,
 	) -> Self {
 		Self {
 			grabs,
 			monitor,
 			imports,
+			notifications,
 		}
+	}
+
+	async fn notify(&self, payload: &str) -> Result<()> {
+		let event: NotificationEvent = serde_json::from_str(payload)?;
+		self.notifications.dispatch(&event).await
 	}
 
 	async fn grab(&self, payload: &str) -> Result<()> {
@@ -53,6 +63,7 @@ impl JobHandler for PipelineHandler {
 			JobType::Grab => self.grab(&job.payload).await,
 			JobType::MonitorDownload => self.monitor(&job.payload).await,
 			JobType::Import => self.import(&job.payload).await,
+			JobType::Notify => self.notify(&job.payload).await,
 			other => Err(Error::Internal(format!(
 				"job stage not yet implemented: {other}"
 			))),
