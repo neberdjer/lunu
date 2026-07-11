@@ -16,7 +16,7 @@ use lunu_core::repo::{
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
-	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService,
+	MetadataService, MonitorService, ReleaseService, RequestService, SettingsService, UserService,
 };
 use lunu_core::traits::{DownloadClient, EventPublisher, Importer, Indexer, MetadataProvider};
 use lunu_core::{Error, Result as CoreResult};
@@ -270,6 +270,78 @@ async fn register_with_invite_then_exhausted() {
 			.await
 			.is_err()
 	);
+}
+
+#[tokio::test]
+async fn change_password_rotates_sessions_and_rejects_wrong_current() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+
+	assert!(matches!(
+		auth.change_password(&admin.user.id, "wrongcurrent", "newpassword123")
+			.await,
+		Err(Error::Unauthorized)
+	));
+	assert!(matches!(
+		auth.change_password(&admin.user.id, "password123", "short")
+			.await,
+		Err(Error::Validation(_))
+	));
+
+	let rotated = auth
+		.change_password(&admin.user.id, "password123", "newpassword123")
+		.await
+		.unwrap();
+
+	assert!(
+		auth.validate_session(&admin.session_token)
+			.await
+			.unwrap()
+			.is_none()
+	);
+	assert!(
+		auth.validate_session(&rotated.session_token)
+			.await
+			.unwrap()
+			.is_some()
+	);
+	assert!(auth.login("admin", "newpassword123").await.is_ok());
+	assert!(auth.login("admin", "password123").await.is_err());
+}
+
+#[tokio::test]
+async fn update_email_validates_and_normalizes() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	let users = UserService::new(
+		Arc::new(SqlxUserRepo::new(db.clone())),
+		Arc::new(SqlxSessionRepo::new(db.clone())),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+	);
+
+	assert!(matches!(
+		users
+			.update_email(&admin.user.id, Some("not-an-email".to_string()))
+			.await,
+		Err(Error::Validation(_))
+	));
+
+	let updated = users
+		.update_email(&admin.user.id, Some("  me@example.com  ".to_string()))
+		.await
+		.unwrap();
+	assert_eq!(updated.email.as_deref(), Some("me@example.com"));
+
+	let cleared = users.update_email(&admin.user.id, None).await.unwrap();
+	assert_eq!(cleared.email, None);
 }
 
 #[tokio::test]

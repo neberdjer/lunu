@@ -36,6 +36,17 @@ pub struct RegisterRequest {
 	password: String,
 }
 
+#[derive(Deserialize)]
+pub struct ChangePasswordRequest {
+	current_password: String,
+	new_password: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateProfileRequest {
+	email: Option<String>,
+}
+
 pub async fn login(
 	req: HttpRequest,
 	state: web::Data<AppState>,
@@ -76,4 +87,30 @@ pub async fn logout(
 
 pub async fn me(user: AuthUser) -> HttpResponse {
 	HttpResponse::Ok().json(UserResponse::from(&user.0))
+}
+
+pub async fn update_me(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	body: web::Json<UpdateProfileRequest>,
+) -> Result<HttpResponse, ApiError> {
+	let updated = state
+		.users
+		.update_email(&user.0.id, body.into_inner().email)
+		.await?;
+	Ok(HttpResponse::Ok().json(UserResponse::from(&updated)))
+}
+
+pub async fn change_password(
+	req: HttpRequest,
+	user: AuthUser,
+	state: web::Data<AppState>,
+	body: web::Json<ChangePasswordRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	let authenticated = state
+		.auth
+		.change_password(&user.0.id, &body.current_password, &body.new_password)
+		.await?;
+	Ok(authenticated_response(HttpResponse::Ok(), &authenticated))
 }

@@ -25,6 +25,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 	cfg.route("/auth/logout", web::post().to(auth::logout));
 	cfg.route("/auth/register", web::post().to(auth::register));
 	cfg.route("/auth/me", web::get().to(auth::me));
+	cfg.route("/auth/me", web::patch().to(auth::update_me));
+	cfg.route("/auth/password", web::post().to(auth::change_password));
 
 	cfg.route("/search", web::get().to(metadata::search));
 	cfg.route("/books/{asin}", web::get().to(metadata::book));

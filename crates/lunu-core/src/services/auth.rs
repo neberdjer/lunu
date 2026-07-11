@@ -4,10 +4,12 @@ use chrono::{Duration, Utc};
 
 use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
-use crate::crypto::{generate_token, hash_token, verify_password};
-use crate::models::{Role, Session, User};
+use crate::crypto::{generate_token, hash_password, hash_token, verify_password};
+use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{InviteRepo, SessionRepo, UserRepo};
-use crate::services::{build_local_user, ensure_username_available, new_id};
+use crate::services::{
+	build_local_user, ensure_username_available, new_id, require_user, validate_password,
+};
 use crate::{Error, Result};
 
 pub struct Authenticated {
@@ -103,6 +105,36 @@ impl AuthService {
 
 		self.sessions.touch(&session.id, now).await?;
 		Ok(Some(user))
+	}
+
+	pub async fn change_password(
+		&self,
+		user_id: &str,
+		current: &str,
+		new: &str,
+	) -> Result<Authenticated> {
+		let mut user = require_user(self.users.as_ref(), user_id).await?;
+
+		if user.auth_source != AuthSource::Local {
+			return Err(Error::Validation(reasons::PASSWORD_NOT_LOCAL.to_string()));
+		}
+
+		let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
+		if !verify_password(current, hash)? {
+			return Err(Error::Unauthorized);
+		}
+
+		validate_password(new)?;
+		user.password_hash = Some(hash_password(new)?);
+		user.updated_at = Utc::now();
+		self.users.update(&user).await?;
+
+		self.sessions.delete_for_user(user_id).await?;
+		let session_token = self.create_session(user_id).await?;
+		Ok(Authenticated {
+			user,
+			session_token,
+		})
 	}
 
 	pub async fn logout(&self, token: &str) -> Result<()> {

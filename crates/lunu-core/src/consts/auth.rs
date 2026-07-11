@@ -1,6 +1,8 @@
 pub const SESSION_TTL_DAYS: i64 = 30;
 pub const SESSION_COOKIE: &str = "lunu_session";
 
+pub const PASSWORD_MIN_LEN: usize = 8;
+
 pub const API_KEY_PREFIX: &str = "lunu";
 pub const API_KEY_DISPLAY_LEN: usize = 12;
 pub const API_KEY_HEADER: &str = "x-api-key";

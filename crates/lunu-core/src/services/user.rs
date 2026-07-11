@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
+use crate::Result;
 use crate::models::{Role, User, UserSettings};
 use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
-use crate::services::{build_local_user, ensure_username_available};
-use crate::{Error, Result};
+use crate::services::{build_local_user, ensure_username_available, normalize_email, require_user};
 
 pub struct UserService {
 	users: Arc<dyn UserRepo>,
@@ -37,9 +37,7 @@ impl UserService {
 		request_quota: Option<i64>,
 		quota_days: Option<i64>,
 	) -> Result<UserSettings> {
-		if self.users.find_by_id(user_id).await?.is_none() {
-			return Err(Error::NotFound(format!("user {user_id}")));
-		}
+		require_user(self.users.as_ref(), user_id).await?;
 
 		let settings = UserSettings {
 			user_id: user_id.to_string(),
@@ -78,12 +76,17 @@ impl UserService {
 		Ok(user)
 	}
 
+	pub async fn update_email(&self, id: &str, email: Option<String>) -> Result<User> {
+		let mut user = require_user(self.users.as_ref(), id).await?;
+
+		user.email = normalize_email(email)?;
+		user.updated_at = Utc::now();
+		self.users.update(&user).await?;
+		Ok(user)
+	}
+
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
-		let mut user = self
-			.users
-			.find_by_id(id)
-			.await?
-			.ok_or_else(|| Error::NotFound(format!("user {id}")))?;
+		let mut user = require_user(self.users.as_ref(), id).await?;
 
 		user.enabled = enabled;
 		user.updated_at = Utc::now();
