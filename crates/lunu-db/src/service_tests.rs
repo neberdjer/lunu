@@ -39,6 +39,34 @@ async fn memory_db() -> Db {
 	db
 }
 
+#[tokio::test]
+async fn migrations_apply_and_every_table_is_queryable() {
+	let db = memory_db().await;
+
+	let tables = [
+		"users",
+		"sessions",
+		"api_keys",
+		"invites",
+		"settings",
+		"metadata_cache",
+		"requests",
+		"user_settings",
+		"quality_profiles",
+		"downloads",
+		"jobs",
+		"activity",
+	];
+
+	for table in tables {
+		let query = format!("SELECT COUNT(*) FROM {table}");
+		sqlx::query(&query)
+			.fetch_one(&db)
+			.await
+			.unwrap_or_else(|error| panic!("table {table} is not queryable: {error}"));
+	}
+}
+
 fn auth_service(db: &Db) -> AuthService {
 	AuthService::new(
 		Arc::new(SqlxUserRepo::new(db.clone())),
