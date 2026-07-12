@@ -1,7 +1,7 @@
 use lunu_core::consts::api::{DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct PageParams {
 	pub page: Option<i64>,
 	pub limit: Option<i64>,
@@ -25,7 +25,7 @@ impl Pagination {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct Page<T> {
 	pub items: Vec<T>,
 	pub page: i64,

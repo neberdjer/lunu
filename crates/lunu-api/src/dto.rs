@@ -4,7 +4,7 @@ use lunu_core::models::{
 };
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct ActivityResponse {
 	pub id: String,
 	pub request_id: String,
@@ -25,7 +25,7 @@ impl From<&Activity> for ActivityResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct JobResponse {
 	pub id: String,
 	pub job_type: String,
@@ -54,7 +54,7 @@ impl From<&Job> for JobResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct UserResponse {
 	pub id: String,
 	pub username: String,
@@ -79,7 +79,7 @@ impl From<&User> for UserResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct ApiKeyResponse {
 	pub id: String,
 	pub name: String,
@@ -106,7 +106,7 @@ impl From<&ApiKey> for ApiKeyResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct RequestResponse {
 	pub id: String,
 	pub user_id: String,
@@ -137,7 +137,7 @@ impl From<&Request> for RequestResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct UserSettingsResponse {
 	pub user_id: String,
 	pub auto_approve: bool,
@@ -156,7 +156,7 @@ impl From<&UserSettings> for UserSettingsResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct DownloadResponse {
 	pub id: String,
 	pub request_id: String,
@@ -191,7 +191,7 @@ impl From<&Download> for DownloadResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct QualityProfileResponse {
 	pub id: String,
 	pub name: String,
@@ -226,7 +226,7 @@ impl From<&QualityProfile> for QualityProfileResponse {
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct InviteResponse {
 	pub id: String,
 	pub role: String,

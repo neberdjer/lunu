@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::settings;
 use serde::Deserialize;
@@ -8,11 +8,13 @@ use crate::error::ApiError;
 use crate::extract::AdminUser;
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct SetSettingRequest {
 	value: String,
 }
 
+#[utoipa::path(tag = "settings", responses((status = 200, description = "Set keys plus the settings catalog")))]
+#[get("/settings")]
 pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let keys = state.settings.keys().await?;
 	let catalog: Vec<_> = settings::REGISTRY
@@ -30,6 +32,8 @@ pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpR
 	Ok(HttpResponse::Ok().json(json!({ "keys": keys, "catalog": catalog })))
 }
 
+#[utoipa::path(tag = "settings", responses((status = 200, description = "Setting value (masked if secret)"), (status = 404, description = "Unknown key")))]
+#[get("/settings/{key}")]
 pub async fn get(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -45,6 +49,8 @@ pub async fn get(
 	Ok(HttpResponse::Ok().json(json!({ "key": key, "secret": view.secret, "value": view.value })))
 }
 
+#[utoipa::path(tag = "settings", responses((status = 204, description = "Setting stored")))]
+#[put("/settings/{key}")]
 pub async fn set(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -55,6 +61,8 @@ pub async fn set(
 	Ok(HttpResponse::NoContent().finish())
 }
 
+#[utoipa::path(tag = "settings", responses((status = 204, description = "Setting cleared")))]
+#[delete("/settings/{key}")]
 pub async fn delete(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -64,6 +72,8 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
+#[utoipa::path(tag = "settings", responses((status = 200, description = "Integration reachable"), (status = 404, description = "Unknown integration")))]
+#[post("/settings/test/{integration}")]
 pub async fn test(
 	_admin: AdminUser,
 	state: web::Data<AppState>,

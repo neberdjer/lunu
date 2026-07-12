@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use chrono::{Duration, Utc};
 use lunu_core::consts::auth::DEFAULT_INVITE_MAX_USES;
 use lunu_core::models::Role;
@@ -13,7 +13,7 @@ use crate::extract::AdminUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateInviteRequest {
 	role: String,
 	email: Option<String>,
@@ -21,6 +21,8 @@ pub struct CreateInviteRequest {
 	expires_in_days: Option<i64>,
 }
 
+#[utoipa::path(tag = "invites", params(PageParams), responses((status = 200, body = Page<InviteResponse>)))]
+#[get("/invites")]
 pub async fn list(
 	_admin: AdminUser,
 	query: web::Query<PageParams>,
@@ -36,6 +38,8 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
+#[utoipa::path(tag = "invites", responses((status = 201, description = "Invite created; response includes the one-time code")))]
+#[post("/invites")]
 pub async fn create(
 	admin: AdminUser,
 	state: web::Data<AppState>,
@@ -63,6 +67,8 @@ pub async fn create(
 	})))
 }
 
+#[utoipa::path(tag = "invites", responses((status = 204, description = "Invite revoked")))]
+#[delete("/invites/{id}")]
 pub async fn delete(
 	_admin: AdminUser,
 	state: web::Data<AppState>,

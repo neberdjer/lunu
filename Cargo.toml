@@ -30,6 +30,8 @@ lunu-integrations = { path = "crates/lunu-integrations", version = "0.1" }
 lunu-jobs = { path = "crates/lunu-jobs", version = "0.1" }
 
 actix-web = "4"
+utoipa = { version = "5", features = ["actix_extras", "chrono"] }
+utoipa-actix-web = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",

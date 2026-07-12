@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, get, web};
 
 use crate::dto::JobResponse;
 use crate::error::ApiError;
@@ -6,6 +6,8 @@ use crate::extract::AdminUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
+#[utoipa::path(tag = "jobs", params(PageParams), responses((status = 200, body = Page<JobResponse>)))]
+#[get("/jobs")]
 pub async fn list(
 	_admin: AdminUser,
 	query: web::Query<PageParams>,

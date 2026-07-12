@@ -1,11 +1,13 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpResponse, HttpServer, web};
 use lunu_api::AppState;
 use lunu_config::BootstrapConfig;
 use lunu_jobs::{PipelineHandler, WorkerConfig, WorkerPool};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
+use utoipa_actix_web::{AppExt, scope};
 
 const DEFAULT_LOG_FILTER: &str = "info,actix_server=warn";
 
@@ -73,10 +75,28 @@ async fn main() -> ExitCode {
 	tracing::info!(%bind, workers, "starting lunu");
 
 	let server = HttpServer::new(move || {
-		App::new()
-			.wrap(actix_web::middleware::from_fn(lunu_api::normalize_errors))
-			.app_data(state.clone())
-			.configure(lunu_api::routes)
+		let (app, api) = App::new()
+			.into_utoipa_app()
+			.openapi(lunu_api::ApiDoc::openapi())
+			.map(|app| {
+				app.wrap(actix_web::middleware::from_fn(lunu_api::normalize_errors))
+					.app_data(state.clone())
+			})
+			.service(scope(lunu_api::API_PREFIX).configure(lunu_api::configure))
+			.split_for_parts();
+
+		let spec = web::Bytes::from(api.to_json().unwrap_or_default());
+		app.route(
+			"/api-docs/openapi.json",
+			web::get().to(move || {
+				let spec = spec.clone();
+				async move {
+					HttpResponse::Ok()
+						.content_type("application/json")
+						.body(spec)
+				}
+			}),
+		)
 	})
 	.workers(workers)
 	.bind(&bind);

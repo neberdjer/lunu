@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use chrono::{Duration, Utc};
 use lunu_core::consts::auth::KNOWN_API_KEY_SCOPES;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use crate::extract::AuthUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateApiKeyRequest {
 	name: String,
 	#[serde(default)]
@@ -18,13 +18,15 @@ pub struct CreateApiKeyRequest {
 	expires_in_days: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 struct ApiKeyList {
 	#[serde(flatten)]
 	page: Page<ApiKeyResponse>,
 	scopes: &'static [&'static str],
 }
 
+#[utoipa::path(tag = "api-keys", params(PageParams), responses((status = 200, description = "Keys plus allowed scopes", body = ApiKeyList)))]
+#[get("/api-keys")]
 pub async fn list(
 	user: AuthUser,
 	query: web::Query<PageParams>,
@@ -43,6 +45,8 @@ pub async fn list(
 	}))
 }
 
+#[utoipa::path(tag = "api-keys", responses((status = 201, description = "Key created; secret shown once")))]
+#[post("/api-keys")]
 pub async fn create(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -63,6 +67,8 @@ pub async fn create(
 	})))
 }
 
+#[utoipa::path(tag = "api-keys", responses((status = 204, description = "Key revoked")))]
+#[delete("/api-keys/{id}")]
 pub async fn delete(
 	user: AuthUser,
 	state: web::Data<AppState>,

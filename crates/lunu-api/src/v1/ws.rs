@@ -1,4 +1,4 @@
-use actix_web::{Error, HttpRequest, HttpResponse, web};
+use actix_web::{Error, HttpRequest, HttpResponse, get, web};
 use actix_ws::Message;
 use futures_util::StreamExt;
 use tokio::sync::broadcast::error::RecvError;
@@ -7,6 +7,8 @@ use crate::dto::ActivityResponse;
 use crate::extract::AdminUser;
 use crate::state::AppState;
 
+#[utoipa::path(tag = "system", responses((status = 101, description = "WebSocket upgrade for live activity events")))]
+#[get("/ws")]
 pub async fn ws(
 	req: HttpRequest,
 	body: web::Payload,

@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, get, web};
 
 use crate::dto::DownloadResponse;
 use crate::error::ApiError;
@@ -6,6 +6,8 @@ use crate::extract::AdminUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
+#[utoipa::path(tag = "downloads", params(PageParams), responses((status = 200, body = Page<DownloadResponse>)))]
+#[get("/downloads")]
 pub async fn list(
 	_admin: AdminUser,
 	query: web::Query<PageParams>,

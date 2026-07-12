@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::scoring::{
 	DEFAULT_FORMAT_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_SEEDER_WEIGHT,
@@ -24,7 +24,7 @@ fn default_format_weight() -> i64 {
 	DEFAULT_FORMAT_WEIGHT
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct QualityProfileBody {
 	name: String,
 	#[serde(default)]
@@ -59,6 +59,8 @@ impl QualityProfileBody {
 	}
 }
 
+#[utoipa::path(tag = "quality-profiles", params(PageParams), responses((status = 200, body = Page<QualityProfileResponse>)))]
+#[get("/quality-profiles")]
 pub async fn list(
 	_admin: AdminUser,
 	query: web::Query<PageParams>,
@@ -75,6 +77,8 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
+#[utoipa::path(tag = "quality-profiles", responses((status = 200, body = QualityProfileResponse), (status = 404, description = "Not found")))]
+#[get("/quality-profiles/{id}")]
 pub async fn get(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -89,6 +93,8 @@ pub async fn get(
 	Ok(HttpResponse::Ok().json(QualityProfileResponse::from(&profile)))
 }
 
+#[utoipa::path(tag = "quality-profiles", responses((status = 201, description = "Profile created", body = QualityProfileResponse)))]
+#[post("/quality-profiles")]
 pub async fn create(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -101,6 +107,8 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(QualityProfileResponse::from(&profile)))
 }
 
+#[utoipa::path(tag = "quality-profiles", responses((status = 200, description = "Profile updated", body = QualityProfileResponse)))]
+#[put("/quality-profiles/{id}")]
 pub async fn update(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -114,6 +122,8 @@ pub async fn update(
 	Ok(HttpResponse::Ok().json(QualityProfileResponse::from(&profile)))
 }
 
+#[utoipa::path(tag = "quality-profiles", responses((status = 204, description = "Profile deleted")))]
+#[delete("/quality-profiles/{id}")]
 pub async fn delete(
 	_admin: AdminUser,
 	state: web::Data<AppState>,

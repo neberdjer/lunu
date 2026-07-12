@@ -1,11 +1,11 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, web};
+use actix_web::{HttpRequest, HttpResponse, Responder, get, web};
 use lunu_core::consts::api::{API_VERSION, APP_NAME};
 use serde::Serialize;
 
 use crate::locale;
 use crate::state::AppState;
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 struct HealthResponse {
 	name: &'static str,
 	version: &'static str,
@@ -14,6 +14,12 @@ struct HealthResponse {
 	locale: String,
 }
 
+#[utoipa::path(
+	tag = "system",
+	security(()),
+	responses((status = 200, description = "Service and database status", body = HealthResponse))
+)]
+#[get("/health")]
 pub async fn health(req: HttpRequest, state: web::Data<AppState>) -> impl Responder {
 	let database = match lunu_db::ping(&state.db).await {
 		Ok(()) => "up",

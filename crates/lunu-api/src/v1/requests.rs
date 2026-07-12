@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use lunu_core::models::RequestStatus;
 use lunu_core::services::ReleaseSelection;
 use serde::Deserialize;
@@ -11,12 +11,12 @@ use crate::extract::{AdminUser, AuthUser};
 use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRequestBody {
 	asin: String,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, utoipa::ToSchema)]
 pub struct GrabBody {
 	download_url: Option<String>,
 	#[serde(default)]
@@ -25,11 +25,13 @@ pub struct GrabBody {
 	indexer: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct BlocklistBody {
 	download_url: String,
 }
 
+#[utoipa::path(tag = "requests", responses((status = 204, description = "Request deleted")))]
+#[delete("/requests/{id}")]
 pub async fn delete(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -39,6 +41,8 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Failed request reopened", body = RequestResponse)))]
+#[post("/requests/{id}/retry")]
 pub async fn retry(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -48,6 +52,8 @@ pub async fn retry(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 204, description = "Release blocklisted")))]
+#[post("/requests/{id}/blocklist")]
 pub async fn blocklist(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -61,13 +67,15 @@ pub async fn blocklist(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct RequestListParams {
 	page: Option<i64>,
 	limit: Option<i64>,
 	status: Option<String>,
 }
 
+#[utoipa::path(tag = "requests", params(RequestListParams), responses((status = 200, body = Page<RequestResponse>)))]
+#[get("/requests")]
 pub async fn list(
 	user: AuthUser,
 	query: web::Query<RequestListParams>,
@@ -90,6 +98,8 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 201, description = "Request created", body = RequestResponse)))]
+#[post("/requests")]
 pub async fn create(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -99,6 +109,8 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(RequestResponse::from(&request)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, body = RequestResponse), (status = 404, description = "Not found")))]
+#[get("/requests/{id}")]
 pub async fn get(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -109,6 +121,8 @@ pub async fn get(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Status timeline", body = Vec<ActivityResponse>)))]
+#[get("/requests/{id}/activity")]
 pub async fn activity(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -122,6 +136,8 @@ pub async fn activity(
 	Ok(HttpResponse::Ok().json(items))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Approved", body = RequestResponse)))]
+#[post("/requests/{id}/approve")]
 pub async fn approve(
 	admin: AdminUser,
 	state: web::Data<AppState>,
@@ -131,6 +147,8 @@ pub async fn approve(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Declined", body = RequestResponse)))]
+#[post("/requests/{id}/decline")]
 pub async fn decline(
 	admin: AdminUser,
 	state: web::Data<AppState>,
@@ -140,6 +158,8 @@ pub async fn decline(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Ranked releases for the request")))]
+#[get("/requests/{id}/releases")]
 pub async fn releases(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -149,6 +169,8 @@ pub async fn releases(
 	Ok(HttpResponse::Ok().json(releases))
 }
 
+#[utoipa::path(tag = "requests", responses((status = 201, description = "Grab enqueued", body = DownloadResponse)))]
+#[post("/requests/{id}/grab")]
 pub async fn grab(
 	_admin: AdminUser,
 	state: web::Data<AppState>,

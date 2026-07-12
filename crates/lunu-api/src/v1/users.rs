@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, delete, get, patch, post, put, web};
 use lunu_core::models::{Role, UserSettings};
 use serde::Deserialize;
 
@@ -10,7 +10,7 @@ use crate::extract::AdminUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateUserRequest {
 	username: String,
 	password: String,
@@ -18,18 +18,20 @@ pub struct CreateUserRequest {
 	role: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateUserRequest {
 	enabled: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct SetUserSettingsRequest {
 	auto_approve: bool,
 	request_quota: Option<i64>,
 	quota_days: Option<i64>,
 }
 
+#[utoipa::path(tag = "users", params(PageParams), responses((status = 200, body = Page<UserResponse>)))]
+#[get("/users")]
 pub async fn list(
 	_admin: AdminUser,
 	query: web::Query<PageParams>,
@@ -45,6 +47,8 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
+#[utoipa::path(tag = "users", responses((status = 201, description = "User created", body = UserResponse)))]
+#[post("/users")]
 pub async fn create(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -58,6 +62,8 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(UserResponse::from(&user)))
 }
 
+#[utoipa::path(tag = "users", responses((status = 200, description = "User updated", body = UserResponse)))]
+#[patch("/users/{id}")]
 pub async fn update(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -68,6 +74,8 @@ pub async fn update(
 	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
 }
 
+#[utoipa::path(tag = "users", responses((status = 204, description = "User deleted")))]
+#[delete("/users/{id}")]
 pub async fn delete(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -77,6 +85,8 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
+#[utoipa::path(tag = "users", responses((status = 200, body = UserSettingsResponse)))]
+#[get("/users/{id}/settings")]
 pub async fn get_settings(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
@@ -91,6 +101,8 @@ pub async fn get_settings(
 	Ok(HttpResponse::Ok().json(UserSettingsResponse::from(&settings)))
 }
 
+#[utoipa::path(tag = "users", responses((status = 200, description = "Settings updated", body = UserSettingsResponse)))]
+#[put("/users/{id}/settings")]
 pub async fn set_settings(
 	_admin: AdminUser,
 	state: web::Data<AppState>,

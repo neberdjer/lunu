@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, get, web};
 use lunu_core::Error;
 use lunu_core::models::Book;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,7 @@ use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct SearchQuery {
 	q: String,
 }
@@ -19,6 +19,8 @@ struct SearchResult {
 	request_status: Option<&'static str>,
 }
 
+#[utoipa::path(tag = "metadata", params(SearchQuery), responses((status = 200, description = "Search results, each with the caller request status")))]
+#[get("/search")]
 pub async fn search(
 	user: AuthUser,
 	state: web::Data<AppState>,
@@ -36,7 +38,9 @@ pub async fn search(
 	Ok(HttpResponse::Ok().json(results))
 }
 
-pub async fn book(
+#[utoipa::path(tag = "metadata", responses((status = 200, description = "Book detail with request status"), (status = 404, description = "Unknown ASIN")))]
+#[get("/books/{asin}")]
+pub async fn book_detail(
 	user: AuthUser,
 	state: web::Data<AppState>,
 	asin: web::Path<String>,
@@ -58,6 +62,8 @@ pub async fn book(
 	}))
 }
 
+#[utoipa::path(tag = "metadata", responses((status = 200, description = "Chapter list"), (status = 404, description = "No chapters")))]
+#[get("/books/{asin}/chapters")]
 pub async fn chapters(
 	_user: AuthUser,
 	state: web::Data<AppState>,
