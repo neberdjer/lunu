@@ -26,7 +26,7 @@ use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::HardlinkImporter;
 use lunu_integrations::metadata::AudnexusProvider;
-use lunu_integrations::notify::WebhookChannel;
+use lunu_integrations::notify::{EmailNotifier, WebhookChannel};
 
 pub struct AppState {
 	pub db: Db,
@@ -104,7 +104,7 @@ impl AppState {
 		let media = Arc::new(MediaService::new(media_repo.clone()));
 		let inbox = Arc::new(NotificationInboxService::new(
 			Arc::new(SqlxUserNotificationRepo::new(db.clone())),
-			users_repo,
+			users_repo.clone(),
 			hub.clone(),
 		));
 		let requests = Arc::new(RequestService::new(
@@ -160,6 +160,7 @@ impl AppState {
 			Arc::new(WebhookChannel::generic(settings.clone())),
 			Arc::new(WebhookChannel::discord(settings.clone())),
 			Arc::new(WebhookChannel::slack(settings.clone())),
+			Arc::new(EmailNotifier::new(settings.clone(), users_repo)),
 		]));
 
 		Ok(Self {

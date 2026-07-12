@@ -19,6 +19,15 @@ pub const NOTIFICATION_WEBHOOK_URL: &str = "notification_webhook_url";
 pub const DISCORD_WEBHOOK_URL: &str = "discord_webhook_url";
 pub const SLACK_WEBHOOK_URL: &str = "slack_webhook_url";
 pub const BASE_URL: &str = "base_url";
+pub const SMTP_HOST: &str = "smtp_host";
+pub const SMTP_PORT: &str = "smtp_port";
+pub const SMTP_USERNAME: &str = "smtp_username";
+pub const SMTP_PASSWORD: &str = "smtp_password";
+pub const SMTP_FROM: &str = "smtp_from";
+pub const SMTP_ENCRYPTION: &str = "smtp_encryption";
+
+pub const SMTP_ENCRYPTION_MODES: &[&str] = &["starttls", "tls", "none"];
+pub const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
 
 pub enum SettingKind {
 	Text,
@@ -169,6 +178,42 @@ pub const REGISTRY: &[SettingSpec] = &[
 		kind: SettingKind::Url,
 		secret: false,
 		default: None,
+	},
+	SettingSpec {
+		key: SMTP_HOST,
+		kind: SettingKind::Text,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: SMTP_PORT,
+		kind: SettingKind::Text,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: SMTP_USERNAME,
+		kind: SettingKind::Text,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: SMTP_PASSWORD,
+		kind: SettingKind::Text,
+		secret: true,
+		default: None,
+	},
+	SettingSpec {
+		key: SMTP_FROM,
+		kind: SettingKind::Text,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: SMTP_ENCRYPTION,
+		kind: SettingKind::Enum(SMTP_ENCRYPTION_MODES),
+		secret: false,
+		default: Some(DEFAULT_SMTP_ENCRYPTION),
 	},
 ];
 

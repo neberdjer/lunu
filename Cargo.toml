@@ -25,7 +25,6 @@ lunu-i18n = { path = "crates/lunu-i18n", version = "0.1" }
 lunu-config = { path = "crates/lunu-config", version = "0.1" }
 lunu-db = { path = "crates/lunu-db", version = "0.1" }
 lunu-api = { path = "crates/lunu-api", version = "0.1" }
-lunu-web = { path = "crates/lunu-web", version = "0.1" }
 lunu-integrations = { path = "crates/lunu-integrations", version = "0.1" }
 lunu-jobs = { path = "crates/lunu-jobs", version = "0.1" }
 
