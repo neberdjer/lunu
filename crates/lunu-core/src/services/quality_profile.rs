@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
+use crate::consts::reasons;
 use crate::models::QualityProfile;
 use crate::repo::QualityProfileRepo;
 use crate::services::new_id;
@@ -38,6 +39,13 @@ impl QualityProfileService {
 
 	pub async fn get(&self, id: &str) -> Result<Option<QualityProfile>> {
 		self.repo.find_by_id(id).await
+	}
+
+	pub async fn require(&self, id: &str) -> Result<QualityProfile> {
+		self.repo
+			.find_by_id(id)
+			.await?
+			.ok_or_else(|| Error::Validation(reasons::UNKNOWN_PROFILE.to_string()))
 	}
 
 	pub async fn create(&self, input: QualityProfileInput) -> Result<QualityProfile> {
