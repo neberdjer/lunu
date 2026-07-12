@@ -97,10 +97,11 @@ impl GrabService {
 			let payload = MonitorPayload {
 				download_id: download.id.clone(),
 				misses: 0,
+				stalls: 0,
 			};
 			let run_after = now + Duration::seconds(MONITOR_POLL_SECS);
 			self.jobs
-				.enqueue_at(JobType::MonitorDownload, &payload, run_after)
+				.enqueue_for_at(JobType::MonitorDownload, &payload, request_id, run_after)
 				.await?;
 		}
 
@@ -109,6 +110,31 @@ impl GrabService {
 
 	pub async fn for_request(&self, request_id: &str) -> Result<Option<Download>> {
 		self.downloads.find_by_request(request_id).await
+	}
+
+	pub async fn cancel(&self, request_id: &str) -> Result<()> {
+		let download = self
+			.downloads
+			.find_by_request(request_id)
+			.await?
+			.ok_or_else(|| Error::NotFound(format!("download for request {request_id}")))?;
+
+		if let Some(info_hash) = download.info_hash.as_deref() {
+			let _ = self.client.remove(info_hash, true).await;
+		}
+
+		self.downloads
+			.update_status(
+				&download.id,
+				DownloadState::Failed,
+				download.progress,
+				Utc::now(),
+			)
+			.await?;
+		self.requests
+			.mark_failed(request_id, Some("download cancelled by admin"))
+			.await?;
+		Ok(())
 	}
 
 	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Download>> {

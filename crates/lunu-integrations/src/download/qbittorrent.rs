@@ -224,6 +224,25 @@ impl DownloadClient for QbittorrentClient {
 		}))
 	}
 
+	async fn remove(&self, info_hash: &str, delete_files: bool) -> Result<()> {
+		let (base_url, api_key) = self.prepare().await?;
+		let hashes = info_hash.to_ascii_lowercase();
+		let delete_files = if delete_files { "true" } else { "false" };
+
+		let request = self
+			.http
+			.post(format!("{base_url}/api/v2/torrents/delete"))
+			.header(REFERER, base_url.as_str())
+			.form(&[("hashes", hashes.as_str()), ("deleteFiles", delete_files)]);
+		let response = authorize(request, &api_key)
+			.send()
+			.await
+			.map_err(integration_error)?;
+
+		self.check_response(response)?;
+		Ok(())
+	}
+
 	async fn test_connection(&self) -> Result<()> {
 		let (base_url, api_key) = self.prepare().await?;
 

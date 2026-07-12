@@ -6,7 +6,7 @@ use lunu_core::repo::JobRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{fetch_count, map_row_opt, map_rows};
+use super::{count_by_status, list_by_status, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_dt_opt, parse_enum};
 use crate::{Db, db_error};
 
@@ -31,6 +31,7 @@ fn map_job(row: &AnyRow) -> Result<Job> {
 	Ok(Job {
 		id: row.try_get("id").map_err(db_error)?,
 		job_type: parse_enum::<JobType>(&job_type)?,
+		request_id: row.try_get("request_id").map_err(db_error)?,
 		payload: row.try_get("payload").map_err(db_error)?,
 		status: parse_enum::<JobStatus>(&status)?,
 		attempts: row.try_get("attempts").map_err(db_error)?,
@@ -49,11 +50,12 @@ impl JobRepo for SqlxJobRepo {
 	async fn create(&self, job: &Job) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO jobs \
-			 (id, job_type, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+			 (id, job_type, request_id, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
 		)
 		.bind(&job.id)
 		.bind(job.job_type.as_str())
+		.bind(job.request_id.as_deref())
 		.bind(&job.payload)
 		.bind(job.status.as_str())
 		.bind(job.attempts)
@@ -87,18 +89,35 @@ impl JobRepo for SqlxJobRepo {
 		map_rows(rows, map_job)
 	}
 
-	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Job>> {
-		let rows = sqlx::query("SELECT * FROM jobs ORDER BY created_at DESC LIMIT $1 OFFSET $2")
-			.bind(limit)
-			.bind(offset)
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
-		map_rows(rows, map_job)
+	async fn list_page(&self, status: Option<&str>, limit: i64, offset: i64) -> Result<Vec<Job>> {
+		list_by_status(&self.db, "jobs", status, limit, offset, map_job).await
 	}
 
-	async fn count(&self) -> Result<i64> {
-		fetch_count(&self.db, sqlx::query("SELECT COUNT(*) AS count FROM jobs")).await
+	async fn count(&self, status: Option<&str>) -> Result<i64> {
+		count_by_status(&self.db, "jobs", status).await
+	}
+
+	async fn requeue(&self, id: &str, at: DateTime<Utc>) -> Result<bool> {
+		let result = sqlx::query(
+			"UPDATE jobs SET status = 'pending', attempts = 0, run_after = $1, \
+			 last_error = NULL, locked_by = NULL, locked_at = NULL, updated_at = $1 \
+			 WHERE id = $2 AND status = 'failed'",
+		)
+		.bind(format_dt(at))
+		.bind(id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
+	async fn delete(&self, id: &str) -> Result<bool> {
+		let result = sqlx::query("DELETE FROM jobs WHERE id = $1")
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
 	}
 
 	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>> {

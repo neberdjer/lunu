@@ -90,7 +90,9 @@ async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, job: Jo
 				jobs.reschedule(&job.id, &error, run_after, now).await
 			} else {
 				tracing::error!(job = %job.id, kind = %job.job_type, %error, "job failed permanently");
-				jobs.fail(&job.id, &error, now).await
+				let result = jobs.fail(&job.id, &error, now).await;
+				handler.on_failed(&job, &error).await;
+				result
 			}
 		}
 	};
@@ -146,11 +148,22 @@ mod tests {
 		async fn list(&self) -> Result<Vec<Job>> {
 			Ok(Vec::new())
 		}
-		async fn list_page(&self, _limit: i64, _offset: i64) -> Result<Vec<Job>> {
+		async fn list_page(
+			&self,
+			_status: Option<&str>,
+			_limit: i64,
+			_offset: i64,
+		) -> Result<Vec<Job>> {
 			Ok(Vec::new())
 		}
-		async fn count(&self) -> Result<i64> {
+		async fn count(&self, _status: Option<&str>) -> Result<i64> {
 			Ok(0)
+		}
+		async fn requeue(&self, _id: &str, _at: DateTime<Utc>) -> Result<bool> {
+			Ok(true)
+		}
+		async fn delete(&self, _id: &str) -> Result<bool> {
+			Ok(true)
 		}
 		async fn claim_next(&self, _worker_id: &str, _now: DateTime<Utc>) -> Result<Option<Job>> {
 			Ok(None)
@@ -199,6 +212,7 @@ mod tests {
 		Job {
 			id: "j1".to_string(),
 			job_type: JobType::Search,
+			request_id: None,
 			payload: "{}".to_string(),
 			status: JobStatus::Running,
 			attempts,

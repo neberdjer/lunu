@@ -17,6 +17,8 @@ pub struct GrabPayload {
 pub struct MonitorPayload {
 	pub download_id: String,
 	pub misses: i64,
+	#[serde(default)]
+	pub stalls: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +87,17 @@ impl JobType {
 			JobType::Notify => "notify",
 		}
 	}
+
+	pub fn propagates_failure_to_request(&self) -> bool {
+		match self {
+			JobType::Search
+			| JobType::Grab
+			| JobType::MonitorDownload
+			| JobType::Import
+			| JobType::Finalize => true,
+			JobType::Notify => false,
+		}
+	}
 }
 
 impl fmt::Display for JobType {
@@ -113,6 +126,7 @@ impl FromStr for JobType {
 pub struct Job {
 	pub id: String,
 	pub job_type: JobType,
+	pub request_id: Option<String>,
 	pub payload: String,
 	pub status: JobStatus,
 	pub attempts: i64,
@@ -148,6 +162,7 @@ mod tests {
 		Job {
 			id: "j1".to_string(),
 			job_type: JobType::Search,
+			request_id: None,
 			payload: "{}".to_string(),
 			status: JobStatus::Running,
 			attempts,
