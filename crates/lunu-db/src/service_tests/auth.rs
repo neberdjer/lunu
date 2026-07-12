@@ -1,0 +1,274 @@
+use super::builders::*;
+use super::*;
+
+struct FakeAuthProvider {
+	username: String,
+	password: String,
+	identity: ExternalIdentity,
+}
+
+#[async_trait]
+impl AuthProvider for FakeAuthProvider {
+	fn name(&self) -> &'static str {
+		"fake"
+	}
+	async fn authenticate(
+		&self,
+		username: &str,
+		password: &str,
+	) -> CoreResult<Option<ExternalIdentity>> {
+		if username == self.username && password == self.password {
+			Ok(Some(self.identity.clone()))
+		} else {
+			Ok(None)
+		}
+	}
+}
+
+#[tokio::test]
+async fn abs_login_provisions_and_links_external_user() {
+	let db = memory_db().await;
+	let provider = Arc::new(FakeAuthProvider {
+		username: "absuser".to_string(),
+		password: "abspass".to_string(),
+		identity: ExternalIdentity {
+			username: "absuser".to_string(),
+			email: Some("abs@example.com".to_string()),
+		},
+	});
+	let auth = auth_service_with_provider(&db, provider);
+
+	assert!(matches!(
+		auth.login("absuser", "wrong").await,
+		Err(Error::Unauthorized)
+	));
+
+	let first = auth.login("absuser", "abspass").await.unwrap();
+	assert_eq!(first.user.auth_source, AuthSource::Abs);
+	assert_eq!(first.user.email.as_deref(), Some("abs@example.com"));
+	assert!(first.user.password_hash.is_none());
+	assert!(
+		auth.validate_session(&first.session_token)
+			.await
+			.unwrap()
+			.is_some()
+	);
+
+	let second = auth.login("absuser", "abspass").await.unwrap();
+	assert_eq!(second.user.id, first.user.id);
+	assert_eq!(SqlxUserRepo::new(db.clone()).count().await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn abs_credentials_cannot_unlock_local_account() {
+	let db = memory_db().await;
+	let users = UserService::new(
+		Arc::new(SqlxUserRepo::new(db.clone())),
+		Arc::new(SqlxSessionRepo::new(db.clone())),
+		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
+	);
+	users
+		.create("alice", "password123", None, Role::User)
+		.await
+		.unwrap();
+
+	let provider = Arc::new(FakeAuthProvider {
+		username: "ghost".to_string(),
+		password: "ghostpass".to_string(),
+		identity: ExternalIdentity {
+			username: "alice".to_string(),
+			email: None,
+		},
+	});
+	let auth = auth_service_with_provider(&db, provider);
+
+	assert!(matches!(
+		auth.login("ghost", "ghostpass").await,
+		Err(Error::Unauthorized)
+	));
+	assert!(auth.login("alice", "password123").await.is_ok());
+}
+
+#[tokio::test]
+async fn auth_setup_login_validate_logout() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+
+	assert!(auth.needs_setup().await.unwrap());
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	assert_eq!(admin.user.role, Role::Admin);
+	assert!(!auth.needs_setup().await.unwrap());
+	assert!(auth.setup_first_admin("x", "y", None).await.is_err());
+
+	assert!(auth.login("admin", "wrong").await.is_err());
+	let authed = auth.login("admin", "password123").await.unwrap();
+	assert_eq!(authed.user.username, "admin");
+
+	let validated = auth
+		.validate_session(&authed.session_token)
+		.await
+		.unwrap()
+		.unwrap();
+	assert_eq!(validated.id, admin.user.id);
+
+	auth.logout(&authed.session_token).await.unwrap();
+	assert!(
+		auth.validate_session(&authed.session_token)
+			.await
+			.unwrap()
+			.is_none()
+	);
+}
+
+#[tokio::test]
+async fn register_with_invite_then_exhausted() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	let issued = invites
+		.create(&admin.user.id, Role::User, None, 1, None)
+		.await
+		.unwrap();
+
+	let registered = auth
+		.register_with_invite(&issued.code, "bob", "hunter2password")
+		.await
+		.unwrap();
+	assert_eq!(registered.user.username, "bob");
+	assert_eq!(registered.user.role, Role::User);
+
+	assert!(
+		auth.register_with_invite(&issued.code, "carol", "password123")
+			.await
+			.is_err()
+	);
+}
+
+#[tokio::test]
+async fn change_password_rotates_sessions_and_rejects_wrong_current() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+
+	assert!(matches!(
+		auth.change_password(&admin.user.id, "wrongcurrent", "newpassword123")
+			.await,
+		Err(Error::Unauthorized)
+	));
+	assert!(matches!(
+		auth.change_password(&admin.user.id, "password123", "short")
+			.await,
+		Err(Error::Validation(_))
+	));
+
+	let rotated = auth
+		.change_password(&admin.user.id, "password123", "newpassword123")
+		.await
+		.unwrap();
+
+	assert!(
+		auth.validate_session(&admin.session_token)
+			.await
+			.unwrap()
+			.is_none()
+	);
+	assert!(
+		auth.validate_session(&rotated.session_token)
+			.await
+			.unwrap()
+			.is_some()
+	);
+	assert!(auth.login("admin", "newpassword123").await.is_ok());
+	assert!(auth.login("admin", "password123").await.is_err());
+}
+
+#[tokio::test]
+async fn password_reset_rotates_password_and_consumes_code() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin(
+			"admin",
+			"password123",
+			Some("admin@example.com".to_string()),
+		)
+		.await
+		.unwrap();
+
+	seed_reset_code(&db, &admin.user.id, "123456").await;
+
+	auth.reset_password("admin@example.com", "123456", "brandnewpass")
+		.await
+		.unwrap();
+
+	assert!(auth.login("admin", "brandnewpass").await.is_ok());
+	assert!(auth.login("admin", "password123").await.is_err());
+	assert!(
+		auth.reset_password("admin@example.com", "123456", "anotherpass")
+			.await
+			.is_err()
+	);
+}
+
+#[tokio::test]
+async fn request_password_reset_issues_for_known_local_email_and_cools_down() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	auth.setup_first_admin(
+		"admin",
+		"password123",
+		Some("admin@example.com".to_string()),
+	)
+	.await
+	.unwrap();
+
+	auth.request_password_reset("admin@example.com", None)
+		.await
+		.unwrap();
+	auth.request_password_reset("admin@example.com", None)
+		.await
+		.unwrap();
+	auth.request_password_reset("nobody@example.com", None)
+		.await
+		.unwrap();
+
+	assert_eq!(reset_token_count(&db).await, 1);
+}
+
+#[tokio::test]
+async fn wrong_reset_code_is_burned_after_max_attempts() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin(
+			"admin",
+			"password123",
+			Some("admin@example.com".to_string()),
+		)
+		.await
+		.unwrap();
+
+	seed_reset_code(&db, &admin.user.id, "123456").await;
+
+	for _ in 0..5 {
+		assert!(
+			auth.reset_password("admin@example.com", "000000", "brandnewpass")
+				.await
+				.is_err()
+		);
+	}
+
+	assert_eq!(reset_token_count(&db).await, 0);
+	assert!(auth.login("admin", "password123").await.is_ok());
+}

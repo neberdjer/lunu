@@ -4,9 +4,7 @@ use chrono::{Duration, Utc};
 
 use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
-use crate::crypto::{
-	dummy_verify, generate_token, hash_password, hash_token, verify_password,
-};
+use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
 use crate::services::{
