@@ -2,7 +2,7 @@ use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
 
-use actix_web::http::header::AUTHORIZATION;
+use actix_web::http::header::{AUTHORIZATION, USER_AGENT};
 use actix_web::{FromRequest, HttpRequest, dev::Payload, web};
 use lunu_core::consts::auth::{API_KEY_HEADER, BEARER_PREFIX, SCOPE_ADMIN, SESSION_COOKIE};
 use lunu_core::models::User;
@@ -65,6 +65,14 @@ impl FromRequest for AdminUser {
 			Ok(AdminUser(user))
 		})
 	}
+}
+
+pub(crate) fn user_agent(req: &HttpRequest) -> Option<String> {
+	req.headers()
+		.get(USER_AGENT)?
+		.to_str()
+		.ok()
+		.map(str::to_string)
 }
 
 fn app_state(req: &HttpRequest) -> web::Data<AppState> {

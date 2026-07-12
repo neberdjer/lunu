@@ -17,6 +17,7 @@ use crate::{Error, Result};
 pub struct Authenticated {
 	pub user: User,
 	pub session_token: String,
+	pub session_id: String,
 }
 
 pub struct AuthService {
@@ -121,11 +122,34 @@ impl AuthService {
 	}
 
 	async fn issue(&self, user: User) -> Result<Authenticated> {
-		let session_token = self.create_session(&user.id).await?;
+		let token = generate_token();
+		let now = Utc::now();
+		let session = Session {
+			id: new_id(),
+			user_id: user.id.clone(),
+			token_hash: hash_token(&token),
+			created_at: now,
+			expires_at: now + Duration::days(SESSION_TTL_DAYS),
+			last_seen_at: None,
+			user_agent: None,
+		};
+		self.sessions.create(&session).await?;
 		Ok(Authenticated {
 			user,
-			session_token,
+			session_token: token,
+			session_id: session.id,
 		})
+	}
+
+	pub async fn record_user_agent(
+		&self,
+		session_id: &str,
+		user_agent: Option<&str>,
+	) -> Result<()> {
+		if let Some(user_agent) = user_agent {
+			self.sessions.set_user_agent(session_id, user_agent).await?;
+		}
+		Ok(())
 	}
 
 	pub async fn validate_session(&self, token: &str) -> Result<Option<User>> {
@@ -185,6 +209,25 @@ impl AuthService {
 		Ok(())
 	}
 
+	pub async fn list_sessions(&self, user_id: &str) -> Result<Vec<Session>> {
+		self.sessions.list_for_user(user_id).await
+	}
+
+	pub async fn current_session_id(&self, token: &str) -> Result<Option<String>> {
+		Ok(self
+			.sessions
+			.find_by_token_hash(&hash_token(token))
+			.await?
+			.map(|session| session.id))
+	}
+
+	pub async fn revoke_session(&self, user_id: &str, id: &str) -> Result<()> {
+		if !self.sessions.delete_scoped(user_id, id).await? {
+			return Err(Error::NotFound(format!("session {id}")));
+		}
+		Ok(())
+	}
+
 	pub async fn register_with_invite(
 		&self,
 		code: &str,
@@ -211,22 +254,5 @@ impl AuthService {
 		self.users.create(&user).await?;
 
 		self.issue(user).await
-	}
-
-	async fn create_session(&self, user_id: &str) -> Result<String> {
-		let token = generate_token();
-		let now = Utc::now();
-		let session = Session {
-			id: new_id(),
-			user_id: user_id.to_string(),
-			token_hash: hash_token(&token),
-			created_at: now,
-			expires_at: now + Duration::days(SESSION_TTL_DAYS),
-			last_seen_at: None,
-			user_agent: None,
-		};
-
-		self.sessions.create(&session).await?;
-		Ok(token)
 	}
 }

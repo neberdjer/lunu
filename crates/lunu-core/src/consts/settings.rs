@@ -18,6 +18,7 @@ pub const ABS_URL: &str = "abs_url";
 pub const NOTIFICATION_WEBHOOK_URL: &str = "notification_webhook_url";
 pub const DISCORD_WEBHOOK_URL: &str = "discord_webhook_url";
 pub const SLACK_WEBHOOK_URL: &str = "slack_webhook_url";
+pub const BASE_URL: &str = "base_url";
 
 pub enum SettingKind {
 	Text,
@@ -161,6 +162,12 @@ pub const REGISTRY: &[SettingSpec] = &[
 		key: SLACK_WEBHOOK_URL,
 		kind: SettingKind::Url,
 		secret: true,
+		default: None,
+	},
+	SettingSpec {
+		key: BASE_URL,
+		kind: SettingKind::Url,
+		secret: false,
 		default: None,
 	},
 ];

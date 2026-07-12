@@ -4,9 +4,13 @@ use chrono::Utc;
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::consts::reasons;
-use crate::models::{Role, User, UserSettings};
+use crate::crypto::hash_password;
+use crate::models::{AuthSource, Role, User, UserSettings};
 use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
-use crate::services::{build_local_user, ensure_username_available, normalize_email, require_user};
+use crate::services::{
+	build_local_user, ensure_username_available, nonempty, normalize_email, require_user,
+	validate_password,
+};
 use crate::{Error, Result};
 
 pub struct UserService {
@@ -80,27 +84,66 @@ impl UserService {
 		Ok(user)
 	}
 
-	pub async fn update_email(&self, id: &str, email: Option<String>) -> Result<User> {
+	pub async fn update_profile(
+		&self,
+		id: &str,
+		email: Option<String>,
+		display_name: Option<String>,
+	) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
 		user.email = normalize_email(email)?;
+		user.display_name = nonempty(display_name);
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 		Ok(user)
 	}
 
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
-		let mut user = require_user(self.users.as_ref(), id).await?;
-		let _guard = self.guard_admin_removal(&user, !enabled).await?;
+		self.admin_update(id, Some(enabled), None, None).await
+	}
 
-		user.enabled = enabled;
+	pub async fn admin_update(
+		&self,
+		id: &str,
+		enabled: Option<bool>,
+		role: Option<Role>,
+		display_name: Option<Option<String>>,
+	) -> Result<User> {
+		let mut user = require_user(self.users.as_ref(), id).await?;
+
+		let new_enabled = enabled.unwrap_or(user.enabled);
+		let new_role = role.unwrap_or(user.role);
+		let losing_admin =
+			user.role.is_admin() && user.enabled && !(new_role.is_admin() && new_enabled);
+		let _guard = self.guard_admin_removal(&user, losing_admin).await?;
+
+		user.enabled = new_enabled;
+		user.role = new_role;
+		if let Some(display_name) = display_name {
+			user.display_name = nonempty(display_name);
+		}
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 
-		if !enabled {
+		if !user.enabled {
 			self.sessions.delete_for_user(id).await?;
 		}
 
+		Ok(user)
+	}
+
+	pub async fn set_password(&self, id: &str, password: &str) -> Result<User> {
+		let mut user = require_user(self.users.as_ref(), id).await?;
+		if user.auth_source != AuthSource::Local {
+			return Err(Error::Validation(reasons::PASSWORD_NOT_LOCAL.to_string()));
+		}
+		validate_password(password)?;
+
+		user.password_hash = Some(hash_password(password)?);
+		user.updated_at = Utc::now();
+		self.users.update(&user).await?;
+		self.sessions.delete_for_user(id).await?;
 		Ok(user)
 	}
 

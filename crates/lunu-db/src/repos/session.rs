@@ -6,7 +6,7 @@ use lunu_core::repo::SessionRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::map_row_opt;
+use super::{map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt, parse_dt_opt};
 use crate::{Db, db_error};
 
@@ -66,9 +66,29 @@ impl SessionRepo for SqlxSessionRepo {
 		map_row_opt(row, map_session)
 	}
 
+	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Session>> {
+		let rows =
+			sqlx::query("SELECT * FROM sessions WHERE user_id = $1 ORDER BY created_at DESC")
+				.bind(user_id)
+				.fetch_all(&self.db)
+				.await
+				.map_err(db_error)?;
+		map_rows(rows, map_session)
+	}
+
 	async fn touch(&self, id: &str, last_seen_at: DateTime<Utc>) -> Result<()> {
 		sqlx::query("UPDATE sessions SET last_seen_at = $1 WHERE id = $2")
 			.bind(format_dt(last_seen_at))
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
+
+	async fn set_user_agent(&self, id: &str, user_agent: &str) -> Result<()> {
+		sqlx::query("UPDATE sessions SET user_agent = $1 WHERE id = $2")
+			.bind(user_agent)
 			.bind(id)
 			.execute(&self.db)
 			.await
@@ -92,6 +112,16 @@ impl SessionRepo for SqlxSessionRepo {
 			.await
 			.map_err(db_error)?;
 		Ok(())
+	}
+
+	async fn delete_scoped(&self, user_id: &str, id: &str) -> Result<bool> {
+		let result = sqlx::query("DELETE FROM sessions WHERE id = $1 AND user_id = $2")
+			.bind(id)
+			.bind(user_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
 	}
 
 	async fn delete_expired(&self, now: DateTime<Utc>) -> Result<()> {

@@ -1,10 +1,11 @@
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpRequest, HttpResponse, get, post, web};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::cookie::authenticated_response;
 use crate::dto::UserResponse;
 use crate::error::ApiError;
+use crate::extract::user_agent;
 use crate::state::AppState;
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -35,6 +36,7 @@ pub async fn status(state: web::Data<AppState>) -> Result<HttpResponse, ApiError
 )]
 #[post("/setup")]
 pub async fn create(
+	req: HttpRequest,
 	state: web::Data<AppState>,
 	body: web::Json<SetupRequest>,
 ) -> Result<HttpResponse, ApiError> {
@@ -43,6 +45,11 @@ pub async fn create(
 		.auth
 		.setup_first_admin(&body.username, &body.password, body.email)
 		.await?;
+	state
+		.auth
+		.record_user_agent(&authenticated.session_id, user_agent(&req).as_deref())
+		.await
+		.ok();
 
 	Ok(authenticated_response(
 		HttpResponse::Created(),

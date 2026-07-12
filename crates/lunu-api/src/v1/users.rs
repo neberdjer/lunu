@@ -20,7 +20,17 @@ pub struct CreateUserRequest {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateUserRequest {
-	enabled: bool,
+	#[serde(default)]
+	enabled: Option<bool>,
+	#[serde(default)]
+	role: Option<String>,
+	#[serde(default)]
+	display_name: Option<String>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SetPasswordRequest {
+	password: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -38,11 +48,10 @@ pub async fn list(
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let pagination = Pagination::resolve(query.page, query.limit);
-	let users = state
-		.users
-		.list_page(pagination.limit, pagination.offset)
-		.await?;
-	let total = state.users.count().await?;
+	let (users, total) = tokio::try_join!(
+		state.users.list_page(pagination.limit, pagination.offset),
+		state.users.count(),
+	)?;
 	let items: Vec<UserResponse> = users.iter().map(UserResponse::from).collect();
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
@@ -70,7 +79,32 @@ pub async fn update(
 	id: web::Path<String>,
 	body: web::Json<UpdateUserRequest>,
 ) -> Result<HttpResponse, ApiError> {
-	let user = state.users.set_enabled(&id, body.enabled).await?;
+	let body = body.into_inner();
+	let role = body.role.as_deref().map(Role::from_str).transpose()?;
+	let user = state
+		.users
+		.admin_update(
+			&id.into_inner(),
+			body.enabled,
+			role,
+			body.display_name.map(Some),
+		)
+		.await?;
+	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
+}
+
+#[utoipa::path(tag = "users", responses((status = 200, description = "Password reset", body = UserResponse), (status = 400, description = "Invalid password")))]
+#[post("/users/{id}/password")]
+pub async fn set_password(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+	body: web::Json<SetPasswordRequest>,
+) -> Result<HttpResponse, ApiError> {
+	let user = state
+		.users
+		.set_password(&id.into_inner(), &body.password)
+		.await?;
 	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
 }
 

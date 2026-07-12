@@ -81,6 +81,7 @@ pub struct User {
 	pub id: String,
 	pub username: String,
 	pub email: Option<String>,
+	pub display_name: Option<String>,
 	pub password_hash: Option<String>,
 	pub role: Role,
 	pub auth_source: AuthSource,
