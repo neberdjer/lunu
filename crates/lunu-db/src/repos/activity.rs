@@ -27,6 +27,7 @@ fn map_activity(row: &AnyRow) -> Result<Activity> {
 		request_id: row.try_get("request_id").map_err(db_error)?,
 		event: row.try_get("event").map_err(db_error)?,
 		detail: row.try_get("detail").map_err(db_error)?,
+		actor: row.try_get("actor").map_err(db_error)?,
 		at: parse_dt(&at)?,
 	})
 }
@@ -35,12 +36,14 @@ fn map_activity(row: &AnyRow) -> Result<Activity> {
 impl ActivityRepo for SqlxActivityRepo {
 	async fn create(&self, activity: &Activity) -> Result<()> {
 		sqlx::query(
-			"INSERT INTO activity (id, request_id, event, detail, at) VALUES ($1, $2, $3, $4, $5)",
+			"INSERT INTO activity (id, request_id, event, detail, actor, at) \
+			 VALUES ($1, $2, $3, $4, $5, $6)",
 		)
 		.bind(&activity.id)
 		.bind(&activity.request_id)
 		.bind(&activity.event)
 		.bind(activity.detail.as_deref())
+		.bind(activity.actor.as_deref())
 		.bind(format_dt(activity.at))
 		.execute(&self.db)
 		.await

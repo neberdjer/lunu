@@ -6,5 +6,6 @@ pub struct Activity {
 	pub request_id: String,
 	pub event: String,
 	pub detail: Option<String>,
+	pub actor: Option<String>,
 	pub at: DateTime<Utc>,
 }

@@ -31,6 +31,14 @@ pub const UNKNOWN_SETTING: &str = "unknown-setting";
 pub const SETTING_EMPTY: &str = "setting-empty";
 pub const SETTING_INVALID_URL: &str = "setting-invalid-url";
 pub const SETTING_INVALID_CHOICE: &str = "setting-invalid-choice";
+pub const NOTIFICATION_KIND_UNKNOWN: &str = "notification-kind-unknown";
+pub const ISSUE_STATUS_UNKNOWN: &str = "issue-status-unknown";
+pub const ISSUE_TYPE_UNKNOWN: &str = "issue-type-unknown";
+pub const ISSUE_NOT_OPEN: &str = "issue-not-open";
+pub const REQUEST_NOT_AVAILABLE: &str = "request-not-available";
+pub const UNKNOWN_PROFILE: &str = "unknown-profile";
+pub const JOB_NOT_RETRYABLE: &str = "job-not-retryable";
+pub const EMPTY_SELECTION: &str = "empty-selection";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -66,4 +74,12 @@ pub const ALL: &[&str] = &[
 	SETTING_EMPTY,
 	SETTING_INVALID_URL,
 	SETTING_INVALID_CHOICE,
+	NOTIFICATION_KIND_UNKNOWN,
+	ISSUE_STATUS_UNKNOWN,
+	ISSUE_TYPE_UNKNOWN,
+	ISSUE_NOT_OPEN,
+	REQUEST_NOT_AVAILABLE,
+	UNKNOWN_PROFILE,
+	JOB_NOT_RETRYABLE,
+	EMPTY_SELECTION,
 ];

@@ -7,8 +7,8 @@ use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::Encryptor;
 use lunu_core::models::{
 	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus,
-	JobType, MetadataCacheEntry, NotificationEvent, NotificationKind, Protocol, QualityProfile,
-	Release, Request, RequestStatus, Role, User, UserSettings,
+	JobType, MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind, Protocol,
+	QualityProfile, Release, Request, RequestStatus, Role, User, UserSettings,
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo,
@@ -16,8 +16,8 @@ use lunu_core::repo::{
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
-	MetadataService, MonitorService, NotificationService, ReleaseService, RequestService,
-	SettingsService, UserService,
+	MediaService, MetadataService, MonitorService, NotificationInboxService, NotificationService,
+	ReleaseService, RequestService, SettingsService, UserService,
 };
 use lunu_core::traits::{
 	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer,
@@ -28,8 +28,9 @@ use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxJobRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
-	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -431,18 +432,21 @@ async fn update_email_validates_and_normalizes() {
 
 	assert!(matches!(
 		users
-			.update_email(&admin.user.id, Some("not-an-email".to_string()))
+			.update_profile(&admin.user.id, Some("not-an-email".to_string()), None)
 			.await,
 		Err(Error::Validation(_))
 	));
 
 	let updated = users
-		.update_email(&admin.user.id, Some("  me@example.com  ".to_string()))
+		.update_profile(&admin.user.id, Some("  me@example.com  ".to_string()), None)
 		.await
 		.unwrap();
 	assert_eq!(updated.email.as_deref(), Some("me@example.com"));
 
-	let cleared = users.update_email(&admin.user.id, None).await.unwrap();
+	let cleared = users
+		.update_profile(&admin.user.id, None, None)
+		.await
+		.unwrap();
 	assert_eq!(cleared.email, None);
 }
 
@@ -663,6 +667,7 @@ async fn create_initial_admin_rejects_second_insert() {
 		password_hash: Some("h".to_string()),
 		role: Role::Admin,
 		auth_source: AuthSource::Local,
+		display_name: None,
 		enabled: true,
 		created_at: Utc::now(),
 		updated_at: Utc::now(),
@@ -687,6 +692,8 @@ async fn create_within_quota_enforces_limit() {
 		cover_url: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
+		notes: None,
+		quality_profile_id: None,
 		created_at: Utc::now(),
 		updated_at: Utc::now(),
 	};
@@ -769,6 +776,8 @@ async fn request_lifecycle_and_quota_count() {
 		cover_url: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
+		notes: None,
+		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
 	};
@@ -809,6 +818,8 @@ async fn request_list_page_filters_and_counts() {
 		cover_url: None,
 		status,
 		approved_by: None,
+		notes: None,
+		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
 	};
@@ -851,6 +862,8 @@ async fn status_by_asin_scopes_to_user_and_keeps_newest() {
 				cover_url: None,
 				status,
 				approved_by: None,
+				notes: None,
+				quality_profile_id: None,
 				created_at: at,
 				updated_at: at,
 			}
@@ -898,6 +911,7 @@ fn caller(id: &str, role: Role) -> User {
 		password_hash: None,
 		role,
 		auth_source: AuthSource::Local,
+		display_name: None,
 		enabled: true,
 		created_at: now,
 		updated_at: now,
@@ -946,6 +960,7 @@ async fn delete_request_cascades_to_downloads_and_activity() {
 			request_id: "r1".to_string(),
 			event: "downloading".to_string(),
 			detail: None,
+			actor: None,
 			at: Utc::now(),
 		})
 		.await
@@ -996,6 +1011,8 @@ async fn retry_reopens_failed_request_and_enqueues_grab() {
 			cover_url: None,
 			status: RequestStatus::Failed,
 			approved_by: None,
+			notes: None,
+			quality_profile_id: None,
 			created_at: now,
 			updated_at: now,
 		})
@@ -1034,6 +1051,8 @@ async fn blocklisted_release_excluded_from_for_request() {
 			cover_url: None,
 			status: RequestStatus::Pending,
 			approved_by: None,
+			notes: None,
+			quality_profile_id: None,
 			created_at: now,
 			updated_at: now,
 		})
@@ -1071,6 +1090,7 @@ async fn duplicate_username_is_conflict_not_db_error() {
 		password_hash: Some("hash".to_string()),
 		role: Role::User,
 		auth_source: AuthSource::Local,
+		display_name: None,
 		enabled: true,
 		created_at: now,
 		updated_at: now,
@@ -1151,7 +1171,7 @@ impl MetadataProvider for StubProvider {
 	fn id(&self) -> &'static str {
 		"stub"
 	}
-	async fn search(&self, _query: &str, _region: &str) -> CoreResult<Vec<Book>> {
+	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
 	async fn get_book(&self, _asin: &str, _region: &str) -> CoreResult<Option<Book>> {
@@ -1159,6 +1179,12 @@ impl MetadataProvider for StubProvider {
 	}
 	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
 		Ok(None)
+	}
+	async fn similar(&self, _asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+		Ok(Vec::new())
+	}
+	async fn books_by_author(&self, _author_asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+		Ok(Vec::new())
 	}
 }
 
@@ -1179,6 +1205,8 @@ async fn approving_a_request_enqueues_a_grab_job() {
 		cover_url: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
+		notes: None,
+		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
 	};
@@ -1214,6 +1242,8 @@ async fn marking_available_enqueues_a_notification() {
 			cover_url: None,
 			status: RequestStatus::Importing,
 			approved_by: None,
+			notes: None,
+			quality_profile_id: None,
 			created_at: now,
 			updated_at: now,
 		})
@@ -1289,6 +1319,9 @@ impl DownloadClient for FakeClient {
 	async fn status(&self, _info_hash: &str) -> CoreResult<Option<DownloadStatus>> {
 		Ok(self.response.clone())
 	}
+	async fn remove(&self, _info_hash: &str, _delete_files: bool) -> CoreResult<()> {
+		Ok(())
+	}
 	async fn test_connection(&self) -> CoreResult<()> {
 		Ok(())
 	}
@@ -1329,6 +1362,7 @@ async fn import_places_content_and_marks_available() {
 		request_service(&db, jobs),
 		settings,
 		importer.clone(),
+		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
 	);
 
 	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
@@ -1365,6 +1399,8 @@ async fn request_transitions_record_activity() {
 		cover_url: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
+		notes: None,
+		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
 	};
@@ -1399,6 +1435,7 @@ async fn import_requires_library_configured() {
 		request_service(&db, jobs),
 		settings_service(&db),
 		Arc::new(FakeImporter::default()),
+		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
 	);
 
 	assert!(imports.import("d1", "/downloads/x").await.is_err());
@@ -1411,7 +1448,7 @@ fn request_service(db: &Db, jobs: Arc<JobService>) -> Arc<RequestService> {
 struct NoopPublisher;
 
 impl EventPublisher for NoopPublisher {
-	fn publish(&self, _activity: &lunu_core::models::Activity) {}
+	fn publish(&self, _event: &lunu_core::models::LiveEvent) {}
 }
 
 #[derive(Default)]
@@ -1420,11 +1457,13 @@ struct RecordingPublisher {
 }
 
 impl EventPublisher for RecordingPublisher {
-	fn publish(&self, activity: &lunu_core::models::Activity) {
-		self.events
-			.lock()
-			.unwrap()
-			.push(format!("{}:{}", activity.request_id, activity.event));
+	fn publish(&self, event: &lunu_core::models::LiveEvent) {
+		if let lunu_core::models::LiveEvent::Activity(activity) = event {
+			self.events
+				.lock()
+				.unwrap()
+				.push(format!("{}:{}", activity.request_id, activity.event));
+		}
 	}
 }
 
@@ -1444,7 +1483,10 @@ async fn recording_activity_publishes_event() {
 		publisher.clone(),
 	);
 
-	activity.record("r1", "downloading").await.unwrap();
+	activity
+		.record("r1", "downloading", None, None)
+		.await
+		.unwrap();
 
 	assert_eq!(
 		publisher.events.lock().unwrap().as_slice(),
@@ -1469,6 +1511,12 @@ fn request_service_with_activity(
 		jobs,
 		activity,
 		Arc::new(SqlxDownloadRepo::new(db.clone())),
+		Arc::new(SqlxMediaRepo::new(db.clone())),
+		Arc::new(NotificationInboxService::new(
+			Arc::new(SqlxUserNotificationRepo::new(db.clone())),
+			Arc::new(SqlxUserRepo::new(db.clone())),
+			Arc::new(NoopPublisher),
+		)),
 	))
 }
 
@@ -1483,6 +1531,8 @@ async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
 			cover_url: None,
 			status: RequestStatus::Downloading,
 			approved_by: Some("admin".to_string()),
+			notes: None,
+			quality_profile_id: None,
 			created_at: at,
 			updated_at: at,
 		})
@@ -1526,9 +1576,17 @@ async fn monitor_marks_request_importing_on_completion() {
 		client,
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
+		Arc::new(NoopPublisher),
 	);
 
-	monitor.poll("d1", 0).await.unwrap();
+	monitor
+		.poll(&MonitorPayload {
+			download_id: "d1".to_string(),
+			misses: 0,
+			stalls: 0,
+		})
+		.await
+		.unwrap();
 
 	assert_eq!(
 		SqlxRequestRepo::new(db.clone())
@@ -1563,9 +1621,17 @@ async fn monitor_reschedules_while_downloading() {
 		client,
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
+		Arc::new(NoopPublisher),
 	);
 
-	monitor.poll("d1", 0).await.unwrap();
+	monitor
+		.poll(&MonitorPayload {
+			download_id: "d1".to_string(),
+			misses: 0,
+			stalls: 0,
+		})
+		.await
+		.unwrap();
 
 	let listed = jobs.list().await.unwrap();
 	assert_eq!(listed.len(), 1);
@@ -1589,9 +1655,17 @@ async fn monitor_fails_after_max_misses() {
 		client,
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
+		Arc::new(NoopPublisher),
 	);
 
-	monitor.poll("d1", MONITOR_MAX_MISSES - 1).await.unwrap();
+	monitor
+		.poll(&MonitorPayload {
+			download_id: "d1".to_string(),
+			misses: MONITOR_MAX_MISSES - 1,
+			stalls: 0,
+		})
+		.await
+		.unwrap();
 
 	assert_eq!(
 		downloads.find_by_id("d1").await.unwrap().unwrap().state,
@@ -1618,6 +1692,7 @@ fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {
 	Job {
 		id: id.to_string(),
 		job_type: JobType::Grab,
+		request_id: None,
 		payload: "{\"request\":\"r1\"}".to_string(),
 		status: JobStatus::Pending,
 		attempts: 0,

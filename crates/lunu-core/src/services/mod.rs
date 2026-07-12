@@ -4,10 +4,13 @@ mod auth;
 mod grab;
 mod import;
 mod invite;
+mod issue;
 mod job;
+mod media;
 mod metadata;
 mod monitor;
 mod notification;
+mod notification_inbox;
 mod quality_profile;
 mod release;
 mod request;
@@ -20,13 +23,16 @@ pub use auth::{AuthService, Authenticated};
 pub use grab::{GrabService, ReleaseSelection};
 pub use import::ImportService;
 pub use invite::{InviteService, IssuedInvite};
+pub use issue::IssueService;
 pub use job::JobService;
+pub use media::MediaService;
 pub use metadata::MetadataService;
 pub use monitor::MonitorService;
 pub use notification::NotificationService;
+pub use notification_inbox::NotificationInboxService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};
 pub use release::ReleaseService;
-pub use request::RequestService;
+pub use request::{NewRequest, RequestService};
 pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
 
@@ -71,6 +77,12 @@ pub(crate) fn new_id() -> String {
 	uuid::Uuid::new_v4().to_string()
 }
 
+pub(crate) fn nonempty(value: Option<String>) -> Option<String> {
+	value
+		.map(|value| value.trim().to_string())
+		.filter(|value| !value.is_empty())
+}
+
 pub(crate) async fn ensure_username_available(users: &dyn UserRepo, username: &str) -> Result<()> {
 	if users.find_by_username(username).await?.is_some() {
 		return Err(Error::Conflict(reasons::USERNAME_TAKEN.to_string()));
@@ -91,6 +103,7 @@ pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> Use
 		id: new_id(),
 		username: identity.username,
 		email: identity.email,
+		display_name: None,
 		password_hash: None,
 		role,
 		auth_source: AuthSource::Abs,
@@ -113,6 +126,7 @@ pub(crate) fn build_local_user(
 		id: new_id(),
 		username: username.to_string(),
 		email,
+		display_name: None,
 		password_hash: Some(hash_password(password)?),
 		role,
 		auth_source: AuthSource::Local,

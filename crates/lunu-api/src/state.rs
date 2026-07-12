@@ -7,14 +7,16 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
-	JobService, MetadataService, MonitorService, NotificationService, QualityProfileService,
-	ReleaseService, RequestService, SettingsService, UserService,
+	IssueService, JobService, MediaService, MetadataService, MonitorService,
+	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
+	RequestService, SettingsService, UserService,
 };
 use lunu_db::Db;
 use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxJobRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
-	SqlxSettingsRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo,
+	SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo,
 };
 
 use crate::hub::EventHub;
@@ -44,6 +46,9 @@ pub struct AppState {
 	pub monitor: Arc<MonitorService>,
 	pub imports: Arc<ImportService>,
 	pub activity: Arc<ActivityService>,
+	pub media: Arc<MediaService>,
+	pub issues: Arc<IssueService>,
+	pub inbox: Arc<NotificationInboxService>,
 	pub notifications: Arc<NotificationService>,
 	pub hub: Arc<EventHub>,
 	pub auth_rate_limiter: Arc<RateLimiter>,
@@ -64,6 +69,7 @@ impl AppState {
 		let jobs_repo = Arc::new(SqlxJobRepo::new(db.clone()));
 		let activity_repo = Arc::new(SqlxActivityRepo::new(db.clone()));
 		let blocklist_repo = Arc::new(SqlxBlocklistRepo::new(db.clone()));
+		let media_repo = Arc::new(SqlxMediaRepo::new(db.clone()));
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
 		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
@@ -75,7 +81,7 @@ impl AppState {
 			Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
 		));
 		let users = Arc::new(UserService::new(
-			users_repo,
+			users_repo.clone(),
 			sessions_repo,
 			user_settings_repo.clone(),
 		));
@@ -95,6 +101,12 @@ impl AppState {
 			std::time::Duration::from_secs(AUTH_RATE_LIMIT_WINDOW_SECS),
 		));
 		let activity = Arc::new(ActivityService::new(activity_repo, hub.clone()));
+		let media = Arc::new(MediaService::new(media_repo.clone()));
+		let inbox = Arc::new(NotificationInboxService::new(
+			Arc::new(SqlxUserNotificationRepo::new(db.clone())),
+			users_repo,
+			hub.clone(),
+		));
 		let requests = Arc::new(RequestService::new(
 			requests_repo.clone(),
 			user_settings_repo,
@@ -102,6 +114,8 @@ impl AppState {
 			jobs.clone(),
 			activity.clone(),
 			downloads_repo.clone(),
+			media_repo.clone(),
+			inbox.clone(),
 		));
 
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
@@ -119,6 +133,7 @@ impl AppState {
 			download_client.clone(),
 			requests.clone(),
 			jobs.clone(),
+			hub.clone(),
 		));
 		let grabs = Arc::new(GrabService::new(
 			downloads_repo.clone(),
@@ -127,12 +142,18 @@ impl AppState {
 			download_client,
 			jobs.clone(),
 		));
+		let issues = Arc::new(IssueService::new(
+			Arc::new(SqlxIssueRepo::new(db.clone())),
+			requests.clone(),
+		));
+
 		let importer = Arc::new(HardlinkImporter::new());
 		let imports = Arc::new(ImportService::new(
 			downloads_repo,
 			requests.clone(),
 			settings.clone(),
 			importer,
+			media.clone(),
 		));
 
 		let notifications = Arc::new(NotificationService::new(vec![
@@ -159,6 +180,9 @@ impl AppState {
 			monitor,
 			imports,
 			activity,
+			media,
+			issues,
+			inbox,
 			notifications,
 			hub,
 			auth_rate_limiter,

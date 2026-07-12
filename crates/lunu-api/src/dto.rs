@@ -1,8 +1,28 @@
 use chrono::{DateTime, Utc};
 use lunu_core::models::{
-	Activity, ApiKey, Download, Invite, Job, QualityProfile, Request, User, UserSettings,
+	Activity, ApiKey, BlocklistEntry, Download, Invite, Issue, Job, QualityProfile, Request,
+	Session, User, UserNotification, UserSettings,
 };
 use serde::Serialize;
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct BlocklistResponse {
+	pub id: String,
+	pub request_id: String,
+	pub download_url: String,
+	pub created_at: DateTime<Utc>,
+}
+
+impl From<&BlocklistEntry> for BlocklistResponse {
+	fn from(entry: &BlocklistEntry) -> Self {
+		Self {
+			id: entry.id.clone(),
+			request_id: entry.request_id.clone(),
+			download_url: entry.download_url.clone(),
+			created_at: entry.created_at,
+		}
+	}
+}
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct ActivityResponse {
@@ -10,6 +30,7 @@ pub(crate) struct ActivityResponse {
 	pub request_id: String,
 	pub event: String,
 	pub detail: Option<String>,
+	pub actor: Option<String>,
 	pub at: DateTime<Utc>,
 }
 
@@ -20,6 +41,7 @@ impl From<&Activity> for ActivityResponse {
 			request_id: activity.request_id.clone(),
 			event: activity.event.clone(),
 			detail: activity.detail.clone(),
+			actor: activity.actor.clone(),
 			at: activity.at,
 		}
 	}
@@ -29,6 +51,7 @@ impl From<&Activity> for ActivityResponse {
 pub(crate) struct JobResponse {
 	pub id: String,
 	pub job_type: String,
+	pub request_id: Option<String>,
 	pub status: String,
 	pub attempts: i64,
 	pub max_attempts: i64,
@@ -43,6 +66,7 @@ impl From<&Job> for JobResponse {
 		Self {
 			id: job.id.clone(),
 			job_type: job.job_type.to_string(),
+			request_id: job.request_id.clone(),
 			status: job.status.to_string(),
 			attempts: job.attempts,
 			max_attempts: job.max_attempts,
@@ -59,6 +83,7 @@ pub(crate) struct UserResponse {
 	pub id: String,
 	pub username: String,
 	pub email: Option<String>,
+	pub display_name: Option<String>,
 	pub role: String,
 	pub auth_source: String,
 	pub enabled: bool,
@@ -71,6 +96,7 @@ impl From<&User> for UserResponse {
 			id: user.id.clone(),
 			username: user.username.clone(),
 			email: user.email.clone(),
+			display_name: user.display_name.clone(),
 			role: user.role.to_string(),
 			auth_source: user.auth_source.to_string(),
 			enabled: user.enabled,
@@ -116,6 +142,8 @@ pub(crate) struct RequestResponse {
 	pub cover_url: Option<String>,
 	pub status: String,
 	pub approved_by: Option<String>,
+	pub notes: Option<String>,
+	pub quality_profile_id: Option<String>,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }
@@ -131,8 +159,87 @@ impl From<&Request> for RequestResponse {
 			cover_url: request.cover_url.clone(),
 			status: request.status.to_string(),
 			approved_by: request.approved_by.clone(),
+			notes: request.notes.clone(),
+			quality_profile_id: request.quality_profile_id.clone(),
 			created_at: request.created_at,
 			updated_at: request.updated_at,
+		}
+	}
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct IssueResponse {
+	pub id: String,
+	pub request_id: String,
+	pub reporter_id: String,
+	pub issue_type: String,
+	pub detail: Option<String>,
+	pub status: String,
+	pub resolved_by: Option<String>,
+	pub created_at: DateTime<Utc>,
+	pub updated_at: DateTime<Utc>,
+}
+
+impl From<&Issue> for IssueResponse {
+	fn from(issue: &Issue) -> Self {
+		Self {
+			id: issue.id.clone(),
+			request_id: issue.request_id.clone(),
+			reporter_id: issue.reporter_id.clone(),
+			issue_type: issue.issue_type.to_string(),
+			detail: issue.detail.clone(),
+			status: issue.status.to_string(),
+			resolved_by: issue.resolved_by.clone(),
+			created_at: issue.created_at,
+			updated_at: issue.updated_at,
+		}
+	}
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct SessionResponse {
+	pub id: String,
+	pub current: bool,
+	pub user_agent: Option<String>,
+	pub created_at: DateTime<Utc>,
+	pub expires_at: DateTime<Utc>,
+	pub last_seen_at: Option<DateTime<Utc>>,
+}
+
+impl SessionResponse {
+	pub fn new(session: &Session, current: bool) -> Self {
+		Self {
+			id: session.id.clone(),
+			current,
+			user_agent: session.user_agent.clone(),
+			created_at: session.created_at,
+			expires_at: session.expires_at,
+			last_seen_at: session.last_seen_at,
+		}
+	}
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct NotificationResponse {
+	pub id: String,
+	pub kind: String,
+	pub summary: String,
+	pub request_id: Option<String>,
+	pub title: String,
+	pub read: bool,
+	pub created_at: DateTime<Utc>,
+}
+
+impl From<&UserNotification> for NotificationResponse {
+	fn from(notification: &UserNotification) -> Self {
+		Self {
+			id: notification.id.clone(),
+			kind: notification.kind.as_str().to_string(),
+			summary: notification.kind.summary().to_string(),
+			request_id: notification.request_id.clone(),
+			title: notification.title.clone(),
+			read: notification.read_at.is_some(),
+			created_at: notification.created_at,
 		}
 	}
 }
