@@ -27,12 +27,17 @@ pub fn t(lang: &LanguageIdentifier, key: &str) -> String {
 	LOCALES.lookup(lang, key)
 }
 
-pub fn t_args(
-	lang: &LanguageIdentifier,
-	key: &str,
-	args: &HashMap<Cow<'static, str>, FluentValue>,
-) -> String {
-	LOCALES.lookup_with_args(lang, key, args)
+pub fn t_vars(lang: &LanguageIdentifier, key: &str, vars: &[(&str, &str)]) -> String {
+	let args: HashMap<Cow<'static, str>, FluentValue> = vars
+		.iter()
+		.map(|(name, value)| {
+			(
+				Cow::Owned(name.to_string()),
+				FluentValue::from(value.to_string()),
+			)
+		})
+		.collect();
+	LOCALES.lookup_with_args(lang, key, &args)
 }
 
 pub fn error_message(lang: &LanguageIdentifier, code: &str, detail: Option<&str>) -> String {
@@ -43,6 +48,18 @@ pub fn error_message(lang: &LanguageIdentifier, code: &str, detail: Option<&str>
 	}
 
 	t(lang, &format!("error-{}", code.replace('_', "-")))
+}
+
+fn find_available(want: &LanguageIdentifier) -> Option<LanguageIdentifier> {
+	LOCALES
+		.locales()
+		.find(|have| have.language == want.language)
+		.cloned()
+}
+
+pub fn resolve(input: &str) -> Option<LanguageIdentifier> {
+	let want = input.parse::<LanguageIdentifier>().ok()?;
+	find_available(&want)
 }
 
 pub fn negotiate(accept_language: Option<&str>, user_pref: Option<&str>) -> LanguageIdentifier {
@@ -58,16 +75,10 @@ pub fn negotiate(accept_language: Option<&str>, user_pref: Option<&str>) -> Lang
 		requested.extend(parse_accept_language(header));
 	}
 
-	for want in &requested {
-		if let Some(found) = LOCALES
-			.locales()
-			.find(|have| have.language == want.language)
-		{
-			return found.clone();
-		}
-	}
-
-	default_locale()
+	requested
+		.iter()
+		.find_map(find_available)
+		.unwrap_or_else(default_locale)
 }
 
 fn parse_accept_language(header: &str) -> Vec<LanguageIdentifier> {

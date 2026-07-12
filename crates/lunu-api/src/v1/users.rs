@@ -26,6 +26,8 @@ pub struct UpdateUserRequest {
 	role: Option<String>,
 	#[serde(default)]
 	display_name: Option<String>,
+	#[serde(default)]
+	locale: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -88,6 +90,7 @@ pub async fn update(
 			body.enabled,
 			role,
 			body.display_name.map(Some),
+			body.locale.map(Some),
 		)
 		.await?;
 	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))

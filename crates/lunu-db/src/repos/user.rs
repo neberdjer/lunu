@@ -31,6 +31,7 @@ fn map_user(row: &AnyRow) -> Result<User> {
 		username: row.try_get("username").map_err(db_error)?,
 		email: row.try_get("email").map_err(db_error)?,
 		display_name: row.try_get("display_name").map_err(db_error)?,
+		locale: row.try_get("locale").map_err(db_error)?,
 		password_hash: row.try_get("password_hash").map_err(db_error)?,
 		role: parse_enum::<Role>(&role)?,
 		auth_source: parse_enum::<AuthSource>(&auth_source)?,
@@ -45,13 +46,14 @@ impl UserRepo for SqlxUserRepo {
 	async fn create(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, password_hash, role, auth_source, enabled, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
 		)
 		.bind(&user.id)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
 		.bind(user.display_name.as_deref())
+		.bind(user.locale.as_deref())
 		.bind(user.password_hash.as_deref())
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
@@ -67,14 +69,15 @@ impl UserRepo for SqlxUserRepo {
 	async fn create_initial_admin(&self, user: &User) -> Result<bool> {
 		let result = sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, password_hash, role, auth_source, enabled, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 \
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 \
 			 WHERE NOT EXISTS (SELECT 1 FROM users)",
 		)
 		.bind(&user.id)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
 		.bind(user.display_name.as_deref())
+		.bind(user.locale.as_deref())
 		.bind(user.password_hash.as_deref())
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
@@ -104,12 +107,13 @@ impl UserRepo for SqlxUserRepo {
 	async fn update(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"UPDATE users SET \
-			 username = $1, email = $2, display_name = $3, password_hash = $4, role = $5, \
-			 auth_source = $6, enabled = $7, updated_at = $8 WHERE id = $9",
+			 username = $1, email = $2, display_name = $3, locale = $4, password_hash = $5, \
+			 role = $6, auth_source = $7, enabled = $8, updated_at = $9 WHERE id = $10",
 		)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
 		.bind(user.display_name.as_deref())
+		.bind(user.locale.as_deref())
 		.bind(user.password_hash.as_deref())
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
@@ -219,6 +223,7 @@ mod tests {
 			username: "alice".to_string(),
 			email: Some("alice@example.com".to_string()),
 			display_name: None,
+			locale: None,
 			password_hash: Some("hash".to_string()),
 			role: Role::Admin,
 			auth_source: AuthSource::Local,

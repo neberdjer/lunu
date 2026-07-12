@@ -11,12 +11,13 @@ use lunu_core::services::{
 	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
 	RequestService, SettingsService, UserService,
 };
+use lunu_core::traits::Mailer;
 use lunu_db::Db;
 use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo,
-	SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxPasswordResetRepo,
+	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo,
+	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 
 use crate::hub::EventHub;
@@ -26,7 +27,7 @@ use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::HardlinkImporter;
 use lunu_integrations::metadata::AudnexusProvider;
-use lunu_integrations::notify::{EmailNotifier, WebhookChannel};
+use lunu_integrations::notify::{EmailNotifier, SmtpMailer, WebhookChannel};
 
 pub struct AppState {
 	pub db: Db,
@@ -73,12 +74,15 @@ impl AppState {
 
 		let encryptor = Encryptor::new(&config.master_key, SETTINGS_ENCRYPTION_CONTEXT)?;
 		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
+		let mailer: Arc<dyn Mailer> = Arc::new(SmtpMailer::new(settings.clone()));
 
 		let auth = Arc::new(AuthService::new(
 			users_repo.clone(),
 			sessions_repo.clone(),
 			invites_repo.clone(),
 			Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
+			Arc::new(SqlxPasswordResetRepo::new(db.clone())),
+			mailer.clone(),
 		));
 		let users = Arc::new(UserService::new(
 			users_repo.clone(),
@@ -160,7 +164,11 @@ impl AppState {
 			Arc::new(WebhookChannel::generic(settings.clone())),
 			Arc::new(WebhookChannel::discord(settings.clone())),
 			Arc::new(WebhookChannel::slack(settings.clone())),
-			Arc::new(EmailNotifier::new(settings.clone(), users_repo)),
+			Arc::new(EmailNotifier::new(
+				mailer.clone(),
+				users_repo,
+				settings.clone(),
+			)),
 		]));
 
 		Ok(Self {

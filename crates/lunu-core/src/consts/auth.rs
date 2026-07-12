@@ -2,6 +2,10 @@ pub const SESSION_TTL_DAYS: i64 = 30;
 pub const SESSION_COOKIE: &str = "lunu_session";
 
 pub const PASSWORD_MIN_LEN: usize = 8;
+pub const PASSWORD_RESET_TTL_MINUTES: i64 = 15;
+pub const PASSWORD_RESET_CODE_DIGITS: u32 = 6;
+pub const PASSWORD_RESET_MAX_ATTEMPTS: i64 = 5;
+pub const PASSWORD_RESET_COOLDOWN_SECONDS: i64 = 120;
 
 pub const SCOPE_ADMIN: &str = "admin";
 pub const KNOWN_API_KEY_SCOPES: &[&str] = &[SCOPE_ADMIN];

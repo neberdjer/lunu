@@ -12,6 +12,12 @@ pub fn generate_token() -> String {
 	URL_SAFE_NO_PAD.encode(bytes)
 }
 
+pub fn generate_numeric_code(digits: u32) -> String {
+	let modulo = 10u64.pow(digits);
+	let value = OsRng.next_u64() % modulo;
+	format!("{value:0width$}", width = digits as usize)
+}
+
 pub fn hash_token(token: &str) -> String {
 	hex::encode(Sha256::digest(token.as_bytes()))
 }

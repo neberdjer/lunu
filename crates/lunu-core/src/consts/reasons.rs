@@ -39,6 +39,8 @@ pub const REQUEST_NOT_AVAILABLE: &str = "request-not-available";
 pub const UNKNOWN_PROFILE: &str = "unknown-profile";
 pub const JOB_NOT_RETRYABLE: &str = "job-not-retryable";
 pub const EMPTY_SELECTION: &str = "empty-selection";
+pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
+pub const UNKNOWN_LOCALE: &str = "unknown-locale";
 
 pub const ALL: &[&str] = &[
 	USERNAME_TAKEN,
@@ -82,4 +84,6 @@ pub const ALL: &[&str] = &[
 	UNKNOWN_PROFILE,
 	JOB_NOT_RETRYABLE,
 	EMPTY_SELECTION,
+	RESET_TOKEN_INVALID,
+	UNKNOWN_LOCALE,
 ];

@@ -9,7 +9,7 @@ use crate::models::{AuthSource, Role, User, UserSettings};
 use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
 use crate::services::{
 	build_local_user, ensure_username_available, nonempty, normalize_email, require_user,
-	validate_password,
+	validate_locale, validate_password,
 };
 use crate::{Error, Result};
 
@@ -89,18 +89,20 @@ impl UserService {
 		id: &str,
 		email: Option<String>,
 		display_name: Option<String>,
+		locale: Option<String>,
 	) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
 		user.email = normalize_email(email)?;
 		user.display_name = nonempty(display_name);
+		user.locale = validate_locale(locale)?;
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 		Ok(user)
 	}
 
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
-		self.admin_update(id, Some(enabled), None, None).await
+		self.admin_update(id, Some(enabled), None, None, None).await
 	}
 
 	pub async fn admin_update(
@@ -109,6 +111,7 @@ impl UserService {
 		enabled: Option<bool>,
 		role: Option<Role>,
 		display_name: Option<Option<String>>,
+		locale: Option<Option<String>>,
 	) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
@@ -122,6 +125,9 @@ impl UserService {
 		user.role = new_role;
 		if let Some(display_name) = display_name {
 			user.display_name = nonempty(display_name);
+		}
+		if let Some(locale) = locale {
+			user.locale = validate_locale(locale)?;
 		}
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;

@@ -39,10 +39,24 @@ pub struct ChangePasswordRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct ForgotPasswordRequest {
+	email: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ResetPasswordRequest {
+	email: String,
+	code: String,
+	password: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateProfileRequest {
 	email: Option<String>,
 	#[serde(default)]
 	display_name: Option<String>,
+	#[serde(default)]
+	locale: Option<String>,
 }
 
 #[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Authenticated, session cookie set", body = UserResponse), (status = 401, description = "Invalid credentials")))]
@@ -120,7 +134,7 @@ pub async fn update_me(
 	let body = body.into_inner();
 	let updated = state
 		.users
-		.update_profile(&user.0.id, body.email, body.display_name)
+		.update_profile(&user.0.id, body.email, body.display_name, body.locale)
 		.await?;
 	Ok(HttpResponse::Ok().json(UserResponse::from(&updated)))
 }
@@ -148,6 +162,40 @@ pub async fn change_password(
 		&authenticated,
 		state.config.secure_cookies,
 	))
+}
+
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If the address matches a local account, a reset email is sent")))]
+#[post("/auth/forgot")]
+pub async fn forgot_password(
+	req: HttpRequest,
+	state: web::Data<AppState>,
+	body: web::Json<ForgotPasswordRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	let accept_language = req
+		.headers()
+		.get(actix_web::http::header::ACCEPT_LANGUAGE)
+		.and_then(|value| value.to_str().ok());
+	state
+		.auth
+		.request_password_reset(&body.email, accept_language)
+		.await?;
+	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+}
+
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Password reset"), (status = 400, description = "Invalid or expired token")))]
+#[post("/auth/reset")]
+pub async fn reset_password(
+	req: HttpRequest,
+	state: web::Data<AppState>,
+	body: web::Json<ResetPasswordRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	state
+		.auth
+		.reset_password(&body.email, &body.code, &body.password)
+		.await?;
+	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
 }
 
 #[utoipa::path(tag = "auth", responses((status = 200, description = "Active sessions for the caller", body = Vec<SessionResponse>)))]

@@ -4,4 +4,4 @@ pub mod token;
 
 pub use cipher::Encryptor;
 pub use password::{dummy_verify, hash_password, verify_password};
-pub use token::{generate_token, hash_token};
+pub use token::{generate_numeric_code, generate_token, hash_token};

@@ -83,6 +83,15 @@ pub(crate) fn nonempty(value: Option<String>) -> Option<String> {
 		.filter(|value| !value.is_empty())
 }
 
+pub(crate) fn validate_locale(locale: Option<String>) -> Result<Option<String>> {
+	let Some(value) = nonempty(locale) else {
+		return Ok(None);
+	};
+	let resolved = lunu_i18n::resolve(&value)
+		.ok_or_else(|| Error::Validation(reasons::UNKNOWN_LOCALE.to_string()))?;
+	Ok(Some(resolved.to_string()))
+}
+
 pub(crate) async fn ensure_username_available(users: &dyn UserRepo, username: &str) -> Result<()> {
 	if users.find_by_username(username).await?.is_some() {
 		return Err(Error::Conflict(reasons::USERNAME_TAKEN.to_string()));
@@ -104,6 +113,7 @@ pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> Use
 		username: identity.username,
 		email: identity.email,
 		display_name: None,
+		locale: None,
 		password_hash: None,
 		role,
 		auth_source: AuthSource::Abs,
@@ -127,6 +137,7 @@ pub(crate) fn build_local_user(
 		username: username.to_string(),
 		email,
 		display_name: None,
+		locale: None,
 		password_hash: Some(hash_password(password)?),
 		role,
 		auth_source: AuthSource::Local,

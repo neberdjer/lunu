@@ -4,6 +4,7 @@ pub mod event_publisher;
 pub mod importer;
 pub mod indexer;
 pub mod job_handler;
+pub mod mailer;
 pub mod metadata_provider;
 pub mod notifier;
 
@@ -13,5 +14,6 @@ pub use event_publisher::EventPublisher;
 pub use importer::Importer;
 pub use indexer::Indexer;
 pub use job_handler::JobHandler;
+pub use mailer::Mailer;
 pub use metadata_provider::MetadataProvider;
 pub use notifier::Notifier;

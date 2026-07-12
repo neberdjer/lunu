@@ -28,6 +28,8 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(auth::me)
 		.service(auth::update_me)
 		.service(auth::change_password)
+		.service(auth::forgot_password)
+		.service(auth::reset_password)
 		.service(auth::sessions)
 		.service(auth::revoke_session)
 		.service(metadata::search)

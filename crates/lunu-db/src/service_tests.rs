@@ -4,15 +4,16 @@ use async_trait::async_trait;
 use chrono::Utc;
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
-use lunu_core::crypto::Encryptor;
+use lunu_core::crypto::{Encryptor, hash_token};
 use lunu_core::models::{
 	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus,
-	JobType, MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind, Protocol,
-	QualityProfile, Release, Request, RequestStatus, Role, User, UserSettings,
+	JobType, MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind,
+	PasswordResetToken, Protocol, QualityProfile, Release, Request, RequestStatus, Role, User,
+	UserSettings,
 };
 use lunu_core::repo::{
-	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, QualityProfileRepo, RequestRepo,
-	SettingsRepo, UserRepo, UserSettingsRepo,
+	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, PasswordResetRepo, QualityProfileRepo,
+	RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
@@ -20,7 +21,7 @@ use lunu_core::services::{
 	ReleaseService, RequestService, SettingsService, UserService,
 };
 use lunu_core::traits::{
-	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer,
+	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer, Mailer,
 	MetadataProvider, Notifier,
 };
 use lunu_core::{Error, Result as CoreResult};
@@ -28,9 +29,9 @@ use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxPasswordResetRepo,
+	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo,
+	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 
@@ -206,21 +207,31 @@ async fn migrations_apply_and_every_table_is_queryable() {
 	}
 }
 
+struct NoopMailer;
+
+#[async_trait]
+impl Mailer for NoopMailer {
+	async fn send(&self, _to: &str, _subject: &str, _html: &str) -> CoreResult<()> {
+		Ok(())
+	}
+}
+
 fn auth_service(db: &Db) -> AuthService {
-	AuthService::new(
-		Arc::new(SqlxUserRepo::new(db.clone())),
-		Arc::new(SqlxSessionRepo::new(db.clone())),
-		Arc::new(SqlxInviteRepo::new(db.clone())),
-		None,
-	)
+	auth_service_impl(db, None)
 }
 
 fn auth_service_with_provider(db: &Db, provider: Arc<dyn AuthProvider>) -> AuthService {
+	auth_service_impl(db, Some(provider))
+}
+
+fn auth_service_impl(db: &Db, provider: Option<Arc<dyn AuthProvider>>) -> AuthService {
 	AuthService::new(
 		Arc::new(SqlxUserRepo::new(db.clone())),
 		Arc::new(SqlxSessionRepo::new(db.clone())),
 		Arc::new(SqlxInviteRepo::new(db.clone())),
-		Some(provider),
+		provider,
+		Arc::new(SqlxPasswordResetRepo::new(db.clone())),
+		Arc::new(NoopMailer),
 	)
 }
 
@@ -416,6 +427,107 @@ async fn change_password_rotates_sessions_and_rejects_wrong_current() {
 	assert!(auth.login("admin", "password123").await.is_err());
 }
 
+async fn seed_reset_code(db: &Db, user_id: &str, code: &str) {
+	SqlxPasswordResetRepo::new(db.clone())
+		.create(&PasswordResetToken {
+			id: "t1".to_string(),
+			user_id: user_id.to_string(),
+			code_hash: hash_token(code),
+			attempts: 0,
+			created_at: Utc::now(),
+			expires_at: Utc::now() + chrono::Duration::minutes(15),
+		})
+		.await
+		.unwrap();
+}
+
+async fn reset_token_count(db: &Db) -> i64 {
+	sqlx::query_scalar("SELECT COUNT(*) FROM password_reset_tokens")
+		.fetch_one(db)
+		.await
+		.unwrap()
+}
+
+#[tokio::test]
+async fn password_reset_rotates_password_and_consumes_code() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin(
+			"admin",
+			"password123",
+			Some("admin@example.com".to_string()),
+		)
+		.await
+		.unwrap();
+
+	seed_reset_code(&db, &admin.user.id, "123456").await;
+
+	auth.reset_password("admin@example.com", "123456", "brandnewpass")
+		.await
+		.unwrap();
+
+	assert!(auth.login("admin", "brandnewpass").await.is_ok());
+	assert!(auth.login("admin", "password123").await.is_err());
+	assert!(
+		auth.reset_password("admin@example.com", "123456", "anotherpass")
+			.await
+			.is_err()
+	);
+}
+
+#[tokio::test]
+async fn request_password_reset_issues_for_known_local_email_and_cools_down() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	auth.setup_first_admin(
+		"admin",
+		"password123",
+		Some("admin@example.com".to_string()),
+	)
+	.await
+	.unwrap();
+
+	auth.request_password_reset("admin@example.com", None)
+		.await
+		.unwrap();
+	auth.request_password_reset("admin@example.com", None)
+		.await
+		.unwrap();
+	auth.request_password_reset("nobody@example.com", None)
+		.await
+		.unwrap();
+
+	assert_eq!(reset_token_count(&db).await, 1);
+}
+
+#[tokio::test]
+async fn wrong_reset_code_is_burned_after_max_attempts() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin(
+			"admin",
+			"password123",
+			Some("admin@example.com".to_string()),
+		)
+		.await
+		.unwrap();
+
+	seed_reset_code(&db, &admin.user.id, "123456").await;
+
+	for _ in 0..5 {
+		assert!(
+			auth.reset_password("admin@example.com", "000000", "brandnewpass")
+				.await
+				.is_err()
+		);
+	}
+
+	assert_eq!(reset_token_count(&db).await, 0);
+	assert!(auth.login("admin", "password123").await.is_ok());
+}
+
 #[tokio::test]
 async fn update_email_validates_and_normalizes() {
 	let db = memory_db().await;
@@ -432,22 +544,29 @@ async fn update_email_validates_and_normalizes() {
 
 	assert!(matches!(
 		users
-			.update_profile(&admin.user.id, Some("not-an-email".to_string()), None)
+			.update_profile(&admin.user.id, Some("not-an-email".to_string()), None, None)
 			.await,
 		Err(Error::Validation(_))
 	));
 
 	let updated = users
-		.update_profile(&admin.user.id, Some("  me@example.com  ".to_string()), None)
+		.update_profile(
+			&admin.user.id,
+			Some("  me@example.com  ".to_string()),
+			None,
+			Some("en".to_string()),
+		)
 		.await
 		.unwrap();
 	assert_eq!(updated.email.as_deref(), Some("me@example.com"));
+	assert_eq!(updated.locale.as_deref(), Some("en-US"));
 
 	let cleared = users
-		.update_profile(&admin.user.id, None, None)
+		.update_profile(&admin.user.id, None, None, None)
 		.await
 		.unwrap();
 	assert_eq!(cleared.email, None);
+	assert_eq!(cleared.locale, None);
 }
 
 #[tokio::test]
@@ -668,6 +787,7 @@ async fn create_initial_admin_rejects_second_insert() {
 		role: Role::Admin,
 		auth_source: AuthSource::Local,
 		display_name: None,
+		locale: None,
 		enabled: true,
 		created_at: Utc::now(),
 		updated_at: Utc::now(),
@@ -912,6 +1032,7 @@ fn caller(id: &str, role: Role) -> User {
 		role,
 		auth_source: AuthSource::Local,
 		display_name: None,
+		locale: None,
 		enabled: true,
 		created_at: now,
 		updated_at: now,
@@ -1091,6 +1212,7 @@ async fn duplicate_username_is_conflict_not_db_error() {
 		role: Role::User,
 		auth_source: AuthSource::Local,
 		display_name: None,
+		locale: None,
 		enabled: true,
 		created_at: now,
 		updated_at: now,
