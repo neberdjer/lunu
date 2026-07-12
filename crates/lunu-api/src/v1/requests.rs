@@ -2,18 +2,66 @@ use std::str::FromStr;
 
 use actix_web::{HttpResponse, delete, get, post, web};
 use lunu_core::models::RequestStatus;
-use lunu_core::services::ReleaseSelection;
-use serde::Deserialize;
+use lunu_core::services::{NewRequest, ReleaseSelection};
+use serde::{Deserialize, Serialize};
 
-use crate::dto::{ActivityResponse, DownloadResponse, RequestResponse};
+use crate::dto::{ActivityResponse, BlocklistResponse, DownloadResponse, RequestResponse};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct BulkOutcome {
+	id: String,
+	ok: bool,
+	error: Option<String>,
+}
+
+impl BulkOutcome {
+	fn from_result<T>(id: String, result: Result<T, lunu_core::Error>) -> Self {
+		match result {
+			Ok(_) => Self {
+				id,
+				ok: true,
+				error: None,
+			},
+			Err(error) => Self {
+				id,
+				ok: false,
+				error: Some(error.code().to_string()),
+			},
+		}
+	}
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct BulkRequestBody {
+	asins: Vec<String>,
+	#[serde(default)]
+	notes: Option<String>,
+	#[serde(default)]
+	quality_profile_id: Option<String>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct BulkIdsBody {
+	ids: Vec<String>,
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRequestBody {
 	asin: String,
+	#[serde(default)]
+	notes: Option<String>,
+	#[serde(default)]
+	quality_profile_id: Option<String>,
+}
+
+#[derive(Deserialize, Default, utoipa::ToSchema)]
+pub struct DeclineBody {
+	#[serde(default)]
+	reason: Option<String>,
 }
 
 #[derive(Deserialize, Default, utoipa::ToSchema)]
@@ -67,6 +115,97 @@ pub async fn blocklist(
 	Ok(HttpResponse::NoContent().finish())
 }
 
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Blocklisted releases for the request", body = Vec<BlocklistResponse>)))]
+#[get("/requests/{id}/blocklist")]
+pub async fn blocklist_list(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let entries = state.releases.list_blocklist(&id.into_inner()).await?;
+	let items: Vec<BlocklistResponse> = entries.iter().map(BlocklistResponse::from).collect();
+	Ok(HttpResponse::Ok().json(items))
+}
+
+#[utoipa::path(tag = "requests", responses((status = 204, description = "Blocklist entry removed"), (status = 404, description = "Not found")))]
+#[delete("/requests/{id}/blocklist")]
+pub async fn blocklist_remove(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+	body: web::Json<BlocklistBody>,
+) -> Result<HttpResponse, ApiError> {
+	state
+		.releases
+		.remove_blocklist(&id.into_inner(), &body.download_url)
+		.await?;
+	Ok(HttpResponse::NoContent().finish())
+}
+
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-ASIN request outcomes", body = Vec<BulkOutcome>)))]
+#[post("/requests/bulk")]
+pub async fn bulk_create(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	body: web::Json<BulkRequestBody>,
+) -> Result<HttpResponse, ApiError> {
+	let body = body.into_inner();
+	if let Some(profile_id) = body.quality_profile_id.as_deref() {
+		state.quality_profiles.require(profile_id).await?;
+	}
+	let mut outcomes = Vec::with_capacity(body.asins.len());
+	for asin in body.asins {
+		let input = NewRequest {
+			asin: asin.clone(),
+			notes: body.notes.clone(),
+			quality_profile_id: body.quality_profile_id.clone(),
+		};
+		let result = state.requests.create(&user.0, input).await;
+		outcomes.push(BulkOutcome::from_result(asin, result));
+	}
+	Ok(HttpResponse::Ok().json(outcomes))
+}
+
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-request approval outcomes", body = Vec<BulkOutcome>)))]
+#[post("/requests/bulk-approve")]
+pub async fn bulk_approve(
+	admin: AdminUser,
+	state: web::Data<AppState>,
+	body: web::Json<BulkIdsBody>,
+) -> Result<HttpResponse, ApiError> {
+	let outcomes = bulk_transition(&state, &admin.id, body.into_inner().ids, true).await;
+	Ok(HttpResponse::Ok().json(outcomes))
+}
+
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-request decline outcomes", body = Vec<BulkOutcome>)))]
+#[post("/requests/bulk-decline")]
+pub async fn bulk_decline(
+	admin: AdminUser,
+	state: web::Data<AppState>,
+	body: web::Json<BulkIdsBody>,
+) -> Result<HttpResponse, ApiError> {
+	let outcomes = bulk_transition(&state, &admin.id, body.into_inner().ids, false).await;
+	Ok(HttpResponse::Ok().json(outcomes))
+}
+
+async fn bulk_transition(
+	state: &AppState,
+	admin_id: &str,
+	ids: Vec<String>,
+	should_approve: bool,
+) -> Vec<BulkOutcome> {
+	let mut outcomes = Vec::with_capacity(ids.len());
+	for id in ids {
+		let result = if should_approve {
+			state.requests.approve(admin_id, &id).await
+		} else {
+			state.requests.decline(admin_id, &id, None).await
+		};
+		outcomes.push(BulkOutcome::from_result(id, result));
+	}
+	outcomes
+}
+
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct RequestListParams {
 	page: Option<i64>,
@@ -88,11 +227,12 @@ pub async fn list(
 		.map(RequestStatus::from_str)
 		.transpose()?;
 
-	let requests = state
-		.requests
-		.list_page(&user, status, pagination.limit, pagination.offset)
-		.await?;
-	let total = state.requests.count(&user, status).await?;
+	let (requests, total) = tokio::try_join!(
+		state
+			.requests
+			.list_page(&user, status, pagination.limit, pagination.offset),
+		state.requests.count(&user, status),
+	)?;
 
 	let items: Vec<RequestResponse> = requests.iter().map(RequestResponse::from).collect();
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
@@ -105,7 +245,16 @@ pub async fn create(
 	state: web::Data<AppState>,
 	body: web::Json<CreateRequestBody>,
 ) -> Result<HttpResponse, ApiError> {
-	let request = state.requests.create(&user.0, &body.asin).await?;
+	let body = body.into_inner();
+	if let Some(profile_id) = body.quality_profile_id.as_deref() {
+		state.quality_profiles.require(profile_id).await?;
+	}
+	let input = NewRequest {
+		asin: body.asin,
+		notes: body.notes,
+		quality_profile_id: body.quality_profile_id,
+	};
+	let request = state.requests.create(&user.0, input).await?;
 	Ok(HttpResponse::Created().json(RequestResponse::from(&request)))
 }
 
@@ -119,6 +268,34 @@ pub async fn get(
 	let id = id.into_inner();
 	let request = state.requests.get_for(&user, &id).await?;
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
+}
+
+#[utoipa::path(tag = "requests", responses((status = 204, description = "Download cancelled"), (status = 404, description = "No download")))]
+#[delete("/requests/{id}/download")]
+pub async fn cancel_download(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	state.grabs.cancel(&id.into_inner()).await?;
+	Ok(HttpResponse::NoContent().finish())
+}
+
+#[utoipa::path(tag = "requests", responses((status = 200, description = "Download progress", body = DownloadResponse), (status = 404, description = "No download")))]
+#[get("/requests/{id}/download")]
+pub async fn request_download(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let id = id.into_inner();
+	state.requests.get_for(&user, &id).await?;
+	let download = state
+		.grabs
+		.for_request(&id)
+		.await?
+		.ok_or_else(|| lunu_core::Error::NotFound(format!("download for request {id}")))?;
+	Ok(HttpResponse::Ok().json(DownloadResponse::from(&download)))
 }
 
 #[utoipa::path(tag = "requests", responses((status = 200, description = "Status timeline", body = Vec<ActivityResponse>)))]
@@ -153,8 +330,10 @@ pub async fn decline(
 	admin: AdminUser,
 	state: web::Data<AppState>,
 	id: web::Path<String>,
+	body: Option<web::Json<DeclineBody>>,
 ) -> Result<HttpResponse, ApiError> {
-	let request = state.requests.decline(&admin.id, &id).await?;
+	let reason = body.and_then(|body| body.into_inner().reason);
+	let request = state.requests.decline(&admin.id, &id, reason).await?;
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 

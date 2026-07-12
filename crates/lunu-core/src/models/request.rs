@@ -39,6 +39,10 @@ impl RequestStatus {
 	pub fn is_reopenable(&self) -> bool {
 		matches!(self, RequestStatus::Declined | RequestStatus::Failed)
 	}
+
+	pub fn allows_issue(&self) -> bool {
+		matches!(self, RequestStatus::Available)
+	}
 }
 
 impl fmt::Display for RequestStatus {
@@ -77,6 +81,8 @@ pub struct Request {
 	pub cover_url: Option<String>,
 	pub status: RequestStatus,
 	pub approved_by: Option<String>,
+	pub notes: Option<String>,
+	pub quality_profile_id: Option<String>,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }

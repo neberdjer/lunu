@@ -8,9 +8,28 @@ use crate::models::{
 	GrabPayload, JobType, NotificationEvent, NotificationKind, Request, RequestStatus, User,
 	UserSettings,
 };
-use crate::repo::{DownloadRepo, RequestRepo, UserSettingsRepo};
-use crate::services::{ActivityService, JobService, MetadataService, new_id};
+use crate::repo::{DownloadRepo, MediaRepo, RequestRepo, UserSettingsRepo};
+use crate::services::{
+	ActivityService, JobService, MetadataService, NotificationInboxService, new_id, nonempty,
+};
 use crate::{Error, Result};
+
+#[derive(Debug, Clone, Default)]
+pub struct NewRequest {
+	pub asin: String,
+	pub notes: Option<String>,
+	pub quality_profile_id: Option<String>,
+}
+
+impl NewRequest {
+	pub fn new(asin: impl Into<String>) -> Self {
+		Self {
+			asin: asin.into(),
+			notes: None,
+			quality_profile_id: None,
+		}
+	}
+}
 
 pub struct RequestService {
 	requests: Arc<dyn RequestRepo>,
@@ -19,9 +38,12 @@ pub struct RequestService {
 	jobs: Arc<JobService>,
 	activity: Arc<ActivityService>,
 	downloads: Arc<dyn DownloadRepo>,
+	media: Arc<dyn MediaRepo>,
+	inbox: Arc<NotificationInboxService>,
 }
 
 impl RequestService {
+	#[allow(clippy::too_many_arguments)]
 	pub fn new(
 		requests: Arc<dyn RequestRepo>,
 		user_settings: Arc<dyn UserSettingsRepo>,
@@ -29,6 +51,8 @@ impl RequestService {
 		jobs: Arc<JobService>,
 		activity: Arc<ActivityService>,
 		downloads: Arc<dyn DownloadRepo>,
+		media: Arc<dyn MediaRepo>,
+		inbox: Arc<NotificationInboxService>,
 	) -> Self {
 		Self {
 			requests,
@@ -37,6 +61,8 @@ impl RequestService {
 			jobs,
 			activity,
 			downloads,
+			media,
+			inbox,
 		}
 	}
 
@@ -54,7 +80,7 @@ impl RequestService {
 		}
 		request.status = RequestStatus::Approved;
 		request.updated_at = Utc::now();
-		self.persist(&request).await?;
+		self.persist(&request, None, Some(&caller.id)).await?;
 		self.enqueue_fulfillment(id).await?;
 		Ok(request)
 	}
@@ -63,18 +89,30 @@ impl RequestService {
 		let payload = GrabPayload {
 			request_id: request_id.to_string(),
 		};
-		self.jobs.enqueue(JobType::Grab, &payload).await?;
+		self.jobs
+			.enqueue_for(JobType::Grab, &payload, request_id)
+			.await?;
 		Ok(())
 	}
 
-	async fn persist(&self, request: &Request) -> Result<()> {
+	async fn persist(
+		&self,
+		request: &Request,
+		detail: Option<&str>,
+		actor: Option<&str>,
+	) -> Result<()> {
 		self.requests.update(request).await?;
-		self.record_status(request).await
+		self.record_status(request, detail, actor).await
 	}
 
-	async fn record_status(&self, request: &Request) -> Result<()> {
+	async fn record_status(
+		&self,
+		request: &Request,
+		detail: Option<&str>,
+		actor: Option<&str>,
+	) -> Result<()> {
 		self.activity
-			.record(&request.id, request.status.as_str())
+			.record(&request.id, request.status.as_str(), detail, actor)
 			.await?;
 		self.notify_status(request).await;
 		Ok(())
@@ -95,10 +133,15 @@ impl RequestService {
 			title: request.title.clone(),
 			user_id: request.user_id.clone(),
 		};
-		let _ = self.jobs.enqueue(JobType::Notify, &event).await;
+		let _ = self.inbox.fan_out(&event).await;
+		let _ = self
+			.jobs
+			.enqueue_for(JobType::Notify, &event, &request.id)
+			.await;
 	}
 
-	pub async fn create(&self, user: &User, asin: &str) -> Result<Request> {
+	pub async fn create(&self, user: &User, input: NewRequest) -> Result<Request> {
+		let asin = input.asin.as_str();
 		let book = self
 			.metadata
 			.get_book(asin)
@@ -111,25 +154,24 @@ impl RequestService {
 			return Err(Error::Conflict(reasons::ALREADY_REQUESTED.to_string()));
 		}
 
-		let (auto_approve, quota_guard) = if user.role.is_admin() {
-			(true, None)
+		let (status, quota_guard, detail) = if self.media.find_by_asin(asin).await?.is_some() {
+			(RequestStatus::Available, None, Some("already in library"))
+		} else if user.role.is_admin() {
+			(RequestStatus::Approved, None, None)
 		} else {
 			let settings = self.user_settings.get(&user.id).await?;
-			let approve = settings
+			if settings
 				.as_ref()
-				.is_some_and(|settings| settings.auto_approve);
-			let guard = if approve {
-				None
+				.is_some_and(|settings| settings.auto_approve)
+			{
+				(RequestStatus::Approved, None, None)
 			} else {
-				Self::quota_guard(settings.as_ref())
-			};
-			(approve, guard)
-		};
-
-		let status = if auto_approve {
-			RequestStatus::Approved
-		} else {
-			RequestStatus::Pending
+				(
+					RequestStatus::Pending,
+					Self::quota_guard(settings.as_ref()),
+					None,
+				)
+			}
 		};
 
 		let now = Utc::now();
@@ -142,6 +184,8 @@ impl RequestService {
 			cover_url: book.cover_url,
 			status,
 			approved_by: None,
+			notes: nonempty(input.notes),
+			quality_profile_id: input.quality_profile_id,
 			created_at: now,
 			updated_at: now,
 		};
@@ -161,7 +205,7 @@ impl RequestService {
 			return Err(Error::Validation(reasons::QUOTA_EXCEEDED.to_string()));
 		}
 
-		self.record_status(&request).await?;
+		self.record_status(&request, detail, Some(&user.id)).await?;
 		if request.status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}
@@ -240,26 +284,32 @@ impl RequestService {
 	}
 
 	pub async fn approve(&self, admin_id: &str, id: &str) -> Result<Request> {
-		self.transition(id, RequestStatus::Approved, admin_id).await
+		self.transition(id, RequestStatus::Approved, admin_id, None)
+			.await
 	}
 
 	pub async fn mark_downloading(&self, id: &str) -> Result<Request> {
-		self.set_status(id, RequestStatus::Downloading).await
+		self.set_status(id, RequestStatus::Downloading, None).await
 	}
 
 	pub async fn mark_importing(&self, id: &str) -> Result<Request> {
-		self.set_status(id, RequestStatus::Importing).await
+		self.set_status(id, RequestStatus::Importing, None).await
 	}
 
-	pub async fn mark_failed(&self, id: &str) -> Result<Request> {
-		self.set_status(id, RequestStatus::Failed).await
+	pub async fn mark_failed(&self, id: &str, reason: Option<&str>) -> Result<Request> {
+		self.set_status(id, RequestStatus::Failed, reason).await
 	}
 
 	pub async fn mark_available(&self, id: &str) -> Result<Request> {
-		self.set_status(id, RequestStatus::Available).await
+		self.set_status(id, RequestStatus::Available, None).await
 	}
 
-	async fn set_status(&self, id: &str, status: RequestStatus) -> Result<Request> {
+	async fn set_status(
+		&self,
+		id: &str,
+		status: RequestStatus,
+		detail: Option<&str>,
+	) -> Result<Request> {
 		let mut request = self
 			.requests
 			.find_by_id(id)
@@ -268,15 +318,28 @@ impl RequestService {
 
 		request.status = status;
 		request.updated_at = Utc::now();
-		self.persist(&request).await?;
+		self.persist(&request, detail, None).await?;
 		Ok(request)
 	}
 
-	pub async fn decline(&self, admin_id: &str, id: &str) -> Result<Request> {
-		self.transition(id, RequestStatus::Declined, admin_id).await
+	pub async fn decline(
+		&self,
+		admin_id: &str,
+		id: &str,
+		reason: Option<String>,
+	) -> Result<Request> {
+		let reason = nonempty(reason);
+		self.transition(id, RequestStatus::Declined, admin_id, reason.as_deref())
+			.await
 	}
 
-	async fn transition(&self, id: &str, status: RequestStatus, admin_id: &str) -> Result<Request> {
+	async fn transition(
+		&self,
+		id: &str,
+		status: RequestStatus,
+		admin_id: &str,
+		detail: Option<&str>,
+	) -> Result<Request> {
 		let mut request = self
 			.requests
 			.find_by_id(id)
@@ -290,7 +353,7 @@ impl RequestService {
 		request.status = status;
 		request.approved_by = Some(admin_id.to_string());
 		request.updated_at = Utc::now();
-		self.persist(&request).await?;
+		self.persist(&request, detail, Some(admin_id)).await?;
 		if status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}

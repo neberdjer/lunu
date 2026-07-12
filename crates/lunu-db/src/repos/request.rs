@@ -34,6 +34,8 @@ fn map_request(row: &AnyRow) -> Result<Request> {
 		cover_url: row.try_get("cover_url").map_err(db_error)?,
 		status: parse_enum::<RequestStatus>(&status)?,
 		approved_by: row.try_get("approved_by").map_err(db_error)?,
+		notes: row.try_get("notes").map_err(db_error)?,
+		quality_profile_id: row.try_get("quality_profile_id").map_err(db_error)?,
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
@@ -62,8 +64,8 @@ impl RequestRepo for SqlxRequestRepo {
 	async fn create(&self, request: &Request) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO requests \
-			 (id, user_id, asin, title, author, cover_url, status, approved_by, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+			 (id, user_id, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		)
 		.bind(&request.id)
 		.bind(&request.user_id)
@@ -73,6 +75,8 @@ impl RequestRepo for SqlxRequestRepo {
 		.bind(request.cover_url.as_deref())
 		.bind(request.status.as_str())
 		.bind(request.approved_by.as_deref())
+		.bind(request.notes.as_deref())
+		.bind(request.quality_profile_id.as_deref())
 		.bind(format_dt(request.created_at))
 		.bind(format_dt(request.updated_at))
 		.execute(&self.db)
@@ -89,9 +93,9 @@ impl RequestRepo for SqlxRequestRepo {
 	) -> Result<bool> {
 		let result = sqlx::query(
 			"INSERT INTO requests \
-			 (id, user_id, asin, title, author, cover_url, status, approved_by, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 \
-			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $11) < $12",
+			 (id, user_id, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 \
+			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $13) < $14",
 		)
 		.bind(&request.id)
 		.bind(&request.user_id)
@@ -101,6 +105,8 @@ impl RequestRepo for SqlxRequestRepo {
 		.bind(request.cover_url.as_deref())
 		.bind(request.status.as_str())
 		.bind(request.approved_by.as_deref())
+		.bind(request.notes.as_deref())
+		.bind(request.quality_profile_id.as_deref())
 		.bind(format_dt(request.created_at))
 		.bind(format_dt(request.updated_at))
 		.bind(format_dt(since))

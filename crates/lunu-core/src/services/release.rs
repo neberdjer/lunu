@@ -39,7 +39,11 @@ impl ReleaseService {
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("request {request_id}")))?;
 
-		let mut ranked = self.search(&request.title).await?;
+		let profile = self
+			.resolve_profile(request.quality_profile_id.as_deref())
+			.await?;
+		let releases = self.indexer.search(&request.title).await?;
+		let mut ranked = rank_releases(releases, &profile);
 		let blocked = self.blocklist.urls_for_request(request_id).await?;
 		let blocked: HashSet<&str> = blocked.iter().map(String::as_str).collect();
 		ranked.retain(|scored| !blocked.contains(scored.release.download_url.as_str()));
@@ -61,6 +65,19 @@ impl ReleaseService {
 			.await
 	}
 
+	pub async fn list_blocklist(&self, request_id: &str) -> Result<Vec<BlocklistEntry>> {
+		self.blocklist.list_for_request(request_id).await
+	}
+
+	pub async fn remove_blocklist(&self, request_id: &str, download_url: &str) -> Result<()> {
+		if !self.blocklist.remove(request_id, download_url).await? {
+			return Err(Error::NotFound(format!(
+				"blocklist entry for request {request_id}"
+			)));
+		}
+		Ok(())
+	}
+
 	pub async fn test_indexer(&self) -> Result<()> {
 		self.indexer.test_connection().await
 	}
@@ -69,6 +86,15 @@ impl ReleaseService {
 		let releases = self.indexer.search(query).await?;
 		let profile = self.default_profile().await?;
 		Ok(rank_releases(releases, &profile))
+	}
+
+	async fn resolve_profile(&self, id: Option<&str>) -> Result<QualityProfile> {
+		if let Some(id) = id
+			&& let Some(profile) = self.profiles.find_by_id(id).await?
+		{
+			return Ok(profile);
+		}
+		self.default_profile().await
 	}
 
 	async fn default_profile(&self) -> Result<QualityProfile> {
