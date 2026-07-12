@@ -4,37 +4,95 @@ use lunu_core::Result;
 use lunu_core::models::{Book, SeriesRef};
 use serde::Deserialize;
 
-use super::{Named, names};
+use super::{Named, asins, names};
 use crate::http::send_with_retry;
 use crate::integration_error;
 
 const SEARCH_RESULT_LIMIT: &str = "10";
 const RESPONSE_GROUPS: &str = "contributors,product_desc,product_attrs,media,series";
 
+fn to_books(products: Vec<AudibleProduct>) -> Vec<Book> {
+	products
+		.into_iter()
+		.map(AudibleProduct::into_book)
+		.collect()
+}
+
+async fn catalog_search(
+	client: &reqwest::Client,
+	region: &str,
+	params: &[(&str, &str)],
+) -> Result<Vec<Book>> {
+	let url = format!("https://{}/1.0/catalog/products", audible_host(region));
+	let response = send_with_retry(|| client.get(&url).query(params))
+		.await?
+		.error_for_status()
+		.map_err(integration_error)?;
+
+	let body: AudibleSearchResponse = response.json().await.map_err(integration_error)?;
+	Ok(to_books(body.products))
+}
+
 pub(super) async fn search(
 	client: &reqwest::Client,
 	region: &str,
 	query: &str,
+	page: i64,
 ) -> Result<Vec<Book>> {
-	let url = format!("https://{}/1.0/catalog/products", audible_host(region));
-	let response = send_with_retry(|| {
-		client.get(&url).query(&[
+	let page = page.max(1).to_string();
+	catalog_search(
+		client,
+		region,
+		&[
 			("num_results", SEARCH_RESULT_LIMIT),
+			("page", page.as_str()),
 			("products_sort_by", "Relevance"),
 			("response_groups", RESPONSE_GROUPS),
 			("keywords", query),
+		],
+	)
+	.await
+}
+
+pub(super) async fn books_by_author(
+	client: &reqwest::Client,
+	region: &str,
+	author_asin: &str,
+) -> Result<Vec<Book>> {
+	catalog_search(
+		client,
+		region,
+		&[
+			("num_results", "20"),
+			("products_sort_by", "Relevance"),
+			("response_groups", RESPONSE_GROUPS),
+			("author", author_asin),
+		],
+	)
+	.await
+}
+
+pub(super) async fn similar(
+	client: &reqwest::Client,
+	region: &str,
+	asin: &str,
+) -> Result<Vec<Book>> {
+	let url = format!(
+		"https://{}/1.0/catalog/products/{asin}/sims",
+		audible_host(region)
+	);
+	let response = send_with_retry(|| {
+		client.get(&url).query(&[
+			("response_groups", RESPONSE_GROUPS),
+			("similarity_type", "ByTheSameAuthor"),
 		])
 	})
 	.await?
 	.error_for_status()
 	.map_err(integration_error)?;
 
-	let body: AudibleSearchResponse = response.json().await.map_err(integration_error)?;
-	Ok(body
-		.products
-		.into_iter()
-		.map(AudibleProduct::into_book)
-		.collect())
+	let body: AudibleSimilarResponse = response.json().await.map_err(integration_error)?;
+	Ok(to_books(body.similar_products))
 }
 
 fn audible_host(region: &str) -> &'static str {
@@ -59,9 +117,16 @@ struct AudibleSearchResponse {
 }
 
 #[derive(Deserialize)]
+struct AudibleSimilarResponse {
+	#[serde(default)]
+	similar_products: Vec<AudibleProduct>,
+}
+
+#[derive(Deserialize)]
 struct AudibleSeries {
 	title: String,
 	sequence: Option<String>,
+	asin: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -89,14 +154,16 @@ impl AudibleProduct {
 			asin: self.asin,
 			title: self.title,
 			subtitle: self.subtitle,
-			authors: names(self.authors),
-			narrators: names(self.narrators),
+			authors: names(&self.authors),
+			author_asins: asins(&self.authors),
+			narrators: names(&self.narrators),
 			series: self
 				.series
 				.into_iter()
 				.map(|entry| SeriesRef {
 					name: entry.title,
 					position: entry.sequence,
+					asin: entry.asin,
 				})
 				.collect(),
 			description: self.merchandising_summary,

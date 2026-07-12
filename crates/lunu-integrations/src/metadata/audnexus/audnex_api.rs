@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
-use super::{Named, names};
+use super::{Named, asins, names};
 use crate::http::send_with_retry;
 use crate::integration_error;
 
@@ -55,6 +55,7 @@ async fn get_json<T: DeserializeOwned>(
 struct AudnexusSeries {
 	name: String,
 	position: Option<String>,
+	asin: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -87,6 +88,7 @@ impl AudnexusBook {
 			.map(|entry| SeriesRef {
 				name: entry.name,
 				position: entry.position,
+				asin: entry.asin,
 			})
 			.collect();
 
@@ -94,8 +96,9 @@ impl AudnexusBook {
 			asin: self.asin,
 			title: self.title,
 			subtitle: self.subtitle,
-			authors: names(self.authors),
-			narrators: names(self.narrators),
+			authors: names(&self.authors),
+			author_asins: asins(&self.authors),
+			narrators: names(&self.narrators),
 			series,
 			description: self.description,
 			cover_url: self.image,
@@ -103,7 +106,7 @@ impl AudnexusBook {
 			runtime_minutes: self.runtime_length_min,
 			language: self.language,
 			publisher: self.publisher_name,
-			genres: names(self.genres),
+			genres: names(&self.genres),
 		}
 	}
 }

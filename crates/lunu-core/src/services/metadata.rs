@@ -18,6 +18,8 @@ use crate::{Error, Result};
 const KIND_SEARCH: &str = "search";
 const KIND_BOOK: &str = "book";
 const KIND_CHAPTERS: &str = "chapters";
+const KIND_SIMILAR: &str = "similar";
+const KIND_AUTHOR: &str = "author";
 
 pub struct MetadataService {
 	provider: Arc<dyn MetadataProvider>,
@@ -38,14 +40,15 @@ impl MetadataService {
 		}
 	}
 
-	pub async fn search(&self, query: &str) -> Result<Vec<Book>> {
+	pub async fn search(&self, query: &str, page: i64) -> Result<Vec<Book>> {
 		let normalized = query.trim().to_lowercase();
 		if normalized.is_empty() {
 			return Ok(Vec::new());
 		}
 
+		let page = page.max(1);
 		let region = self.region().await?;
-		let cache_key = format!("{region}:{normalized}");
+		let cache_key = format!("{region}:{page}:{normalized}");
 
 		if let Some(books) = self
 			.read_cache::<Vec<Book>>(KIND_SEARCH, &cache_key)
@@ -54,8 +57,40 @@ impl MetadataService {
 			return Ok(books);
 		}
 
-		let books = self.provider.search(query, &region).await?;
+		let books = self.provider.search(query, &region, page).await?;
 		self.write_cache(KIND_SEARCH, &cache_key, &books).await?;
+		Ok(books)
+	}
+
+	pub async fn similar(&self, asin: &str) -> Result<Vec<Book>> {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{asin}");
+
+		if let Some(books) = self
+			.read_cache::<Vec<Book>>(KIND_SIMILAR, &cache_key)
+			.await?
+		{
+			return Ok(books);
+		}
+
+		let books = self.provider.similar(asin, &region).await?;
+		self.write_cache(KIND_SIMILAR, &cache_key, &books).await?;
+		Ok(books)
+	}
+
+	pub async fn books_by_author(&self, author_asin: &str) -> Result<Vec<Book>> {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{author_asin}");
+
+		if let Some(books) = self
+			.read_cache::<Vec<Book>>(KIND_AUTHOR, &cache_key)
+			.await?
+		{
+			return Ok(books);
+		}
+
+		let books = self.provider.books_by_author(author_asin, &region).await?;
+		self.write_cache(KIND_AUTHOR, &cache_key, &books).await?;
 		Ok(books)
 	}
 

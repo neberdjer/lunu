@@ -6,6 +6,8 @@ pub struct SeriesRef {
 	pub name: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub position: Option<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub asin: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +17,8 @@ pub struct Book {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub subtitle: Option<String>,
 	pub authors: Vec<String>,
+	#[serde(default)]
+	pub author_asins: Vec<String>,
 	pub narrators: Vec<String>,
 	pub series: Vec<SeriesRef>,
 	#[serde(skip_serializing_if = "Option::is_none")]

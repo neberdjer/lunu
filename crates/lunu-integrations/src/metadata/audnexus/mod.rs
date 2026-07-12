@@ -38,8 +38,8 @@ impl MetadataProvider for AudnexusProvider {
 		PROVIDER_ID
 	}
 
-	async fn search(&self, query: &str, region: &str) -> Result<Vec<Book>> {
-		audible_api::search(&self.client, region, query).await
+	async fn search(&self, query: &str, region: &str, page: i64) -> Result<Vec<Book>> {
+		audible_api::search(&self.client, region, query, page).await
 	}
 
 	async fn get_book(&self, asin: &str, region: &str) -> Result<Option<Book>> {
@@ -49,13 +49,27 @@ impl MetadataProvider for AudnexusProvider {
 	async fn get_chapters(&self, asin: &str, region: &str) -> Result<Option<Chapters>> {
 		audnex_api::get_chapters(&self.client, region, asin).await
 	}
+
+	async fn similar(&self, asin: &str, region: &str) -> Result<Vec<Book>> {
+		audible_api::similar(&self.client, region, asin).await
+	}
+
+	async fn books_by_author(&self, author_asin: &str, region: &str) -> Result<Vec<Book>> {
+		audible_api::books_by_author(&self.client, region, author_asin).await
+	}
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct Named {
 	name: String,
+	#[serde(default)]
+	asin: Option<String>,
 }
 
-fn names(items: Vec<Named>) -> Vec<String> {
-	items.into_iter().map(|item| item.name).collect()
+fn names(items: &[Named]) -> Vec<String> {
+	items.iter().map(|item| item.name.clone()).collect()
+}
+
+fn asins(items: &[Named]) -> Vec<String> {
+	items.iter().filter_map(|item| item.asin.clone()).collect()
 }
