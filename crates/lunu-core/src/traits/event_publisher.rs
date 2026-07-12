@@ -1,5 +1,5 @@
-use crate::models::Activity;
+use crate::models::LiveEvent;
 
 pub trait EventPublisher: Send + Sync {
-	fn publish(&self, activity: &Activity);
+	fn publish(&self, event: &LiveEvent);
 }

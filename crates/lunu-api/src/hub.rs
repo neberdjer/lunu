@@ -1,10 +1,10 @@
 use lunu_core::consts::api::WS_EVENT_BUFFER;
-use lunu_core::models::Activity;
+use lunu_core::models::LiveEvent;
 use lunu_core::traits::EventPublisher;
 use tokio::sync::broadcast;
 
 pub struct EventHub {
-	tx: broadcast::Sender<Activity>,
+	tx: broadcast::Sender<LiveEvent>,
 }
 
 impl EventHub {
@@ -13,7 +13,7 @@ impl EventHub {
 		Self { tx }
 	}
 
-	pub fn subscribe(&self) -> broadcast::Receiver<Activity> {
+	pub fn subscribe(&self) -> broadcast::Receiver<LiveEvent> {
 		self.tx.subscribe()
 	}
 }
@@ -25,7 +25,7 @@ impl Default for EventHub {
 }
 
 impl EventPublisher for EventHub {
-	fn publish(&self, activity: &Activity) {
-		let _ = self.tx.send(activity.clone());
+	fn publish(&self, event: &LiveEvent) {
+		let _ = self.tx.send(event.clone());
 	}
 }

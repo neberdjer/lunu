@@ -1,11 +1,33 @@
 use actix_web::{Error, HttpRequest, HttpResponse, get, web};
 use actix_ws::Message;
 use futures_util::StreamExt;
+use serde::Serialize;
 use tokio::sync::broadcast::error::RecvError;
 
-use crate::dto::ActivityResponse;
+use lunu_core::models::LiveEvent;
+
+use crate::dto::{ActivityResponse, DownloadResponse, NotificationResponse};
 use crate::extract::AdminUser;
 use crate::state::AppState;
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+enum WsMessage {
+	Activity(ActivityResponse),
+	Progress(DownloadResponse),
+	Notification(NotificationResponse),
+}
+
+fn encode(event: &LiveEvent) -> String {
+	let message = match event {
+		LiveEvent::Activity(activity) => WsMessage::Activity(ActivityResponse::from(activity)),
+		LiveEvent::Progress(download) => WsMessage::Progress(DownloadResponse::from(download)),
+		LiveEvent::Notification(notification) => {
+			WsMessage::Notification(NotificationResponse::from(notification))
+		}
+	};
+	serde_json::to_string(&message).unwrap_or_default()
+}
 
 #[utoipa::path(tag = "system", responses((status = 101, description = "WebSocket upgrade for live activity events")))]
 #[get("/ws")]
@@ -35,10 +57,8 @@ pub async fn ws(
 				}
 				event = events.recv() => {
 					match event {
-						Ok(activity) => {
-							let payload = serde_json::to_string(&ActivityResponse::from(&activity))
-								.unwrap_or_default();
-							if session.text(payload).await.is_err() {
+						Ok(event) => {
+							if session.text(encode(&event)).await.is_err() {
 								break;
 							}
 						}
