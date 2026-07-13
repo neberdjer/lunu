@@ -155,6 +155,17 @@ impl MetadataProvider for StubProvider {
 	async fn books_by_author(&self, _author_asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
+	async fn search_series(&self, _query: &str, _region: &str) -> CoreResult<Vec<SeriesSummary>> {
+		Ok(Vec::new())
+	}
+	async fn series_books(
+		&self,
+		_name: &str,
+		_asin: Option<&str>,
+		_region: &str,
+	) -> CoreResult<Vec<Book>> {
+		Ok(Vec::new())
+	}
 }
 
 pub(super) fn settings_service(db: &Db) -> Arc<SettingsService> {

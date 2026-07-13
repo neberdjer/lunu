@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::models::{Book, Chapters};
+use lunu_core::models::{Book, Chapters, SeriesSummary};
 use lunu_core::traits::MetadataProvider;
 use serde::Deserialize;
 
@@ -56,6 +56,19 @@ impl MetadataProvider for AudnexusProvider {
 
 	async fn books_by_author(&self, author_asin: &str, region: &str) -> Result<Vec<Book>> {
 		audible_api::books_by_author(&self.client, region, author_asin).await
+	}
+
+	async fn search_series(&self, query: &str, region: &str) -> Result<Vec<SeriesSummary>> {
+		audible_api::search_series(&self.client, region, query).await
+	}
+
+	async fn series_books(
+		&self,
+		name: &str,
+		asin: Option<&str>,
+		region: &str,
+	) -> Result<Vec<Book>> {
+		audible_api::series_books(&self.client, region, name, asin).await
 	}
 }
 

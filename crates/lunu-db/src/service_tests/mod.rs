@@ -14,7 +14,7 @@ use lunu_core::models::{
 	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus,
 	EmailVerificationToken, Job, JobStatus, JobType, MetadataCacheEntry, MonitorPayload,
 	NotificationEvent, NotificationKind, PasswordResetToken, Protocol, QualityProfile, Release,
-	Request, RequestStatus, Role, User, UserSettings,
+	Request, RequestStatus, Role, SeriesSummary, User, UserSettings,
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, EmailVerificationRepo, JobRepo, MetadataCacheRepo,

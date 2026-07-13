@@ -11,6 +11,18 @@ pub struct SeriesRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SeriesSummary {
+	pub name: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub asin: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub author: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub cover_url: Option<String>,
+	pub books_in_results: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Book {
 	pub asin: String,
 	pub title: String,

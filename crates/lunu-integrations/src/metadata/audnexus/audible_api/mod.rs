@@ -8,6 +8,10 @@ use super::{Named, asins, names};
 use crate::http::send_with_retry;
 use crate::integration_error;
 
+mod series;
+
+pub(super) use series::{search_series, series_books};
+
 const SEARCH_RESULT_LIMIT: &str = "10";
 const RESPONSE_GROUPS: &str = "contributors,product_desc,product_attrs,media,series";
 

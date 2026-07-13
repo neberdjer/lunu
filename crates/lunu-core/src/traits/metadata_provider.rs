@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::Result;
-use crate::models::{Book, Chapters};
+use crate::models::{Book, Chapters, SeriesSummary};
 
 #[async_trait]
 pub trait MetadataProvider: Send + Sync {
@@ -11,4 +11,7 @@ pub trait MetadataProvider: Send + Sync {
 	async fn get_chapters(&self, asin: &str, region: &str) -> Result<Option<Chapters>>;
 	async fn similar(&self, asin: &str, region: &str) -> Result<Vec<Book>>;
 	async fn books_by_author(&self, author_asin: &str, region: &str) -> Result<Vec<Book>>;
+	async fn search_series(&self, query: &str, region: &str) -> Result<Vec<SeriesSummary>>;
+	async fn series_books(&self, name: &str, asin: Option<&str>, region: &str)
+	-> Result<Vec<Book>>;
 }

@@ -9,7 +9,7 @@ use crate::consts::metadata::{
 	VALID_METADATA_REGIONS,
 };
 use crate::consts::reasons;
-use crate::models::{Book, Chapters, MetadataCacheEntry};
+use crate::models::{Book, Chapters, MetadataCacheEntry, SeriesSummary};
 use crate::repo::MetadataCacheRepo;
 use crate::services::SettingsService;
 use crate::traits::MetadataProvider;
@@ -20,6 +20,8 @@ const KIND_BOOK: &str = "book";
 const KIND_CHAPTERS: &str = "chapters";
 const KIND_SIMILAR: &str = "similar";
 const KIND_AUTHOR: &str = "author";
+const KIND_SERIES_SEARCH: &str = "series-search";
+const KIND_SERIES_BOOKS: &str = "series-books";
 
 pub struct MetadataService {
 	provider: Arc<dyn MetadataProvider>,
@@ -59,6 +61,50 @@ impl MetadataService {
 
 		let books = self.provider.search(query, &region, page).await?;
 		self.write_cache(KIND_SEARCH, &cache_key, &books).await?;
+		Ok(books)
+	}
+
+	pub async fn search_series(&self, query: &str) -> Result<Vec<SeriesSummary>> {
+		let normalized = query.trim().to_lowercase();
+		if normalized.is_empty() {
+			return Ok(Vec::new());
+		}
+
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{normalized}");
+
+		if let Some(series) = self
+			.read_cache::<Vec<SeriesSummary>>(KIND_SERIES_SEARCH, &cache_key)
+			.await?
+		{
+			return Ok(series);
+		}
+
+		let series = self.provider.search_series(query, &region).await?;
+		self.write_cache(KIND_SERIES_SEARCH, &cache_key, &series)
+			.await?;
+		Ok(series)
+	}
+
+	pub async fn series_books(&self, name: &str, asin: Option<&str>) -> Result<Vec<Book>> {
+		let normalized = name.trim().to_lowercase();
+		if normalized.is_empty() && asin.is_none() {
+			return Ok(Vec::new());
+		}
+
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{}:{normalized}", asin.unwrap_or(""));
+
+		if let Some(books) = self
+			.read_cache::<Vec<Book>>(KIND_SERIES_BOOKS, &cache_key)
+			.await?
+		{
+			return Ok(books);
+		}
+
+		let books = self.provider.series_books(name, asin, &region).await?;
+		self.write_cache(KIND_SERIES_BOOKS, &cache_key, &books)
+			.await?;
 		Ok(books)
 	}
 

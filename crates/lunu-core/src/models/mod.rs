@@ -30,7 +30,7 @@ pub use issue::{Issue, IssueStatus, IssueType};
 pub use job::{GrabPayload, ImportPayload, Job, JobStatus, JobType, MonitorPayload};
 pub use live_event::LiveEvent;
 pub use media::Media;
-pub use metadata::{Book, Chapter, Chapters, MetadataCacheEntry, SeriesRef};
+pub use metadata::{Book, Chapter, Chapters, MetadataCacheEntry, SeriesRef, SeriesSummary};
 pub use notification::{NotificationEvent, NotificationKind};
 pub use password_reset::PasswordResetToken;
 pub use quality_profile::QualityProfile;
