@@ -14,10 +14,11 @@ use lunu_core::services::{
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
 use lunu_db::repos::{
-	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxPasswordResetRepo,
-	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo,
-	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
+	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
+	SqlxMetadataCacheRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo,
 };
 
 use crate::hub::EventHub;
@@ -82,6 +83,8 @@ impl AppState {
 			invites_repo.clone(),
 			Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
 			Arc::new(SqlxPasswordResetRepo::new(db.clone())),
+			Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
+			settings.clone(),
 			mailer.clone(),
 		));
 		let users = Arc::new(UserService::new(

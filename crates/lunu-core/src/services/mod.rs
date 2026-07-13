@@ -19,7 +19,7 @@ mod user;
 
 pub use activity::ActivityService;
 pub use api_key::{ApiKeyService, IssuedApiKey};
-pub use auth::{AuthService, Authenticated};
+pub use auth::{AuthService, Authenticated, Registration};
 pub use grab::{GrabService, ReleaseSelection};
 pub use import::ImportService;
 pub use invite::{InviteService, IssuedInvite};
@@ -118,6 +118,7 @@ pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> Use
 		role,
 		auth_source: AuthSource::Abs,
 		enabled: true,
+		email_verified: true,
 		created_at: now,
 		updated_at: now,
 	}
@@ -142,6 +143,7 @@ pub(crate) fn build_local_user(
 		role,
 		auth_source: AuthSource::Local,
 		enabled: true,
+		email_verified: false,
 		created_at: now,
 		updated_at: now,
 	})

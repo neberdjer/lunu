@@ -139,14 +139,17 @@ async fn register_with_invite_then_exhausted() {
 		.unwrap();
 
 	let registered = auth
-		.register_with_invite(&issued.code, "bob", "hunter2password")
+		.register_with_invite(&issued.code, "bob", "hunter2password", None)
 		.await
 		.unwrap();
+	let lunu_core::services::Registration::Active(registered) = registered else {
+		panic!("expected active registration");
+	};
 	assert_eq!(registered.user.username, "bob");
 	assert_eq!(registered.user.role, Role::User);
 
 	assert!(
-		auth.register_with_invite(&issued.code, "carol", "password123")
+		auth.register_with_invite(&issued.code, "carol", "password123", None)
 			.await
 			.is_err()
 	);

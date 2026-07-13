@@ -40,6 +40,8 @@ pub const UNKNOWN_PROFILE: &str = "unknown-profile";
 pub const JOB_NOT_RETRYABLE: &str = "job-not-retryable";
 pub const EMPTY_SELECTION: &str = "empty-selection";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
+pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
+pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const UNKNOWN_LOCALE: &str = "unknown-locale";
 
 pub const ALL: &[&str] = &[
@@ -85,5 +87,7 @@ pub const ALL: &[&str] = &[
 	JOB_NOT_RETRYABLE,
 	EMPTY_SELECTION,
 	RESET_TOKEN_INVALID,
+	EMAIL_NOT_VERIFIED,
+	VERIFICATION_INVALID,
 	UNKNOWN_LOCALE,
 ];

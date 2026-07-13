@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, delete, get, patch, post, put, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, put, web};
 use lunu_core::models::{Role, UserSettings};
 use serde::Deserialize;
 
 use crate::dto::{UserResponse, UserSettingsResponse};
 use crate::error::ApiError;
-use crate::extract::AdminUser;
+use crate::extract::{AdminUser, accept_language};
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
@@ -61,6 +61,7 @@ pub async fn list(
 #[utoipa::path(tag = "users", responses((status = 201, description = "User created", body = UserResponse)))]
 #[post("/users")]
 pub async fn create(
+	req: HttpRequest,
 	_admin: AdminUser,
 	state: web::Data<AppState>,
 	body: web::Json<CreateUserRequest>,
@@ -70,6 +71,11 @@ pub async fn create(
 		.users
 		.create(&body.username, &body.password, body.email.clone(), role)
 		.await?;
+	state
+		.auth
+		.notify_account_created(&user, accept_language(&req).as_deref())
+		.await
+		.ok();
 	Ok(HttpResponse::Created().json(UserResponse::from(&user)))
 }
 

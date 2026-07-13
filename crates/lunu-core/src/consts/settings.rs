@@ -29,6 +29,10 @@ pub const SMTP_ENCRYPTION: &str = "smtp_encryption";
 pub const SMTP_ENCRYPTION_MODES: &[&str] = &["starttls", "tls", "none"];
 pub const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
 
+pub const REQUIRE_EMAIL_VERIFICATION: &str = "require_email_verification";
+pub const TOGGLE_MODES: &[&str] = &["off", "on"];
+pub const DEFAULT_TOGGLE: &str = "off";
+
 pub enum SettingKind {
 	Text,
 	Url,
@@ -214,6 +218,12 @@ pub const REGISTRY: &[SettingSpec] = &[
 		kind: SettingKind::Enum(SMTP_ENCRYPTION_MODES),
 		secret: false,
 		default: Some(DEFAULT_SMTP_ENCRYPTION),
+	},
+	SettingSpec {
+		key: REQUIRE_EMAIL_VERIFICATION,
+		kind: SettingKind::Enum(TOGGLE_MODES),
+		secret: false,
+		default: Some(DEFAULT_TOGGLE),
 	},
 ];
 

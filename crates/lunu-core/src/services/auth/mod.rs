@@ -6,21 +6,27 @@ use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
 use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
-use crate::repo::{InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
+use crate::repo::{EmailVerificationRepo, InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
 use crate::services::{
-	build_external_user, build_local_user, ensure_username_available, new_id, require_user,
-	validate_password,
+	SettingsService, build_external_user, build_local_user, ensure_username_available, new_id,
+	require_user, validate_password,
 };
 use crate::traits::{AuthProvider, ExternalIdentity, Mailer};
 use crate::{Error, Result};
 
 mod device;
 mod reset;
+mod verify;
 
 pub struct Authenticated {
 	pub user: User,
 	pub session_token: String,
 	pub session_id: String,
+}
+
+pub enum Registration {
+	Active(Box<Authenticated>),
+	PendingVerification,
 }
 
 pub struct AuthService {
@@ -29,6 +35,8 @@ pub struct AuthService {
 	invites: Arc<dyn InviteRepo>,
 	provider: Option<Arc<dyn AuthProvider>>,
 	reset_tokens: Arc<dyn PasswordResetRepo>,
+	email_verifications: Arc<dyn EmailVerificationRepo>,
+	settings: Arc<SettingsService>,
 	mailer: Arc<dyn Mailer>,
 }
 
@@ -40,6 +48,8 @@ impl AuthService {
 		invites: Arc<dyn InviteRepo>,
 		provider: Option<Arc<dyn AuthProvider>>,
 		reset_tokens: Arc<dyn PasswordResetRepo>,
+		email_verifications: Arc<dyn EmailVerificationRepo>,
+		settings: Arc<SettingsService>,
 		mailer: Arc<dyn Mailer>,
 	) -> Self {
 		Self {
@@ -48,6 +58,8 @@ impl AuthService {
 			invites,
 			provider,
 			reset_tokens,
+			email_verifications,
+			settings,
 			mailer,
 		}
 	}
@@ -66,7 +78,8 @@ impl AuthService {
 			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
 		}
 
-		let user = build_local_user(username, password, email, Role::Admin)?;
+		let mut user = build_local_user(username, password, email, Role::Admin)?;
+		user.email_verified = true;
 		if !self.users.create_initial_admin(&user).await? {
 			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
 		}
@@ -83,6 +96,9 @@ impl AuthService {
 				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
 				if !verify_password(password, hash)? {
 					return Err(Error::Unauthorized);
+				}
+				if self.verification_pending(&user).await? {
+					return Err(Error::Validation(reasons::EMAIL_NOT_VERIFIED.to_string()));
 				}
 				return self.issue(user).await;
 			}
@@ -232,7 +248,8 @@ impl AuthService {
 		code: &str,
 		username: &str,
 		password: &str,
-	) -> Result<Authenticated> {
+		accept_language: Option<&str>,
+	) -> Result<Registration> {
 		let invite = self
 			.invites
 			.find_by_code_hash(&hash_token(code))
@@ -252,6 +269,11 @@ impl AuthService {
 		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
 		self.users.create(&user).await?;
 
-		self.issue(user).await
+		let pending_verification = self.notify_account_created(&user, accept_language).await?;
+		if pending_verification {
+			return Ok(Registration::PendingVerification);
+		}
+
+		Ok(Registration::Active(Box::new(self.issue(user).await?)))
 	}
 }

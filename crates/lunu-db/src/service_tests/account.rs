@@ -187,6 +187,7 @@ async fn duplicate_username_is_conflict_not_db_error() {
 		display_name: None,
 		locale: None,
 		enabled: true,
+		email_verified: true,
 		created_at: now,
 		updated_at: now,
 	};

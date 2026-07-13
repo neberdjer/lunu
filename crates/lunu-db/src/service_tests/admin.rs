@@ -84,6 +84,7 @@ async fn create_initial_admin_rejects_second_insert() {
 		display_name: None,
 		locale: None,
 		enabled: true,
+		email_verified: true,
 		created_at: Utc::now(),
 		updated_at: Utc::now(),
 	};

@@ -4,6 +4,8 @@ use lunu_core::consts::auth::SESSION_COOKIE;
 use serde::Deserialize;
 use serde_json::json;
 
+use lunu_core::services::Registration;
+
 use crate::cookie::{authenticated_response, clear_session_cookie};
 use crate::dto::{SessionResponse, UserResponse};
 use crate::error::ApiError;
@@ -51,6 +53,17 @@ pub struct ResetPasswordRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct VerifyEmailRequest {
+	email: String,
+	code: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ResendVerificationRequest {
+	email: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateProfileRequest {
 	email: Option<String>,
 	#[serde(default)]
@@ -85,7 +98,7 @@ pub async fn login(
 	))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 201, description = "Registered via invite, session set", body = UserResponse)))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 201, description = "Registered via invite; session set, or verification pending", body = UserResponse)))]
 #[post("/auth/register")]
 pub async fn register(
 	req: HttpRequest,
@@ -93,20 +106,32 @@ pub async fn register(
 	body: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_auth_rate_limit(&req, &state)?;
-	let authenticated = state
+	let outcome = state
 		.auth
-		.register_with_invite(&body.code, &body.username, &body.password)
+		.register_with_invite(
+			&body.code,
+			&body.username,
+			&body.password,
+			accept_language(&req).as_deref(),
+		)
 		.await?;
-	state
-		.auth
-		.record_user_agent(&authenticated.session_id, user_agent(&req).as_deref())
-		.await
-		.ok();
-	Ok(authenticated_response(
-		HttpResponse::Created(),
-		&authenticated,
-		state.config.secure_cookies,
-	))
+	match outcome {
+		Registration::Active(authenticated) => {
+			state
+				.auth
+				.record_user_agent(&authenticated.session_id, user_agent(&req).as_deref())
+				.await
+				.ok();
+			Ok(authenticated_response(
+				HttpResponse::Created(),
+				&authenticated,
+				state.config.secure_cookies,
+			))
+		}
+		Registration::PendingVerification => {
+			Ok(HttpResponse::Created().json(json!({ "status": "pending_verification" })))
+		}
+	}
 }
 
 #[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Session cleared")))]
@@ -199,6 +224,33 @@ pub async fn reset_password(
 	state
 		.auth
 		.reset_password(&body.email, &body.code, &body.password)
+		.await?;
+	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+}
+
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Email verified"), (status = 400, description = "Invalid or expired code")))]
+#[post("/auth/verify")]
+pub async fn verify_email(
+	req: HttpRequest,
+	state: web::Data<AppState>,
+	body: web::Json<VerifyEmailRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	state.auth.verify_email(&body.email, &body.code).await?;
+	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+}
+
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If verification is enabled and the address is unverified, a new code is sent")))]
+#[post("/auth/verify/resend")]
+pub async fn resend_verification(
+	req: HttpRequest,
+	state: web::Data<AppState>,
+	body: web::Json<ResendVerificationRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	state
+		.auth
+		.resend_verification(&body.email, accept_language(&req).as_deref())
 		.await?;
 	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
 }

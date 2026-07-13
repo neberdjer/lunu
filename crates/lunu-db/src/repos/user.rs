@@ -25,6 +25,7 @@ fn map_user(row: &AnyRow) -> Result<User> {
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
 	let enabled: i64 = row.try_get("enabled").map_err(db_error)?;
+	let email_verified: i64 = row.try_get("email_verified").map_err(db_error)?;
 
 	Ok(User {
 		id: row.try_get("id").map_err(db_error)?,
@@ -36,6 +37,7 @@ fn map_user(row: &AnyRow) -> Result<User> {
 		role: parse_enum::<Role>(&role)?,
 		auth_source: parse_enum::<AuthSource>(&auth_source)?,
 		enabled: int_to_bool(enabled),
+		email_verified: int_to_bool(email_verified),
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
@@ -46,8 +48,8 @@ impl UserRepo for SqlxUserRepo {
 	async fn create(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, email_verified, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		)
 		.bind(&user.id)
 		.bind(&user.username)
@@ -58,6 +60,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
 		.bind(bool_to_int(user.enabled))
+		.bind(bool_to_int(user.email_verified))
 		.bind(format_dt(user.created_at))
 		.bind(format_dt(user.updated_at))
 		.execute(&self.db)
@@ -69,8 +72,8 @@ impl UserRepo for SqlxUserRepo {
 	async fn create_initial_admin(&self, user: &User) -> Result<bool> {
 		let result = sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 \
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, enabled, email_verified, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 \
 			 WHERE NOT EXISTS (SELECT 1 FROM users)",
 		)
 		.bind(&user.id)
@@ -82,6 +85,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
 		.bind(bool_to_int(user.enabled))
+		.bind(bool_to_int(user.email_verified))
 		.bind(format_dt(user.created_at))
 		.bind(format_dt(user.updated_at))
 		.execute(&self.db)
@@ -108,7 +112,7 @@ impl UserRepo for SqlxUserRepo {
 		sqlx::query(
 			"UPDATE users SET \
 			 username = $1, email = $2, display_name = $3, locale = $4, password_hash = $5, \
-			 role = $6, auth_source = $7, enabled = $8, updated_at = $9 WHERE id = $10",
+			 role = $6, auth_source = $7, enabled = $8, email_verified = $9, updated_at = $10 WHERE id = $11",
 		)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
@@ -118,11 +122,22 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.role.as_str())
 		.bind(user.auth_source.as_str())
 		.bind(bool_to_int(user.enabled))
+		.bind(bool_to_int(user.email_verified))
 		.bind(format_dt(user.updated_at))
 		.bind(&user.id)
 		.execute(&self.db)
 		.await
 		.map_err(db_error)?;
+		Ok(())
+	}
+
+	async fn mark_email_verified(&self, id: &str) -> Result<()> {
+		sqlx::query("UPDATE users SET email_verified = $1 WHERE id = $2")
+			.bind(bool_to_int(true))
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
 		Ok(())
 	}
 
@@ -228,6 +243,7 @@ mod tests {
 			role: Role::Admin,
 			auth_source: AuthSource::Local,
 			enabled: true,
+			email_verified: true,
 			created_at: now,
 			updated_at: now,
 		}

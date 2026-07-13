@@ -31,6 +31,20 @@ struct PasswordResetBody<'a> {
 }
 
 #[derive(Template)]
+#[template(path = "email/welcome.html")]
+struct WelcomeBody {
+	intro: String,
+}
+
+#[derive(Template)]
+#[template(path = "email/verification.html")]
+struct VerificationBody<'a> {
+	intro: String,
+	code: &'a str,
+	expiry: String,
+}
+
+#[derive(Template)]
 #[template(path = "email/notification.html")]
 struct NotificationBody<'a> {
 	summary: &'a str,
@@ -80,6 +94,39 @@ pub fn password_reset(locale: &LanguageIdentifier, code: &str, minutes: i64) -> 
 
 	RenderedEmail {
 		subject: lunu_i18n::t(locale, "email-password-reset-subject"),
+		html: wrap(locale, &body),
+	}
+}
+
+pub fn welcome(locale: &LanguageIdentifier, username: &str) -> RenderedEmail {
+	let body = WelcomeBody {
+		intro: lunu_i18n::t_vars(locale, "email-welcome-intro", &[("name", username)]),
+	}
+	.render()
+	.expect("welcome email template renders");
+
+	RenderedEmail {
+		subject: lunu_i18n::t(locale, "email-welcome-subject"),
+		html: wrap(locale, &body),
+	}
+}
+
+pub fn verification(locale: &LanguageIdentifier, code: &str, minutes: i64) -> RenderedEmail {
+	let expiry = lunu_i18n::t_vars(
+		locale,
+		"email-verification-expiry",
+		&[("minutes", &minutes.to_string())],
+	);
+	let body = VerificationBody {
+		intro: lunu_i18n::t(locale, "email-verification-intro"),
+		code,
+		expiry,
+	}
+	.render()
+	.expect("verification email template renders");
+
+	RenderedEmail {
+		subject: lunu_i18n::t(locale, "email-verification-subject"),
 		html: wrap(locale, &body),
 	}
 }

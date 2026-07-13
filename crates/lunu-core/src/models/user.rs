@@ -87,6 +87,7 @@ pub struct User {
 	pub role: Role,
 	pub auth_source: AuthSource,
 	pub enabled: bool,
+	pub email_verified: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }

@@ -30,6 +30,8 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(auth::change_password)
 		.service(auth::forgot_password)
 		.service(auth::reset_password)
+		.service(auth::verify_email)
+		.service(auth::resend_verification)
 		.service(auth::sessions)
 		.service(auth::revoke_session)
 		.service(metadata::search)

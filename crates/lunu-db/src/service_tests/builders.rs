@@ -51,6 +51,8 @@ pub(super) fn auth_service_impl(
 		Arc::new(SqlxInviteRepo::new(db.clone())),
 		provider,
 		Arc::new(SqlxPasswordResetRepo::new(db.clone())),
+		Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
+		settings_service(db),
 		mailer,
 	)
 }
@@ -64,6 +66,20 @@ pub(super) async fn seed_reset_code(db: &Db, user_id: &str, code: &str) {
 			attempts: 0,
 			created_at: Utc::now(),
 			expires_at: Utc::now() + chrono::Duration::minutes(15),
+		})
+		.await
+		.unwrap();
+}
+
+pub(super) async fn seed_verification_code(db: &Db, user_id: &str, code: &str) {
+	SqlxEmailVerificationRepo::new(db.clone())
+		.create(&EmailVerificationToken {
+			id: "v1".to_string(),
+			user_id: user_id.to_string(),
+			code_hash: hash_token(code),
+			attempts: 0,
+			created_at: Utc::now(),
+			expires_at: Utc::now() + chrono::Duration::minutes(60),
 		})
 		.await
 		.unwrap();
@@ -96,6 +112,7 @@ pub(super) fn caller(id: &str, role: Role) -> User {
 		display_name: None,
 		locale: None,
 		enabled: true,
+		email_verified: true,
 		created_at: now,
 		updated_at: now,
 	}

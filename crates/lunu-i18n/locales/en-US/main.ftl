@@ -66,6 +66,8 @@ error-unknown-profile = That quality profile does not exist.
 error-job-not-retryable = Only a failed job can be requeued.
 error-empty-selection = Select at least one item.
 error-reset-token-invalid = This password reset code is invalid or has expired.
+error-email-not-verified = Verify your email address before signing in.
+error-verification-invalid = This verification code is invalid or has expired.
 error-unknown-locale = That language is not supported.
 
 notification-request-pending = New request pending approval

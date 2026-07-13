@@ -1,5 +1,10 @@
 email-footer = You are receiving this because you have a Lunu account.
 email-view-request = View request
+email-welcome-subject = Welcome to Lunu
+email-welcome-intro = Welcome to Lunu, { $name }. Your account is ready.
+email-verification-subject = Verify your Lunu email
+email-verification-intro = Confirm your email address with the code below.
+email-verification-expiry = This code expires in { $minutes } minutes.
 email-new-device-subject = New sign-in to your Lunu account
 email-new-device-intro = Your Lunu account was just signed in to from a device we have not seen before.
 email-new-device-warning = If this was not you, change your password right away.

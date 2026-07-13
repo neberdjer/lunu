@@ -1,8 +1,8 @@
 use crate::repos::{
-	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo, SqlxInviteRepo,
-	SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo, SqlxPasswordResetRepo,
-	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo, SqlxSettingsRepo,
-	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
+	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
+	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
+	SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
@@ -11,14 +11,14 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::{Encryptor, hash_token};
 use lunu_core::models::{
-	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus, Job, JobStatus,
-	JobType, MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind,
-	PasswordResetToken, Protocol, QualityProfile, Release, Request, RequestStatus, Role, User,
-	UserSettings,
+	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus,
+	EmailVerificationToken, Job, JobStatus, JobType, MetadataCacheEntry, MonitorPayload,
+	NotificationEvent, NotificationKind, PasswordResetToken, Protocol, QualityProfile, Release,
+	Request, RequestStatus, Role, User, UserSettings,
 };
 use lunu_core::repo::{
-	ActivityRepo, DownloadRepo, JobRepo, MetadataCacheRepo, PasswordResetRepo, QualityProfileRepo,
-	RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
+	ActivityRepo, DownloadRepo, EmailVerificationRepo, JobRepo, MetadataCacheRepo,
+	PasswordResetRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
@@ -42,6 +42,7 @@ mod monitor;
 mod pipeline;
 mod requests;
 mod reset;
+mod verification;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
