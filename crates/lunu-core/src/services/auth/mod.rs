@@ -14,6 +14,7 @@ use crate::services::{
 use crate::traits::{AuthProvider, ExternalIdentity, Mailer};
 use crate::{Error, Result};
 
+mod device;
 mod reset;
 
 pub struct Authenticated {
@@ -148,17 +149,6 @@ impl AuthService {
 			session_token: token,
 			session_id: session.id,
 		})
-	}
-
-	pub async fn record_user_agent(
-		&self,
-		session_id: &str,
-		user_agent: Option<&str>,
-	) -> Result<()> {
-		if let Some(user_agent) = user_agent {
-			self.sessions.set_user_agent(session_id, user_agent).await?;
-		}
-		Ok(())
 	}
 
 	pub async fn validate_session(&self, token: &str) -> Result<Option<User>> {

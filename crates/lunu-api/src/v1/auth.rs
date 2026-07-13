@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::cookie::{authenticated_response, clear_session_cookie};
 use crate::dto::{SessionResponse, UserResponse};
 use crate::error::ApiError;
-use crate::extract::{AuthUser, user_agent};
+use crate::extract::{AuthUser, accept_language, user_agent};
 use crate::state::AppState;
 
 fn enforce_auth_rate_limit(req: &HttpRequest, state: &AppState) -> Result<(), ApiError> {
@@ -70,7 +70,12 @@ pub async fn login(
 	let authenticated = state.auth.login(&body.username, &body.password).await?;
 	state
 		.auth
-		.record_user_agent(&authenticated.session_id, user_agent(&req).as_deref())
+		.record_login_device(
+			&authenticated.user,
+			&authenticated.session_id,
+			user_agent(&req).as_deref(),
+			accept_language(&req).as_deref(),
+		)
 		.await
 		.ok();
 	Ok(authenticated_response(

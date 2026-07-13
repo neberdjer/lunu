@@ -7,6 +7,7 @@ use crate::consts::auth::{
 };
 use crate::consts::reasons;
 use crate::crypto::{generate_numeric_code, hash_password, hash_token};
+use crate::email;
 use crate::models::{AuthSource, PasswordResetToken};
 use crate::services::{new_id, normalize_email, validate_password};
 use crate::{Error, Result};
@@ -48,16 +49,11 @@ impl AuthService {
 			.await?;
 
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
-		let subject = lunu_i18n::t(&locale, "email-password-reset-subject");
-		let body = lunu_i18n::t_vars(
-			&locale,
-			"email-password-reset-body",
-			&[
-				("code", &code),
-				("minutes", &PASSWORD_RESET_TTL_MINUTES.to_string()),
-			],
-		);
-		let _ = self.mailer.send(&email, &subject, &body).await;
+		let rendered = email::password_reset(&locale, &code, PASSWORD_RESET_TTL_MINUTES);
+		let _ = self
+			.mailer
+			.send(&email, &rendered.subject, &rendered.html)
+			.await;
 		Ok(())
 	}
 

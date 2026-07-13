@@ -9,22 +9,49 @@ impl Mailer for NoopMailer {
 	}
 }
 
+#[derive(Default)]
+pub(super) struct RecordingMailer {
+	sent: std::sync::atomic::AtomicUsize,
+}
+
+impl RecordingMailer {
+	pub(super) fn count(&self) -> usize {
+		self.sent.load(std::sync::atomic::Ordering::Relaxed)
+	}
+}
+
+#[async_trait]
+impl Mailer for RecordingMailer {
+	async fn send(&self, _to: &str, _subject: &str, _html: &str) -> CoreResult<()> {
+		self.sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+		Ok(())
+	}
+}
+
 pub(super) fn auth_service(db: &Db) -> AuthService {
-	auth_service_impl(db, None)
+	auth_service_impl(db, None, Arc::new(NoopMailer))
 }
 
 pub(super) fn auth_service_with_provider(db: &Db, provider: Arc<dyn AuthProvider>) -> AuthService {
-	auth_service_impl(db, Some(provider))
+	auth_service_impl(db, Some(provider), Arc::new(NoopMailer))
 }
 
-pub(super) fn auth_service_impl(db: &Db, provider: Option<Arc<dyn AuthProvider>>) -> AuthService {
+pub(super) fn auth_service_with_mailer(db: &Db, mailer: Arc<dyn Mailer>) -> AuthService {
+	auth_service_impl(db, None, mailer)
+}
+
+pub(super) fn auth_service_impl(
+	db: &Db,
+	provider: Option<Arc<dyn AuthProvider>>,
+	mailer: Arc<dyn Mailer>,
+) -> AuthService {
 	AuthService::new(
 		Arc::new(SqlxUserRepo::new(db.clone())),
 		Arc::new(SqlxSessionRepo::new(db.clone())),
 		Arc::new(SqlxInviteRepo::new(db.clone())),
 		provider,
 		Arc::new(SqlxPasswordResetRepo::new(db.clone())),
-		Arc::new(NoopMailer),
+		mailer,
 	)
 }
 

@@ -3,12 +3,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use lunu_core::Result;
 use lunu_core::consts::settings::BASE_URL;
-use lunu_core::helpers::html::escape;
 use lunu_core::models::NotificationEvent;
 use lunu_core::repo::UserRepo;
 use lunu_core::services::SettingsService;
 use lunu_core::traits::{Mailer, Notifier};
-use lunu_i18n::LanguageIdentifier;
 
 use crate::optional_setting;
 
@@ -31,23 +29,15 @@ impl EmailNotifier {
 		}
 	}
 
-	async fn body(
-		&self,
-		locale: &LanguageIdentifier,
-		summary: &str,
-		event: &NotificationEvent,
-	) -> Result<String> {
-		let mut html = format!("<p>{}</p><p>{}</p>", escape(summary), escape(&event.title));
-		if let Some(base) = optional_setting(&self.settings, BASE_URL).await? {
-			let label = lunu_i18n::t(locale, "email-view-request");
-			html.push_str(&format!(
-				"<p><a href=\"{}/requests/{}\">{}</a></p>",
-				escape(base.trim_end_matches('/')),
-				escape(&event.request_id),
-				escape(&label)
-			));
-		}
-		Ok(html)
+	async fn request_link(&self, event: &NotificationEvent) -> Result<Option<String>> {
+		let Some(base) = optional_setting(&self.settings, BASE_URL).await? else {
+			return Ok(None);
+		};
+		Ok(Some(format!(
+			"{}/requests/{}",
+			base.trim_end_matches('/'),
+			event.request_id
+		)))
 	}
 }
 
@@ -72,8 +62,11 @@ impl Notifier for EmailNotifier {
 
 		let locale = lunu_i18n::negotiate(None, user.locale.as_deref());
 		let summary = lunu_i18n::t(&locale, &format!("notification-{}", event.kind.as_str()));
-		let subject = format!("{summary}: {}", event.title);
-		let html = self.body(&locale, &summary, event).await?;
-		self.mailer.send(to, &subject, &html).await
+		let link = self.request_link(event).await?;
+		let rendered =
+			lunu_core::email::notification(&locale, &summary, &event.title, link.as_deref());
+		self.mailer
+			.send(to, &rendered.subject, &rendered.html)
+			.await
 	}
 }

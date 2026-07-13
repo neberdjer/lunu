@@ -68,10 +68,6 @@ error-empty-selection = Select at least one item.
 error-reset-token-invalid = This password reset code is invalid or has expired.
 error-unknown-locale = That language is not supported.
 
-email-view-request = View request
-email-password-reset-subject = Reset your Lunu password
-email-password-reset-body = <p>We received a request to reset your Lunu password.</p><p>Your reset code is <strong>{ $code }</strong></p><p>It expires in { $minutes } minutes. If you did not request this, you can ignore this email.</p>
-
 notification-request-pending = New request pending approval
 notification-request-approved = Request approved
 notification-request-declined = Request declined

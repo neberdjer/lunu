@@ -1,5 +1,6 @@
 pub mod consts;
 pub mod crypto;
+pub mod email;
 pub mod error;
 pub mod helpers;
 pub mod models;

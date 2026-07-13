@@ -41,6 +41,7 @@ mod data;
 mod monitor;
 mod pipeline;
 mod requests;
+mod reset;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
