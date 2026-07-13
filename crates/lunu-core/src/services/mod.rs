@@ -28,7 +28,7 @@ pub use job::JobService;
 pub use media::MediaService;
 pub use metadata::MetadataService;
 pub use monitor::MonitorService;
-pub use notification::NotificationService;
+pub use notification::{NotificationService, resolve_recipients};
 pub use notification_inbox::NotificationInboxService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};
 pub use release::ReleaseService;

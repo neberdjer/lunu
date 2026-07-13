@@ -258,3 +258,41 @@ async fn recording_activity_publishes_event() {
 		&["r1:downloading".to_string()]
 	);
 }
+
+#[tokio::test]
+async fn pending_notifications_route_to_admins_not_requester() {
+	let db = memory_db().await;
+	let admin = auth_service(&db)
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap()
+		.user;
+	let requester = user_service(&db)
+		.create("reader", "password123", None, Role::User)
+		.await
+		.unwrap();
+	let users = SqlxUserRepo::new(db.clone());
+
+	let pending = NotificationEvent {
+		kind: NotificationKind::RequestPending,
+		request_id: "r1".to_string(),
+		title: "Dune".to_string(),
+		user_id: requester.id.clone(),
+	};
+	let approved = NotificationEvent {
+		kind: NotificationKind::RequestApproved,
+		request_id: "r1".to_string(),
+		title: "Dune".to_string(),
+		user_id: requester.id.clone(),
+	};
+
+	let pending_to = lunu_core::services::resolve_recipients(&users, &pending)
+		.await
+		.unwrap();
+	assert_eq!(pending_to, vec![admin.id]);
+
+	let approved_to = lunu_core::services::resolve_recipients(&users, &approved)
+		.await
+		.unwrap();
+	assert_eq!(approved_to, vec![requester.id]);
+}

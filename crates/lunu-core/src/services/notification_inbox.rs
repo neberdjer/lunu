@@ -3,9 +3,9 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::Result;
-use crate::models::{LiveEvent, NotificationEvent, NotificationKind, UserNotification};
+use crate::models::{LiveEvent, NotificationEvent, UserNotification};
 use crate::repo::{UserNotificationRepo, UserRepo};
-use crate::services::new_id;
+use crate::services::{new_id, resolve_recipients};
 use crate::traits::EventPublisher;
 
 pub struct NotificationInboxService {
@@ -28,18 +28,10 @@ impl NotificationInboxService {
 	}
 
 	pub async fn fan_out(&self, event: &NotificationEvent) -> Result<()> {
-		for user_id in self.recipients(event).await? {
+		for user_id in resolve_recipients(self.users.as_ref(), event).await? {
 			self.deliver(&user_id, event).await?;
 		}
 		Ok(())
-	}
-
-	async fn recipients(&self, event: &NotificationEvent) -> Result<Vec<String>> {
-		if event.kind == NotificationKind::RequestPending {
-			self.users.enabled_admin_ids().await
-		} else {
-			Ok(vec![event.user_id.clone()])
-		}
 	}
 
 	async fn deliver(&self, user_id: &str, event: &NotificationEvent) -> Result<()> {

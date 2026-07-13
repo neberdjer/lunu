@@ -5,7 +5,7 @@ use lunu_core::Result;
 use lunu_core::consts::settings::BASE_URL;
 use lunu_core::models::NotificationEvent;
 use lunu_core::repo::UserRepo;
-use lunu_core::services::SettingsService;
+use lunu_core::services::{SettingsService, resolve_recipients};
 use lunu_core::traits::{Mailer, Notifier};
 
 use crate::optional_setting;
@@ -39,16 +39,14 @@ impl EmailNotifier {
 			event.request_id
 		)))
 	}
-}
 
-#[async_trait]
-impl Notifier for EmailNotifier {
-	fn id(&self) -> &'static str {
-		"email"
-	}
-
-	async fn deliver(&self, event: &NotificationEvent) -> Result<()> {
-		let Some(user) = self.users.find_by_id(&event.user_id).await? else {
+	async fn send_to(
+		&self,
+		user_id: &str,
+		event: &NotificationEvent,
+		link: Option<&str>,
+	) -> Result<()> {
+		let Some(user) = self.users.find_by_id(user_id).await? else {
 			return Ok(());
 		};
 		let Some(to) = user
@@ -62,11 +60,27 @@ impl Notifier for EmailNotifier {
 
 		let locale = lunu_i18n::negotiate(None, user.locale.as_deref());
 		let summary = lunu_i18n::t(&locale, &format!("notification-{}", event.kind.as_str()));
-		let link = self.request_link(event).await?;
-		let rendered =
-			lunu_core::email::notification(&locale, &summary, &event.title, link.as_deref());
+		let rendered = lunu_core::email::notification(&locale, &summary, &event.title, link);
 		self.mailer
 			.send(to, &rendered.subject, &rendered.html)
 			.await
+	}
+}
+
+#[async_trait]
+impl Notifier for EmailNotifier {
+	fn id(&self) -> &'static str {
+		"email"
+	}
+
+	async fn deliver(&self, event: &NotificationEvent) -> Result<()> {
+		let link = self.request_link(event).await?;
+		let mut last_error = None;
+		for user_id in resolve_recipients(self.users.as_ref(), event).await? {
+			if let Err(error) = self.send_to(&user_id, event, link.as_deref()).await {
+				last_error = Some(error);
+			}
+		}
+		last_error.map_or(Ok(()), Err)
 	}
 }
