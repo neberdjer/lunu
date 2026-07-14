@@ -38,6 +38,7 @@ mod admin;
 mod auth;
 mod builders;
 mod data;
+mod library;
 mod monitor;
 mod pipeline;
 mod requests;

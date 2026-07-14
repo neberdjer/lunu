@@ -4,8 +4,9 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::Result;
-use crate::models::{Media, Request};
+use crate::models::{Media, MediaSource, Request};
 use crate::repo::MediaRepo;
+use crate::services::new_id;
 
 pub struct MediaService {
 	media: Arc<dyn MediaRepo>,
@@ -18,15 +19,21 @@ impl MediaService {
 
 	pub async fn record(&self, request: &Request, library_path: &str) -> Result<()> {
 		let media = Media {
-			asin: request.asin.clone(),
+			id: new_id(),
+			asin: Some(request.asin.clone()),
+			abs_item_id: None,
 			title: request.title.clone(),
 			author: request.author.clone(),
 			cover_url: request.cover_url.clone(),
+			series_name: None,
+			series_sequence: None,
 			library_path: library_path.to_string(),
+			source: MediaSource::Request,
+			overridden: false,
 			request_id: Some(request.id.clone()),
 			created_at: Utc::now(),
 		};
-		self.media.upsert(&media).await
+		self.media.upsert_request(&media).await
 	}
 
 	pub async fn find(&self, asin: &str) -> Result<Option<Media>> {

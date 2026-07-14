@@ -68,6 +68,8 @@ error-empty-selection = Select at least one item.
 error-reset-token-invalid = This password reset code is invalid or has expired.
 error-email-not-verified = Verify your email address before signing in.
 error-verification-invalid = This verification code is invalid or has expired.
+error-media-source-unknown = That library source is not recognized.
+error-abs-not-configured = Audiobookshelf is not configured. Set its URL and API token in settings.
 error-unknown-locale = That language is not supported.
 
 notification-request-pending = New request pending approval

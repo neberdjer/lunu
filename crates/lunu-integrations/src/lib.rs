@@ -22,15 +22,17 @@ pub(crate) fn http_client_builder(timeout: Duration) -> reqwest::ClientBuilder {
 		.timeout(timeout)
 }
 
+pub(crate) fn nonempty(value: Option<String>) -> Option<String> {
+	value
+		.map(|value| value.trim().to_string())
+		.filter(|value| !value.is_empty())
+}
+
 pub(crate) async fn optional_setting(
 	settings: &Arc<SettingsService>,
 	key: &str,
 ) -> lunu_core::Result<Option<String>> {
-	Ok(settings
-		.get(key)
-		.await?
-		.map(|value| value.trim().to_string())
-		.filter(|value| !value.is_empty()))
+	Ok(nonempty(settings.get(key).await?))
 }
 
 pub(crate) async fn required_setting(

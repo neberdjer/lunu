@@ -74,6 +74,7 @@ pub enum JobType {
 	Import,
 	Finalize,
 	Notify,
+	LibrarySync,
 }
 
 impl JobType {
@@ -85,6 +86,7 @@ impl JobType {
 			JobType::Import => "import",
 			JobType::Finalize => "finalize",
 			JobType::Notify => "notify",
+			JobType::LibrarySync => "library-sync",
 		}
 	}
 
@@ -95,7 +97,7 @@ impl JobType {
 			| JobType::MonitorDownload
 			| JobType::Import
 			| JobType::Finalize => true,
-			JobType::Notify => false,
+			JobType::Notify | JobType::LibrarySync => false,
 		}
 	}
 }
@@ -117,6 +119,7 @@ impl FromStr for JobType {
 			"import" => Ok(JobType::Import),
 			"finalize" => Ok(JobType::Finalize),
 			"notify" => Ok(JobType::Notify),
+			"library-sync" => Ok(JobType::LibrarySync),
 			_ => Err(Error::Validation(reasons::JOB_TYPE_UNKNOWN.to_string())),
 		}
 	}

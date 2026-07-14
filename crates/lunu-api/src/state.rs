@@ -7,7 +7,7 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
-	IssueService, JobService, MediaService, MetadataService, MonitorService,
+	IssueService, JobService, LibraryService, MediaService, MetadataService, MonitorService,
 	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
 	RequestService, SettingsService, UserService,
 };
@@ -26,7 +26,7 @@ use crate::rate_limit::RateLimiter;
 use lunu_integrations::auth::AudiobookshelfProvider;
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
-use lunu_integrations::library::HardlinkImporter;
+use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
 use lunu_integrations::metadata::AudnexusProvider;
 use lunu_integrations::notify::{EmailNotifier, SmtpMailer, WebhookChannel};
 
@@ -49,6 +49,7 @@ pub struct AppState {
 	pub imports: Arc<ImportService>,
 	pub activity: Arc<ActivityService>,
 	pub media: Arc<MediaService>,
+	pub library: Arc<LibraryService>,
 	pub issues: Arc<IssueService>,
 	pub inbox: Arc<NotificationInboxService>,
 	pub notifications: Arc<NotificationService>,
@@ -109,6 +110,11 @@ impl AppState {
 		));
 		let activity = Arc::new(ActivityService::new(activity_repo, hub.clone()));
 		let media = Arc::new(MediaService::new(media_repo.clone()));
+		let library = Arc::new(LibraryService::new(
+			Arc::new(AbsLibrary::new(settings.clone())),
+			media_repo.clone(),
+			metadata.clone(),
+		));
 		let inbox = Arc::new(NotificationInboxService::new(
 			Arc::new(SqlxUserNotificationRepo::new(db.clone())),
 			users_repo.clone(),
@@ -193,6 +199,7 @@ impl AppState {
 			imports,
 			activity,
 			media,
+			library,
 			issues,
 			inbox,
 			notifications,

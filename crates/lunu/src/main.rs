@@ -68,6 +68,7 @@ async fn main() -> ExitCode {
 		state.imports.clone(),
 		state.notifications.clone(),
 		state.requests.clone(),
+		state.library.clone(),
 	));
 	WorkerPool::new(state.jobs.repo(), handler, WorkerConfig::default()).start();
 

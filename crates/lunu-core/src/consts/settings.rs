@@ -15,6 +15,8 @@ pub const QBITTORRENT_USERNAME: &str = "qbittorrent_username";
 pub const QBITTORRENT_PASSWORD: &str = "qbittorrent_password";
 pub const DOWNLOAD_DIR: &str = "download_dir";
 pub const ABS_URL: &str = "abs_url";
+pub const ABS_API_TOKEN: &str = "abs_api_token";
+pub const ABS_LIBRARY_ID: &str = "abs_library_id";
 pub const NOTIFICATION_WEBHOOK_URL: &str = "notification_webhook_url";
 pub const DISCORD_WEBHOOK_URL: &str = "discord_webhook_url";
 pub const SLACK_WEBHOOK_URL: &str = "slack_webhook_url";
@@ -156,6 +158,18 @@ pub const REGISTRY: &[SettingSpec] = &[
 	SettingSpec {
 		key: ABS_URL,
 		kind: SettingKind::Url,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: ABS_API_TOKEN,
+		kind: SettingKind::Text,
+		secret: true,
+		default: None,
+	},
+	SettingSpec {
+		key: ABS_LIBRARY_ID,
+		kind: SettingKind::Text,
 		secret: false,
 		default: None,
 	},

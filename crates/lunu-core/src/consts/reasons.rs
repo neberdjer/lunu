@@ -42,6 +42,8 @@ pub const EMPTY_SELECTION: &str = "empty-selection";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
+pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
+pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
 pub const UNKNOWN_LOCALE: &str = "unknown-locale";
 
 pub const ALL: &[&str] = &[
@@ -89,5 +91,7 @@ pub const ALL: &[&str] = &[
 	RESET_TOKEN_INVALID,
 	EMAIL_NOT_VERIFIED,
 	VERIFICATION_INVALID,
+	MEDIA_SOURCE_UNKNOWN,
+	ABS_NOT_CONFIGURED,
 	UNKNOWN_LOCALE,
 ];

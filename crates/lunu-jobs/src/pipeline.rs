@@ -5,7 +5,7 @@ use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MonitorPayload, NotificationEvent,
 };
 use lunu_core::services::{
-	GrabService, ImportService, MonitorService, NotificationService, RequestService,
+	GrabService, ImportService, LibraryService, MonitorService, NotificationService, RequestService,
 };
 use lunu_core::traits::JobHandler;
 use lunu_core::{Error, Result};
@@ -16,15 +16,18 @@ pub struct PipelineHandler {
 	imports: Arc<ImportService>,
 	notifications: Arc<NotificationService>,
 	requests: Arc<RequestService>,
+	library: Arc<LibraryService>,
 }
 
 impl PipelineHandler {
+	#[allow(clippy::too_many_arguments)]
 	pub fn new(
 		grabs: Arc<GrabService>,
 		monitor: Arc<MonitorService>,
 		imports: Arc<ImportService>,
 		notifications: Arc<NotificationService>,
 		requests: Arc<RequestService>,
+		library: Arc<LibraryService>,
 	) -> Self {
 		Self {
 			grabs,
@@ -32,6 +35,7 @@ impl PipelineHandler {
 			imports,
 			notifications,
 			requests,
+			library,
 		}
 	}
 
@@ -57,6 +61,18 @@ impl PipelineHandler {
 			.import(&payload.download_id, &payload.content_path)
 			.await
 	}
+
+	async fn library_sync(&self) -> Result<()> {
+		let summary = self.library.sync().await?;
+		tracing::info!(
+			total = summary.total,
+			imported = summary.imported,
+			updated = summary.updated,
+			skipped = summary.skipped,
+			"audiobookshelf library sync complete"
+		);
+		Ok(())
+	}
 }
 
 #[async_trait]
@@ -67,6 +83,7 @@ impl JobHandler for PipelineHandler {
 			JobType::MonitorDownload => self.monitor(&job.payload).await,
 			JobType::Import => self.import(&job.payload).await,
 			JobType::Notify => self.notify(&job.payload).await,
+			JobType::LibrarySync => self.library_sync().await,
 			other => Err(Error::Internal(format!(
 				"job stage not yet implemented: {other}"
 			))),

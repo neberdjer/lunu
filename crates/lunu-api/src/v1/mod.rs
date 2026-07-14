@@ -6,6 +6,7 @@ mod health;
 mod invites;
 mod issues;
 mod jobs;
+mod library;
 mod metadata;
 mod notifications;
 mod quality_profiles;
@@ -38,6 +39,9 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(metadata::series_search)
 		.service(metadata::series_books)
 		.service(metadata::series_request)
+		.service(library::list)
+		.service(library::sync)
+		.service(library::match_media)
 		.service(metadata::book_detail)
 		.service(metadata::chapters)
 		.service(metadata::similar)

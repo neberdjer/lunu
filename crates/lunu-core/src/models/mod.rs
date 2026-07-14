@@ -29,7 +29,7 @@ pub use invite::Invite;
 pub use issue::{Issue, IssueStatus, IssueType};
 pub use job::{GrabPayload, ImportPayload, Job, JobStatus, JobType, MonitorPayload};
 pub use live_event::LiveEvent;
-pub use media::Media;
+pub use media::{LibraryItem, Media, MediaSource};
 pub use metadata::{Book, Chapter, Chapters, MetadataCacheEntry, SeriesRef, SeriesSummary};
 pub use notification::{NotificationEvent, NotificationKind};
 pub use password_reset::PasswordResetToken;
