@@ -2,9 +2,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use lunu_core::consts::jobs::{DEFAULT_WORKER_COUNT, LEASE_TIMEOUT_SECS, POLL_INTERVAL_MS};
+use lunu_core::consts::jobs::{
+	DEFAULT_WORKER_COUNT, LEASE_TIMEOUT_SECS, POLL_INTERVAL_MS, SCHEDULER_TICK_SECS,
+};
 use lunu_core::models::Job;
 use lunu_core::repo::JobRepo;
+use lunu_core::services::SchedulerService;
 use lunu_core::traits::JobHandler;
 
 mod pipeline;
@@ -115,6 +118,35 @@ async fn reaper_loop(jobs: Arc<dyn JobRepo>, lease_timeout: Duration) {
 	}
 }
 
+pub struct SchedulerPool {
+	scheduler: Arc<SchedulerService>,
+	tick: Duration,
+}
+
+impl SchedulerPool {
+	pub fn new(scheduler: Arc<SchedulerService>) -> Self {
+		Self {
+			scheduler,
+			tick: Duration::from_secs(SCHEDULER_TICK_SECS),
+		}
+	}
+
+	pub fn start(self) {
+		tokio::spawn(scheduler_loop(self.scheduler, self.tick));
+	}
+}
+
+async fn scheduler_loop(scheduler: Arc<SchedulerService>, tick: Duration) {
+	loop {
+		tokio::time::sleep(tick).await;
+		match scheduler.run_due().await {
+			Ok(0) => {}
+			Ok(enqueued) => tracing::info!(enqueued, "scheduler enqueued due jobs"),
+			Err(error) => tracing::error!(%error, "scheduler tick failed"),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use std::sync::Mutex;
@@ -141,6 +173,9 @@ mod tests {
 	impl JobRepo for RecordingRepo {
 		async fn create(&self, _job: &Job) -> Result<()> {
 			Ok(())
+		}
+		async fn create_recurring(&self, _job: &Job) -> Result<bool> {
+			Ok(true)
 		}
 		async fn find_by_id(&self, _id: &str) -> Result<Option<Job>> {
 			Ok(None)

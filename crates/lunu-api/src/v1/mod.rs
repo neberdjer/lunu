@@ -12,6 +12,7 @@ mod notifications;
 mod quality_profiles;
 mod releases;
 mod requests;
+mod schedules;
 mod settings;
 mod setup;
 mod system;
@@ -43,6 +44,9 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(library::list)
 		.service(library::sync)
 		.service(library::match_media)
+		.service(schedules::list)
+		.service(schedules::configure)
+		.service(schedules::run_now)
 		.service(metadata::book_detail)
 		.service(metadata::chapters)
 		.service(metadata::similar)

@@ -45,6 +45,7 @@ pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
 pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
 pub const REQUEST_TITLE_REQUIRED: &str = "request-title-required";
+pub const SCHEDULE_INTERVAL_INVALID: &str = "schedule-interval-invalid";
 pub const UNKNOWN_LOCALE: &str = "unknown-locale";
 
 pub const ALL: &[&str] = &[
@@ -95,5 +96,6 @@ pub const ALL: &[&str] = &[
 	MEDIA_SOURCE_UNKNOWN,
 	ABS_NOT_CONFIGURED,
 	REQUEST_TITLE_REQUIRED,
+	SCHEDULE_INTERVAL_INVALID,
 	UNKNOWN_LOCALE,
 ];

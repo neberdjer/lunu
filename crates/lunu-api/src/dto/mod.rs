@@ -10,4 +10,4 @@ pub(crate) use library::MediaResponse;
 pub(crate) use request::{
 	ActivityResponse, BlocklistResponse, DownloadResponse, QualityProfileResponse, RequestResponse,
 };
-pub(crate) use system::{IssueResponse, JobResponse, NotificationResponse};
+pub(crate) use system::{IssueResponse, JobResponse, NotificationResponse, ScheduleResponse};

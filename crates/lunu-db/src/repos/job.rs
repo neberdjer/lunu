@@ -18,7 +18,32 @@ impl SqlxJobRepo {
 	pub fn new(db: Db) -> Self {
 		Self { db }
 	}
+
+	async fn insert_job(&self, sql: &str, job: &Job) -> Result<u64> {
+		let result = sqlx::query(sql)
+			.bind(&job.id)
+			.bind(job.job_type.as_str())
+			.bind(job.request_id.as_deref())
+			.bind(&job.payload)
+			.bind(job.status.as_str())
+			.bind(job.attempts)
+			.bind(job.max_attempts)
+			.bind(format_dt(job.run_after))
+			.bind(job.locked_by.as_deref())
+			.bind(job.locked_at.map(format_dt))
+			.bind(job.last_error.as_deref())
+			.bind(format_dt(job.created_at))
+			.bind(format_dt(job.updated_at))
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected())
+	}
 }
+
+const INSERT_JOB: &str = "INSERT INTO jobs \
+	 (id, job_type, request_id, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
+	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)";
 
 fn map_job(row: &AnyRow) -> Result<Job> {
 	let job_type: String = row.try_get("job_type").map_err(db_error)?;
@@ -48,28 +73,15 @@ fn map_job(row: &AnyRow) -> Result<Job> {
 #[async_trait]
 impl JobRepo for SqlxJobRepo {
 	async fn create(&self, job: &Job) -> Result<()> {
-		sqlx::query(
-			"INSERT INTO jobs \
-			 (id, job_type, request_id, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
-		)
-		.bind(&job.id)
-		.bind(job.job_type.as_str())
-		.bind(job.request_id.as_deref())
-		.bind(&job.payload)
-		.bind(job.status.as_str())
-		.bind(job.attempts)
-		.bind(job.max_attempts)
-		.bind(format_dt(job.run_after))
-		.bind(job.locked_by.as_deref())
-		.bind(job.locked_at.map(format_dt))
-		.bind(job.last_error.as_deref())
-		.bind(format_dt(job.created_at))
-		.bind(format_dt(job.updated_at))
-		.execute(&self.db)
-		.await
-		.map_err(db_error)?;
+		self.insert_job(INSERT_JOB, job).await?;
 		Ok(())
+	}
+
+	async fn create_recurring(&self, job: &Job) -> Result<bool> {
+		let inserted = self
+			.insert_job(&format!("{INSERT_JOB} ON CONFLICT DO NOTHING"), job)
+			.await?;
+		Ok(inserted > 0)
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<Job>> {

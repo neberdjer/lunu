@@ -4,3 +4,8 @@ pub const RETRY_MAX_SECS: i64 = 3600;
 pub const LEASE_TIMEOUT_SECS: i64 = 300;
 pub const POLL_INTERVAL_MS: u64 = 1000;
 pub const DEFAULT_WORKER_COUNT: usize = 2;
+
+pub const SCHEDULER_TICK_SECS: u64 = 60;
+pub const LIBRARY_SYNC_INTERVAL_SECS: i64 = 6 * 60 * 60;
+
+pub const DEFAULT_SCHEDULES: &[(&str, i64)] = &[("library-sync", LIBRARY_SYNC_INTERVAL_SECS)];

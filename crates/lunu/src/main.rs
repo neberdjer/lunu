@@ -4,7 +4,7 @@ use std::sync::Arc;
 use actix_web::{App, HttpResponse, HttpServer, web};
 use lunu_api::AppState;
 use lunu_config::BootstrapConfig;
-use lunu_jobs::{PipelineHandler, WorkerConfig, WorkerPool};
+use lunu_jobs::{PipelineHandler, SchedulerPool, WorkerConfig, WorkerPool};
 use tracing_subscriber::EnvFilter;
 use utoipa::OpenApi;
 use utoipa_actix_web::{AppExt, scope};
@@ -71,6 +71,12 @@ async fn main() -> ExitCode {
 		state.library.clone(),
 	));
 	WorkerPool::new(state.jobs.repo(), handler, WorkerConfig::default()).start();
+
+	if let Err(error) = state.scheduler.ensure_defaults().await {
+		tracing::error!(%error, "failed to seed default schedules");
+		return ExitCode::FAILURE;
+	}
+	SchedulerPool::new(state.scheduler.clone()).start();
 
 	let state = web::Data::new(state);
 

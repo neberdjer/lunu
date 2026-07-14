@@ -47,11 +47,13 @@ pub async fn list(
 #[utoipa::path(tag = "library", responses((status = 202, description = "Audiobookshelf library sync enqueued")))]
 #[post("/admin/abs/sync")]
 pub async fn sync(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	let job = state
-		.jobs
-		.enqueue_for(JobType::LibrarySync, &(), "library-sync")
-		.await?;
-	Ok(HttpResponse::Accepted().json(json!({ "job_id": job.id })))
+	let enqueued = state.jobs.enqueue_detached(JobType::LibrarySync).await?;
+	let status = if enqueued {
+		"queued"
+	} else {
+		"already_running"
+	};
+	Ok(HttpResponse::Accepted().json(json!({ "status": status })))
 }
 
 #[utoipa::path(tag = "library", responses((status = 200, description = "ASIN matched; metadata refreshed from the provider"), (status = 404, description = "Unknown media item")))]

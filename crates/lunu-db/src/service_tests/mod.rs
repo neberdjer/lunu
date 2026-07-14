@@ -1,8 +1,9 @@
 use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
-	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxSessionRepo,
-	SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo,
+	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
@@ -43,6 +44,7 @@ mod monitor;
 mod pipeline;
 mod requests;
 mod reset;
+mod scheduler;
 mod verification;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -206,6 +208,7 @@ async fn migrations_apply_and_every_table_is_queryable() {
 		"jobs",
 		"activity",
 		"blocklist",
+		"schedules",
 	];
 
 	for table in tables {

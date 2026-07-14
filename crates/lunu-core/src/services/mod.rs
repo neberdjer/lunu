@@ -15,6 +15,7 @@ mod notification_inbox;
 mod quality_profile;
 mod release;
 mod request;
+mod scheduler;
 mod settings;
 mod user;
 
@@ -35,6 +36,7 @@ pub use notification_inbox::NotificationInboxService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};
 pub use release::ReleaseService;
 pub use request::{ManualRequest, NewRequest, RequestService};
+pub use scheduler::SchedulerService;
 pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
 

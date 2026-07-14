@@ -9,7 +9,7 @@ use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
 	IssueService, JobService, LibraryService, MediaService, MetadataService, MonitorService,
 	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
-	RequestService, SettingsService, UserService,
+	RequestService, SchedulerService, SettingsService, UserService,
 };
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
@@ -17,7 +17,7 @@ use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
 	SqlxMetadataCacheRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
 	SqlxUserSettingsRepo,
 };
 
@@ -45,6 +45,7 @@ pub struct AppState {
 	pub quality_profiles: Arc<QualityProfileService>,
 	pub grabs: Arc<GrabService>,
 	pub jobs: Arc<JobService>,
+	pub scheduler: Arc<SchedulerService>,
 	pub monitor: Arc<MonitorService>,
 	pub imports: Arc<ImportService>,
 	pub activity: Arc<ActivityService>,
@@ -103,6 +104,10 @@ impl AppState {
 			settings.clone(),
 		));
 		let jobs = Arc::new(JobService::new(jobs_repo));
+		let scheduler = Arc::new(SchedulerService::new(
+			Arc::new(SqlxScheduleRepo::new(db.clone())),
+			jobs.clone(),
+		));
 		let hub = Arc::new(EventHub::new());
 		let auth_rate_limiter = Arc::new(RateLimiter::new(
 			AUTH_RATE_LIMIT_ATTEMPTS,
@@ -200,6 +205,7 @@ impl AppState {
 			activity,
 			media,
 			library,
+			scheduler,
 			issues,
 			inbox,
 			notifications,

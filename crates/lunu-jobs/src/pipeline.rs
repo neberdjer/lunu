@@ -92,6 +92,7 @@ impl JobHandler for PipelineHandler {
 
 	async fn on_failed(&self, job: &Job, error: &str) {
 		let Some(request_id) = job.request_id.as_deref() else {
+			tracing::error!(job = %job.id, kind = %job.job_type, %error, "recurring job exhausted retries");
 			return;
 		};
 		if !job.job_type.propagates_failure_to_request() {

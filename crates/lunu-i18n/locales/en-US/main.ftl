@@ -71,6 +71,7 @@ error-verification-invalid = This verification code is invalid or has expired.
 error-media-source-unknown = That library source is not recognized.
 error-abs-not-configured = Audiobookshelf is not configured. Set its URL and API token in settings.
 error-request-title-required = Enter a title to request.
+error-schedule-interval-invalid = The schedule interval must be at least one second.
 error-unknown-locale = That language is not supported.
 
 notification-request-pending = New request pending approval

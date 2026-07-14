@@ -40,24 +40,19 @@ impl JobService {
 		request_id: &str,
 		run_after: DateTime<Utc>,
 	) -> Result<Job> {
-		let now = Utc::now();
-		let job = Job {
-			id: new_id(),
+		let job = build_job(
 			job_type,
-			request_id: Some(request_id.to_string()),
-			payload: serde_json::to_string(payload)?,
-			status: JobStatus::Pending,
-			attempts: 0,
-			max_attempts: DEFAULT_MAX_ATTEMPTS,
+			Some(request_id.to_string()),
+			serde_json::to_string(payload)?,
 			run_after,
-			locked_by: None,
-			locked_at: None,
-			last_error: None,
-			created_at: now,
-			updated_at: now,
-		};
+		);
 		self.jobs.create(&job).await?;
 		Ok(job)
+	}
+
+	pub async fn enqueue_detached(&self, job_type: JobType) -> Result<bool> {
+		let job = build_job(job_type, None, "null".to_string(), Utc::now());
+		self.jobs.create_recurring(&job).await
 	}
 
 	pub async fn list(&self) -> Result<Vec<Job>> {
@@ -96,5 +91,29 @@ impl JobService {
 			return Err(Error::NotFound(format!("job {id}")));
 		}
 		Ok(())
+	}
+}
+
+fn build_job(
+	job_type: JobType,
+	request_id: Option<String>,
+	payload: String,
+	run_after: DateTime<Utc>,
+) -> Job {
+	let now = Utc::now();
+	Job {
+		id: new_id(),
+		job_type,
+		request_id,
+		payload,
+		status: JobStatus::Pending,
+		attempts: 0,
+		max_attempts: DEFAULT_MAX_ATTEMPTS,
+		run_after,
+		locked_by: None,
+		locked_at: None,
+		last_error: None,
+		created_at: now,
+		updated_at: now,
 	}
 }

@@ -1,6 +1,27 @@
 use chrono::{DateTime, Utc};
-use lunu_core::models::{Issue, Job, UserNotification};
+use lunu_core::models::{Issue, Job, Schedule, UserNotification};
 use serde::Serialize;
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct ScheduleResponse {
+	pub kind: String,
+	pub interval_secs: i64,
+	pub enabled: bool,
+	pub next_run_at: DateTime<Utc>,
+	pub last_run_at: Option<DateTime<Utc>>,
+}
+
+impl From<&Schedule> for ScheduleResponse {
+	fn from(schedule: &Schedule) -> Self {
+		Self {
+			kind: schedule.kind.clone(),
+			interval_secs: schedule.interval_secs,
+			enabled: schedule.enabled,
+			next_run_at: schedule.next_run_at,
+			last_run_at: schedule.last_run_at,
+		}
+	}
+}
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct JobResponse {

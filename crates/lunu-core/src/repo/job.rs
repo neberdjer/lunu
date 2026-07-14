@@ -7,6 +7,7 @@ use crate::models::Job;
 #[async_trait]
 pub trait JobRepo: Send + Sync {
 	async fn create(&self, job: &Job) -> Result<()>;
+	async fn create_recurring(&self, job: &Job) -> Result<bool>;
 	async fn find_by_id(&self, id: &str) -> Result<Option<Job>>;
 	async fn list(&self) -> Result<Vec<Job>>;
 	async fn list_page(&self, status: Option<&str>, limit: i64, offset: i64) -> Result<Vec<Job>>;
