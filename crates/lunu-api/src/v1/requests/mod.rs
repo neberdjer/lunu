@@ -12,8 +12,10 @@ use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
 
 mod bulk;
+mod manual;
 
 pub use bulk::{bulk_approve, bulk_create, bulk_decline};
+pub use manual::create_manual;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRequestBody {
@@ -37,6 +39,8 @@ pub struct GrabBody {
 	title: String,
 	#[serde(default)]
 	indexer: String,
+	#[serde(default)]
+	info_hash: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -263,7 +267,7 @@ pub async fn grab(
 		download_url,
 		title: body.title,
 		indexer: body.indexer,
-		info_hash: None,
+		info_hash: body.info_hash,
 	});
 
 	let download = state.grabs.grab(&id, selection).await?;

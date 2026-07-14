@@ -104,7 +104,7 @@ async fn status_by_asin_scopes_to_user_and_keeps_newest() {
 			Request {
 				id: id.to_string(),
 				user_id: user.to_string(),
-				asin: asin.to_string(),
+				asin: Some(asin.to_string()),
 				title: "t".to_string(),
 				author: None,
 				cover_url: None,

@@ -15,6 +15,8 @@ use crate::{Error, Result};
 
 mod create;
 
+pub use create::ManualRequest;
+
 #[derive(Debug, Clone, Default)]
 pub struct NewRequest {
 	pub asin: String,
@@ -152,7 +154,9 @@ impl RequestService {
 	pub async fn status_by_asin(&self, user_id: &str) -> Result<HashMap<String, RequestStatus>> {
 		let mut statuses = HashMap::new();
 		for request in self.requests.list_for_user(user_id).await? {
-			statuses.entry(request.asin).or_insert(request.status);
+			if let Some(asin) = request.asin {
+				statuses.entry(asin).or_insert(request.status);
+			}
 		}
 		Ok(statuses)
 	}

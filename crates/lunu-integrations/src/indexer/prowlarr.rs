@@ -15,7 +15,6 @@ use crate::{integration_error, required_setting};
 
 const PROVIDER_ID: &str = lunu_core::consts::settings::PROWLARR;
 const AUDIOBOOK_CATEGORY: &str = "3030";
-const ALL_INDEXERS: &str = "-1";
 const SEARCH_TYPE: &str = "search";
 const REQUEST_TIMEOUT_SECS: u64 = 60;
 const SETTING_URL: &str = lunu_core::consts::settings::PROWLARR_URL;
@@ -66,7 +65,6 @@ impl Indexer for ProwlarrClient {
 				.header("X-Api-Key", api_key.as_str())
 				.query(&[
 					("query", query),
-					("indexerIds", ALL_INDEXERS),
 					("categories", AUDIOBOOK_CATEGORY),
 					("type", SEARCH_TYPE),
 				])

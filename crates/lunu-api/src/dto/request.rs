@@ -48,7 +48,7 @@ impl From<&Activity> for ActivityResponse {
 pub(crate) struct RequestResponse {
 	pub id: String,
 	pub user_id: String,
-	pub asin: String,
+	pub asin: Option<String>,
 	pub title: String,
 	pub author: Option<String>,
 	pub cover_url: Option<String>,

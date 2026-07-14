@@ -10,7 +10,7 @@ async fn request_list_page_filters_and_counts() {
 	let make = |id: &str, user: &str, status: RequestStatus| Request {
 		id: id.to_string(),
 		user_id: user.to_string(),
-		asin: id.to_string(),
+		asin: Some(id.to_string()),
 		title: "t".to_string(),
 		author: None,
 		cover_url: None,
@@ -116,7 +116,7 @@ async fn retry_reopens_failed_request_and_enqueues_grab() {
 		.create(&Request {
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
-			asin: "B01".to_string(),
+			asin: Some("B01".to_string()),
 			title: "Book".to_string(),
 			author: None,
 			cover_url: None,
@@ -156,7 +156,7 @@ async fn blocklisted_release_excluded_from_for_request() {
 		.create(&Request {
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
-			asin: "B01".to_string(),
+			asin: Some("B01".to_string()),
 			title: "Book".to_string(),
 			author: None,
 			cover_url: None,
@@ -223,4 +223,59 @@ async fn download_create_and_set_state() {
 	assert_eq!(updated.state, DownloadState::Downloading);
 	assert_eq!(updated.progress, 42);
 	assert_eq!(repo.list().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn manual_request_creates_no_asin_request_and_grabs() {
+	let db = memory_db().await;
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs.clone());
+	let admin = caller("admin", Role::Admin);
+
+	let request = requests
+		.create_manual(
+			&admin,
+			lunu_core::services::ManualRequest {
+				title: "Some Obscure Audiobook".to_string(),
+				author: Some("Nobody".to_string()),
+				notes: None,
+				quality_profile_id: None,
+			},
+		)
+		.await
+		.unwrap();
+
+	assert!(request.asin.is_none());
+	assert_eq!(request.title, "Some Obscure Audiobook");
+	assert_eq!(request.status, RequestStatus::Approved);
+
+	let grabs = jobs
+		.list()
+		.await
+		.unwrap()
+		.into_iter()
+		.filter(|job| job.job_type == JobType::Grab)
+		.count();
+	assert_eq!(grabs, 1);
+}
+
+#[tokio::test]
+async fn manual_request_rejects_blank_title() {
+	let db = memory_db().await;
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs);
+	let admin = caller("admin", Role::Admin);
+
+	let result = requests
+		.create_manual(
+			&admin,
+			lunu_core::services::ManualRequest {
+				title: "   ".to_string(),
+				author: None,
+				notes: None,
+				quality_profile_id: None,
+			},
+		)
+		.await;
+	assert!(matches!(result, Err(Error::Validation(_))));
 }

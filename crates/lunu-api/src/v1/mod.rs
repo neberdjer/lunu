@@ -10,6 +10,7 @@ mod library;
 mod metadata;
 mod notifications;
 mod quality_profiles;
+mod releases;
 mod requests;
 mod settings;
 mod setup;
@@ -55,6 +56,8 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(users::set_settings)
 		.service(requests::list)
 		.service(requests::create)
+		.service(requests::create_manual)
+		.service(releases::search)
 		.service(requests::bulk_create)
 		.service(requests::bulk_approve)
 		.service(requests::bulk_decline)

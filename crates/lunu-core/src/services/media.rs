@@ -20,7 +20,7 @@ impl MediaService {
 	pub async fn record(&self, request: &Request, library_path: &str) -> Result<()> {
 		let media = Media {
 			id: new_id(),
-			asin: Some(request.asin.clone()),
+			asin: request.asin.clone(),
 			abs_item_id: None,
 			title: request.title.clone(),
 			author: request.author.clone(),

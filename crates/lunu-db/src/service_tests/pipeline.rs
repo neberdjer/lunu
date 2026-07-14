@@ -12,7 +12,7 @@ async fn approving_a_request_enqueues_a_grab_job() {
 	let request = Request {
 		id: "r1".to_string(),
 		user_id: "u1".to_string(),
-		asin: "B01".to_string(),
+		asin: Some("B01".to_string()),
 		title: "The Hobbit".to_string(),
 		author: None,
 		cover_url: None,
@@ -49,7 +49,7 @@ async fn marking_available_enqueues_a_notification() {
 		.create(&Request {
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
-			asin: "B01".to_string(),
+			asin: Some("B01".to_string()),
 			title: "The Hobbit".to_string(),
 			author: None,
 			cover_url: None,
@@ -175,7 +175,7 @@ async fn request_transitions_record_activity() {
 	let request = Request {
 		id: "r1".to_string(),
 		user_id: "u1".to_string(),
-		asin: "B01".to_string(),
+		asin: Some("B01".to_string()),
 		title: "The Hobbit".to_string(),
 		author: None,
 		cover_url: None,

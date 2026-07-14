@@ -34,7 +34,7 @@ pub use notification::{NotificationService, resolve_recipients};
 pub use notification_inbox::NotificationInboxService;
 pub use quality_profile::{QualityProfileInput, QualityProfileService};
 pub use release::ReleaseService;
-pub use request::{NewRequest, RequestService};
+pub use request::{ManualRequest, NewRequest, RequestService};
 pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
 

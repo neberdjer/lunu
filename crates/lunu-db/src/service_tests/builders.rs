@@ -224,7 +224,7 @@ pub(super) async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
 		.create(&Request {
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
-			asin: "B01".to_string(),
+			asin: Some("B01".to_string()),
 			title: "The Hobbit".to_string(),
 			author: None,
 			cover_url: None,

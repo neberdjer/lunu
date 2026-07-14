@@ -8,7 +8,7 @@ async fn create_within_quota_enforces_limit() {
 	let mk = |id: &str, asin: &str| Request {
 		id: id.to_string(),
 		user_id: "u1".to_string(),
-		asin: asin.to_string(),
+		asin: Some(asin.to_string()),
 		title: "t".to_string(),
 		author: None,
 		cover_url: None,
@@ -92,7 +92,7 @@ async fn request_lifecycle_and_quota_count() {
 	let request = Request {
 		id: "r1".to_string(),
 		user_id: "u1".to_string(),
-		asin: "B01".to_string(),
+		asin: Some("B01".to_string()),
 		title: "The Hobbit".to_string(),
 		author: Some("Tolkien".to_string()),
 		cover_url: None,
