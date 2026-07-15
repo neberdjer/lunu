@@ -90,7 +90,7 @@ impl BootstrapConfig {
 				workers,
 				trusted_proxy_hops: env_usize(ENV_TRUSTED_PROXY_HOPS),
 				trusted_client_ip_header: env_optional(ENV_TRUSTED_CLIENT_IP_HEADER),
-				secure_cookies: env_flag(ENV_SECURE_COOKIES),
+				secure_cookies: env_flag_or(ENV_SECURE_COOKIES, true),
 			})
 		} else {
 			Err(ConfigError { issues })
@@ -135,15 +135,14 @@ fn env_or(key: &str, default: &str) -> String {
 		.unwrap_or_else(|| default.to_string())
 }
 
-fn env_flag(key: &str) -> bool {
-	std::env::var(key)
-		.map(|value| {
-			matches!(
-				value.trim().to_ascii_lowercase().as_str(),
-				"1" | "true" | "yes"
-			)
-		})
-		.unwrap_or(false)
+fn env_flag_or(key: &str, default: bool) -> bool {
+	match std::env::var(key) {
+		Ok(value) => matches!(
+			value.trim().to_ascii_lowercase().as_str(),
+			"1" | "true" | "yes"
+		),
+		Err(_) => default,
+	}
 }
 
 fn env_usize(key: &str) -> usize {
