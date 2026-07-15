@@ -18,6 +18,8 @@ use crate::{integration_error, optional_setting, required_setting};
 
 #[derive(Deserialize)]
 struct TorrentInfo {
+	#[serde(default)]
+	hash: String,
 	state: String,
 	progress: f64,
 	content_path: Option<String>,
@@ -37,6 +39,11 @@ fn authorize(request: RequestBuilder, api_key: &Option<String>) -> RequestBuilde
 fn map_state(state: &str, progress: f64) -> DownloadState {
 	match state {
 		"error" | "missingFiles" => DownloadState::Failed,
+		"queuedDL" | "pausedDL" | "stoppedDL" | "checkingDL" | "checkingResumeData"
+		| "checkingUP" | "allocating" | "moving" => DownloadState::Queued,
+		"uploading" | "stalledUP" | "queuedUP" | "forcedUP" | "pausedUP" => {
+			DownloadState::Completed
+		}
 		_ if progress >= 1.0 => DownloadState::Completed,
 		_ => DownloadState::Downloading,
 	}
@@ -217,11 +224,14 @@ impl DownloadClient for QbittorrentClient {
 		let response = self.check_response(response)?;
 
 		let torrents: Vec<TorrentInfo> = response.json().await.map_err(integration_error)?;
-		Ok(torrents.into_iter().next().map(|torrent| DownloadStatus {
-			state: map_state(&torrent.state, torrent.progress),
-			progress: torrent.progress,
-			content_path: torrent.content_path,
-		}))
+		Ok(torrents
+			.into_iter()
+			.find(|torrent| torrent.hash.eq_ignore_ascii_case(&hashes))
+			.map(|torrent| DownloadStatus {
+				state: map_state(&torrent.state, torrent.progress),
+				progress: torrent.progress,
+				content_path: torrent.content_path,
+			}))
 	}
 
 	async fn remove(&self, info_hash: &str, delete_files: bool) -> Result<()> {

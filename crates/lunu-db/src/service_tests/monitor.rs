@@ -181,7 +181,7 @@ async fn job_claim_is_atomic_and_lifecycle_transitions() {
 	);
 
 	let future = Utc::now() + chrono::Duration::seconds(30);
-	repo.reschedule("j1", "temporary", future, Utc::now())
+	repo.reschedule("j1", "worker-a", "temporary", future, Utc::now())
 		.await
 		.unwrap();
 	let after = repo.find_by_id("j1").await.unwrap().unwrap();
@@ -204,7 +204,7 @@ async fn job_claim_is_atomic_and_lifecycle_transitions() {
 		.unwrap();
 	assert_eq!(reclaimed.attempts, 2);
 
-	repo.complete("j1", Utc::now()).await.unwrap();
+	repo.complete("j1", "worker-a", Utc::now()).await.unwrap();
 	assert_eq!(
 		repo.find_by_id("j1").await.unwrap().unwrap().status,
 		JobStatus::Completed

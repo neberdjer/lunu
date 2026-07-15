@@ -18,6 +18,17 @@ impl MediaService {
 	}
 
 	pub async fn record(&self, request: &Request, library_path: &str) -> Result<()> {
+		if let Some(existing) = self.media.find_by_request(&request.id).await? {
+			let updated = Media {
+				asin: request.asin.clone(),
+				title: request.title.clone(),
+				author: request.author.clone(),
+				cover_url: request.cover_url.clone(),
+				library_path: library_path.to_string(),
+				..existing
+			};
+			return self.media.update(&updated).await;
+		}
 		let media = Media {
 			id: new_id(),
 			asin: request.asin.clone(),

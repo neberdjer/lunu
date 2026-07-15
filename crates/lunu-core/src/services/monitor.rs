@@ -6,6 +6,7 @@ use crate::Result;
 use crate::consts::download::{MONITOR_MAX_MISSES, MONITOR_MAX_STALLS, MONITOR_POLL_SECS};
 use crate::models::{
 	Download, DownloadState, DownloadStatus, ImportPayload, JobType, LiveEvent, MonitorPayload,
+	RequestStatus,
 };
 use crate::repo::DownloadRepo;
 use crate::services::{JobService, RequestService};
@@ -59,17 +60,31 @@ impl MonitorService {
 	) -> Result<()> {
 		let attempts = payload.misses + 1;
 		if attempts >= MONITOR_MAX_MISSES {
-			self.downloads
-				.update_status(&download.id, DownloadState::Failed, download.progress, now)
-				.await?;
-			self.requests
-				.mark_failed(&download.request_id, Some("download not found in client"))
-				.await?;
-			Ok(())
+			self.fail_download(download, "download not found in client", now, false)
+				.await
 		} else {
 			self.enqueue_next(&download.request_id, &download.id, attempts, payload.stalls)
 				.await
 		}
+	}
+
+	async fn fail_download(
+		&self,
+		download: &Download,
+		reason: &str,
+		now: DateTime<Utc>,
+		remove_from_client: bool,
+	) -> Result<()> {
+		self.downloads
+			.update_status(&download.id, DownloadState::Failed, download.progress, now)
+			.await?;
+		if remove_from_client && let Some(info_hash) = download.info_hash.as_deref() {
+			let _ = self.client.remove(info_hash, true).await;
+		}
+		self.requests
+			.mark_failed(&download.request_id, Some(reason))
+			.await?;
+		Ok(())
 	}
 
 	async fn handle_status(
@@ -79,7 +94,7 @@ impl MonitorService {
 		status: DownloadStatus,
 		now: DateTime<Utc>,
 	) -> Result<()> {
-		let progress = ((status.progress * 100.0).round() as i64).clamp(0, 100);
+		let progress = ((status.progress * 100.0).floor() as i64).clamp(0, 100);
 		self.downloads
 			.update_status(&download.id, status.state, progress, now)
 			.await?;
@@ -91,24 +106,29 @@ impl MonitorService {
 		self.events.publish(&LiveEvent::Progress(updated));
 
 		match status.state {
-			DownloadState::Completed => self.complete(download, status.content_path).await,
-			DownloadState::Failed => self
-				.requests
-				.mark_failed(&download.request_id, Some("download failed in client"))
-				.await
-				.map(|_| ()),
+			DownloadState::Completed => self.complete(download, status.content_path, now).await,
+			DownloadState::Failed => {
+				self.fail_download(download, "download failed in client", now, true)
+					.await
+			}
 			DownloadState::Queued => {
 				self.enqueue_next(&download.request_id, &download.id, 0, 0)
 					.await
 			}
 			DownloadState::Downloading => {
-				self.handle_progress(download, payload.stalls, progress)
+				self.handle_progress(download, payload.stalls, progress, now)
 					.await
 			}
 		}
 	}
 
-	async fn handle_progress(&self, download: &Download, stalls: i64, progress: i64) -> Result<()> {
+	async fn handle_progress(
+		&self,
+		download: &Download,
+		stalls: i64,
+		progress: i64,
+		now: DateTime<Utc>,
+	) -> Result<()> {
 		if progress > download.progress {
 			return self
 				.enqueue_next(&download.request_id, &download.id, 0, 0)
@@ -117,30 +137,55 @@ impl MonitorService {
 
 		let stalls = stalls + 1;
 		if stalls >= MONITOR_MAX_STALLS {
-			self.requests
-				.mark_failed(
-					&download.request_id,
-					Some("download stalled with no progress"),
-				)
+			self.fail_download(download, "download stalled with no progress", now, true)
 				.await
-				.map(|_| ())
 		} else {
 			self.enqueue_next(&download.request_id, &download.id, 0, stalls)
 				.await
 		}
 	}
 
-	async fn complete(&self, download: &Download, content_path: Option<String>) -> Result<()> {
-		self.requests.mark_importing(&download.request_id).await?;
-		if let Some(content_path) = content_path {
-			let payload = ImportPayload {
-				download_id: download.id.clone(),
-				content_path,
-			};
-			self.jobs
-				.enqueue_for(JobType::Import, &payload, &download.request_id)
-				.await?;
+	async fn complete(
+		&self,
+		download: &Download,
+		content_path: Option<String>,
+		now: DateTime<Utc>,
+	) -> Result<()> {
+		let Some(content_path) = content_path else {
+			return self
+				.fail_download(
+					download,
+					"download completed but client reported no files",
+					now,
+					true,
+				)
+				.await;
+		};
+		if !is_safe_content_path(&content_path) {
+			return self
+				.fail_download(
+					download,
+					"download completed with an unsafe content path",
+					now,
+					true,
+				)
+				.await;
 		}
+		if let Some(request) = self.requests.get(&download.request_id).await?
+			&& matches!(
+				request.status,
+				RequestStatus::Importing | RequestStatus::Available
+			) {
+			return Ok(());
+		}
+		self.requests.mark_importing(&download.request_id).await?;
+		let payload = ImportPayload {
+			download_id: download.id.clone(),
+			content_path,
+		};
+		self.jobs
+			.enqueue_for(JobType::Import, &payload, &download.request_id)
+			.await?;
 		Ok(())
 	}
 
@@ -162,4 +207,16 @@ impl MonitorService {
 			.await?;
 		Ok(())
 	}
+}
+
+fn is_safe_content_path(path: &str) -> bool {
+	let trimmed = path.trim();
+	if trimmed.is_empty() {
+		return false;
+	}
+	let component_count = std::path::Path::new(trimmed)
+		.components()
+		.filter(|component| matches!(component, std::path::Component::Normal(_)))
+		.count();
+	component_count >= 2
 }

@@ -80,7 +80,8 @@ impl MediaRepo for SqlxMediaRepo {
 		let sql = format!(
 			"INSERT INTO media ({COLUMNS}) VALUES {VALUES} \
 			 ON CONFLICT (asin) DO UPDATE SET \
-			 title = $4, author = $5, cover_url = $6, library_path = $9, request_id = $12"
+			 title = $4, author = $5, cover_url = $6, library_path = $9, request_id = $12 \
+			 WHERE media.overridden = 0"
 		);
 		insert_media(&self.db, &sql, media).await
 	}
@@ -113,6 +114,15 @@ impl MediaRepo for SqlxMediaRepo {
 		Ok(())
 	}
 
+	async fn delete(&self, id: &str) -> Result<()> {
+		sqlx::query("DELETE FROM media WHERE id = $1")
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
+
 	async fn find_by_asin(&self, asin: &str) -> Result<Option<Media>> {
 		let row = sqlx::query("SELECT * FROM media WHERE asin = $1 LIMIT 1")
 			.bind(asin)
@@ -134,6 +144,15 @@ impl MediaRepo for SqlxMediaRepo {
 	async fn find_by_id(&self, id: &str) -> Result<Option<Media>> {
 		let row = sqlx::query("SELECT * FROM media WHERE id = $1")
 			.bind(id)
+			.fetch_optional(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_row_opt(row, map_media)
+	}
+
+	async fn find_by_request(&self, request_id: &str) -> Result<Option<Media>> {
+		let row = sqlx::query("SELECT * FROM media WHERE request_id = $1 LIMIT 1")
+			.bind(request_id)
 			.fetch_optional(&self.db)
 			.await
 			.map_err(db_error)?;

@@ -64,6 +64,12 @@ impl GrabService {
 			return Err(Error::NotFound(format!("request {request_id}")));
 		}
 
+		if let Some(existing) = self.downloads.find_by_request(request_id).await?
+			&& existing.state != DownloadState::Failed
+		{
+			return Ok(existing);
+		}
+
 		let selection = match selection {
 			Some(selection) => selection,
 			None => self.best_release(request_id).await?,
@@ -91,9 +97,8 @@ impl GrabService {
 		};
 		self.downloads.create(&download).await?;
 
-		self.requests.mark_downloading(request_id).await?;
-
 		if download.info_hash.is_some() {
+			self.requests.mark_downloading(request_id).await?;
 			let payload = MonitorPayload {
 				download_id: download.id.clone(),
 				misses: 0,
@@ -102,6 +107,10 @@ impl GrabService {
 			let run_after = now + Duration::seconds(MONITOR_POLL_SECS);
 			self.jobs
 				.enqueue_for_at(JobType::MonitorDownload, &payload, request_id, run_after)
+				.await?;
+		} else {
+			self.requests
+				.mark_failed(request_id, Some("download has no trackable info hash"))
 				.await?;
 		}
 
