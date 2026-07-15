@@ -81,21 +81,23 @@ async fn worker_loop(
 	}
 }
 
-async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, job: Job) {
+async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, mut job: Job) {
 	let outcome = run_with_lease(jobs, handler, &job).await;
 	let now = Utc::now();
-	let locked_by = job.locked_by.as_deref().unwrap_or_default();
+	let locked_by = job.locked_by.clone().unwrap_or_default();
+	let locked_by = locked_by.as_str();
 
 	let result = match outcome {
 		Ok(()) => jobs.complete(&job.id, locked_by, now).await,
 		Err(error) => {
-			let retry = job.should_retry()
-				|| (error.is_transient() && job.attempts < TRANSIENT_MAX_ATTEMPTS);
+			if error.is_transient() {
+				job.max_attempts = job.max_attempts.max(TRANSIENT_MAX_ATTEMPTS);
+			}
 			let error = error.to_string();
-			if retry {
+			if job.should_retry() {
 				let run_after = now + job.retry_backoff();
 				tracing::warn!(job = %job.id, kind = %job.job_type, attempt = job.attempts, %error, "job failed, retrying");
-				jobs.reschedule(&job.id, locked_by, &error, run_after, now)
+				jobs.reschedule(&job.id, locked_by, &error, run_after, now, job.max_attempts)
 					.await
 			} else {
 				tracing::error!(job = %job.id, kind = %job.job_type, %error, "job failed permanently");
@@ -133,7 +135,7 @@ async fn run_with_lease(
 	let outcome =
 		match tokio::time::timeout(Duration::from_secs(MAX_JOB_SECS), handler.handle(job)).await {
 			Ok(result) => result,
-			Err(_) => Err(Error::Integration(format!(
+			Err(_) => Err(Error::Internal(format!(
 				"job exceeded maximum duration of {MAX_JOB_SECS}s"
 			))),
 		};

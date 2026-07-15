@@ -56,6 +56,7 @@ error-job-not-retryable = Only a failed job can be requeued.
 error-empty-selection = Select at least one item.
 error-too-many-items = Too many items in one request.
 error-username-invalid = Enter a username with no spaces, up to 64 characters.
+error-download-in-progress = This request already has an active download. Cancel it before grabbing another release.
 error-profile-name-required = Enter a name for the quality profile.
 error-reset-token-invalid = This password reset code is invalid or has expired.
 error-email-not-verified = Verify your email address before signing in.

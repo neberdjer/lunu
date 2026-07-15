@@ -172,10 +172,15 @@ impl MonitorService {
 				.await;
 		}
 		if let Some(request) = self.requests.get(&download.request_id).await?
-			&& matches!(
-				request.status,
-				RequestStatus::Importing | RequestStatus::Available
-			) {
+			&& request.status == RequestStatus::Available
+		{
+			return Ok(());
+		}
+		if self
+			.jobs
+			.has_active(JobType::Import, &download.request_id)
+			.await?
+		{
 			return Ok(());
 		}
 		self.requests.mark_importing(&download.request_id).await?;

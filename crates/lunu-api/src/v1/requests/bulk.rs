@@ -10,6 +10,11 @@ use crate::state::AppState;
 const MAX_BULK_ITEMS: usize = 100;
 
 fn ensure_within_limit(len: usize) -> Result<(), ApiError> {
+	if len == 0 {
+		return Err(ApiError::from(lunu_core::Error::Validation(
+			reasons::EMPTY_SELECTION.to_string(),
+		)));
+	}
 	if len > MAX_BULK_ITEMS {
 		return Err(ApiError::from(lunu_core::Error::Validation(
 			reasons::TOO_MANY_ITEMS.to_string(),

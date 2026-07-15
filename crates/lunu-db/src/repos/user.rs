@@ -168,14 +168,6 @@ impl UserRepo for SqlxUserRepo {
 		map_row_opt(row, map_user)
 	}
 
-	async fn list(&self) -> Result<Vec<User>> {
-		let rows = sqlx::query("SELECT * FROM users ORDER BY created_at")
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
-		map_rows(rows, map_user)
-	}
-
 	async fn enabled_admin_ids(&self) -> Result<Vec<String>> {
 		let rows = sqlx::query("SELECT id FROM users WHERE role = $1 AND enabled = $2")
 			.bind(Role::Admin.as_str())

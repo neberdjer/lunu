@@ -41,6 +41,7 @@ pub const JOB_NOT_RETRYABLE: &str = "job-not-retryable";
 pub const EMPTY_SELECTION: &str = "empty-selection";
 pub const TOO_MANY_ITEMS: &str = "too-many-items";
 pub const USERNAME_INVALID: &str = "username-invalid";
+pub const DOWNLOAD_IN_PROGRESS: &str = "download-in-progress";
 pub const PROFILE_NAME_REQUIRED: &str = "profile-name-required";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
@@ -97,6 +98,7 @@ pub const ALL: &[&str] = &[
 	EMPTY_SELECTION,
 	TOO_MANY_ITEMS,
 	USERNAME_INVALID,
+	DOWNLOAD_IN_PROGRESS,
 	PROFILE_NAME_REQUIRED,
 	RESET_TOKEN_INVALID,
 	EMAIL_NOT_VERIFIED,

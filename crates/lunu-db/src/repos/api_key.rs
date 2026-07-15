@@ -76,15 +76,6 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 		map_row_opt(row, map_api_key)
 	}
 
-	async fn list_for_user(&self, user_id: &str) -> Result<Vec<ApiKey>> {
-		let rows = sqlx::query("SELECT * FROM api_keys WHERE user_id = $1 ORDER BY created_at")
-			.bind(user_id)
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
-		map_rows(rows, map_api_key)
-	}
-
 	async fn list_for_user_page(
 		&self,
 		user_id: &str,
@@ -121,16 +112,6 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 		Ok(())
 	}
 
-	async fn set_revoked(&self, id: &str, revoked: bool) -> Result<()> {
-		sqlx::query("UPDATE api_keys SET revoked = $1 WHERE id = $2")
-			.bind(bool_to_int(revoked))
-			.bind(id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
-		Ok(())
-	}
-
 	async fn revoke_owned(&self, id: &str, user_id: &str) -> Result<bool> {
 		let result = sqlx::query("UPDATE api_keys SET revoked = $1 WHERE id = $2 AND user_id = $3")
 			.bind(bool_to_int(true))
@@ -140,14 +121,5 @@ impl ApiKeyRepo for SqlxApiKeyRepo {
 			.await
 			.map_err(db_error)?;
 		Ok(result.rows_affected() > 0)
-	}
-
-	async fn delete(&self, id: &str) -> Result<()> {
-		sqlx::query("DELETE FROM api_keys WHERE id = $1")
-			.bind(id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
-		Ok(())
 	}
 }

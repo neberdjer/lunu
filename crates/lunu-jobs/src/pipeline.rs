@@ -6,7 +6,8 @@ use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MonitorPayload, NotificationEvent,
 };
 use lunu_core::services::{
-	GrabService, ImportService, LibraryService, MonitorService, NotificationService, RequestService,
+	AuthService, GrabService, ImportService, LibraryService, MonitorService, NotificationService,
+	RequestService,
 };
 use lunu_core::traits::JobHandler;
 
@@ -17,6 +18,7 @@ pub struct PipelineHandler {
 	notifications: Arc<NotificationService>,
 	requests: Arc<RequestService>,
 	library: Arc<LibraryService>,
+	auth: Arc<AuthService>,
 }
 
 impl PipelineHandler {
@@ -28,6 +30,7 @@ impl PipelineHandler {
 		notifications: Arc<NotificationService>,
 		requests: Arc<RequestService>,
 		library: Arc<LibraryService>,
+		auth: Arc<AuthService>,
 	) -> Self {
 		Self {
 			grabs,
@@ -36,6 +39,7 @@ impl PipelineHandler {
 			notifications,
 			requests,
 			library,
+			auth,
 		}
 	}
 
@@ -98,6 +102,7 @@ impl JobHandler for PipelineHandler {
 			JobType::Import => self.import(&job.payload).await,
 			JobType::Notify => self.notify(&job.payload).await,
 			JobType::LibrarySync => self.library_sync().await,
+			JobType::SessionCleanup => self.auth.cleanup_expired_sessions().await,
 		}
 	}
 

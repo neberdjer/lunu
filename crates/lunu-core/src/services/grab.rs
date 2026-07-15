@@ -64,10 +64,17 @@ impl GrabService {
 			return Err(Error::NotFound(format!("request {request_id}")));
 		}
 
-		if let Some(existing) = self.downloads.find_by_request(request_id).await?
-			&& existing.state != DownloadState::Failed
-		{
-			return Ok(existing);
+		let active = self
+			.downloads
+			.find_by_request(request_id)
+			.await?
+			.filter(|download| download.state != DownloadState::Failed);
+
+		if let Some(active) = active {
+			if selection.is_some() {
+				return Err(Error::Conflict(reasons::DOWNLOAD_IN_PROGRESS.to_string()));
+			}
+			return self.finalize(request_id, active).await;
 		}
 
 		let selection = match selection {
@@ -97,8 +104,27 @@ impl GrabService {
 		};
 		self.downloads.create(&download).await?;
 
-		if download.info_hash.is_some() {
-			self.requests.mark_downloading(request_id).await?;
+		self.finalize(request_id, download).await
+	}
+
+	async fn finalize(&self, request_id: &str, download: Download) -> Result<Download> {
+		let now = Utc::now();
+		if download.info_hash.is_none() {
+			self.downloads
+				.update_status(&download.id, DownloadState::Failed, download.progress, now)
+				.await?;
+			self.requests
+				.mark_failed(request_id, Some("download has no trackable info hash"))
+				.await?;
+			return Ok(download);
+		}
+
+		self.requests.mark_downloading(request_id).await?;
+		if !self
+			.jobs
+			.has_active(JobType::MonitorDownload, request_id)
+			.await?
+		{
 			let payload = MonitorPayload {
 				download_id: download.id.clone(),
 				misses: 0,
@@ -108,12 +134,7 @@ impl GrabService {
 			self.jobs
 				.enqueue_for_at(JobType::MonitorDownload, &payload, request_id, run_after)
 				.await?;
-		} else {
-			self.requests
-				.mark_failed(request_id, Some("download has no trackable info hash"))
-				.await?;
 		}
-
 		Ok(download)
 	}
 

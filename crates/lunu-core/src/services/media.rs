@@ -19,6 +19,9 @@ impl MediaService {
 
 	pub async fn record(&self, request: &Request, library_path: &str) -> Result<()> {
 		if let Some(existing) = self.media.find_by_request(&request.id).await? {
+			if existing.overridden {
+				return Ok(());
+			}
 			let updated = Media {
 				asin: request.asin.clone(),
 				title: request.title.clone(),

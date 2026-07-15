@@ -58,10 +58,6 @@ impl ApiKeyService {
 		Ok(IssuedApiKey { api_key, secret })
 	}
 
-	pub async fn list_for_user(&self, user_id: &str) -> Result<Vec<ApiKey>> {
-		self.keys.list_for_user(user_id).await
-	}
-
 	pub async fn list_for_user_page(
 		&self,
 		user_id: &str,
@@ -87,10 +83,6 @@ impl ApiKeyService {
 
 		self.keys.touch_last_used(&key.id, now).await?;
 		Ok(Some(key))
-	}
-
-	pub async fn revoke(&self, id: &str) -> Result<()> {
-		self.keys.set_revoked(id, true).await
 	}
 
 	pub async fn revoke_for_user(&self, user_id: &str, id: &str) -> Result<()> {

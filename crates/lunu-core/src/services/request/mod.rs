@@ -143,14 +143,6 @@ impl RequestService {
 			.await;
 	}
 
-	pub async fn list(&self) -> Result<Vec<Request>> {
-		self.requests.list().await
-	}
-
-	pub async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
-		self.requests.list_for_user(user_id).await
-	}
-
 	pub async fn status_by_asin(&self, user_id: &str) -> Result<HashMap<String, RequestStatus>> {
 		let mut statuses = HashMap::new();
 		for request in self.requests.list_for_user(user_id).await? {

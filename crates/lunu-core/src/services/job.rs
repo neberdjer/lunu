@@ -23,6 +23,10 @@ impl JobService {
 		self.jobs.clone()
 	}
 
+	pub async fn has_active(&self, job_type: JobType, request_id: &str) -> Result<bool> {
+		self.jobs.has_active(job_type.as_str(), request_id).await
+	}
+
 	pub async fn enqueue_for<T: Serialize + ?Sized>(
 		&self,
 		job_type: JobType,
@@ -70,10 +74,6 @@ impl JobService {
 
 	pub async fn count(&self, status: Option<&str>) -> Result<i64> {
 		self.jobs.count(status).await
-	}
-
-	pub async fn get(&self, id: &str) -> Result<Option<Job>> {
-		self.jobs.find_by_id(id).await
 	}
 
 	pub async fn requeue(&self, id: &str) -> Result<()> {

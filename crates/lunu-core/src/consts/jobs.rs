@@ -10,5 +10,9 @@ pub const DEFAULT_WORKER_COUNT: usize = 2;
 
 pub const SCHEDULER_TICK_SECS: u64 = 60;
 pub const LIBRARY_SYNC_INTERVAL_SECS: i64 = 6 * 60 * 60;
+pub const SESSION_CLEANUP_INTERVAL_SECS: i64 = 24 * 60 * 60;
 
-pub const DEFAULT_SCHEDULES: &[(&str, i64)] = &[("library-sync", LIBRARY_SYNC_INTERVAL_SECS)];
+pub const DEFAULT_SCHEDULES: &[(&str, i64)] = &[
+	("library-sync", LIBRARY_SYNC_INTERVAL_SECS),
+	("session-cleanup", SESSION_CLEANUP_INTERVAL_SECS),
+];

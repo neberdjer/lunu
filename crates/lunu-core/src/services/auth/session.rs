@@ -4,8 +4,8 @@ use crate::models::Session;
 use crate::{Error, Result};
 
 impl AuthService {
-	pub async fn list_sessions(&self, user_id: &str) -> Result<Vec<Session>> {
-		self.sessions.list_for_user(user_id).await
+	pub async fn cleanup_expired_sessions(&self) -> Result<()> {
+		self.sessions.delete_expired(chrono::Utc::now()).await
 	}
 
 	pub async fn list_sessions_page(

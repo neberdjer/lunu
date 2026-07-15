@@ -132,6 +132,19 @@ impl JobRepo for SqlxJobRepo {
 		Ok(result.rows_affected() > 0)
 	}
 
+	async fn has_active(&self, job_type: &str, request_id: &str) -> Result<bool> {
+		let row = sqlx::query(
+			"SELECT id FROM jobs WHERE job_type = $1 AND request_id = $2 \
+			 AND status IN ('pending', 'running') LIMIT 1",
+		)
+		.bind(job_type)
+		.bind(request_id)
+		.fetch_optional(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(row.is_some())
+	}
+
 	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>> {
 		let now = format_dt(now);
 		loop {
@@ -206,14 +219,16 @@ impl JobRepo for SqlxJobRepo {
 		error: &str,
 		run_after: DateTime<Utc>,
 		at: DateTime<Utc>,
+		max_attempts: i64,
 	) -> Result<()> {
 		sqlx::query(
 			"UPDATE jobs SET status = 'pending', run_after = $1, last_error = $2, \
-			 locked_by = NULL, locked_at = NULL, updated_at = $3 \
-			 WHERE id = $4 AND locked_by = $5 AND status = 'running'",
+			 max_attempts = $3, locked_by = NULL, locked_at = NULL, updated_at = $4 \
+			 WHERE id = $5 AND locked_by = $6 AND status = 'running'",
 		)
 		.bind(format_dt(run_after))
 		.bind(error)
+		.bind(max_attempts)
 		.bind(format_dt(at))
 		.bind(id)
 		.bind(locked_by)

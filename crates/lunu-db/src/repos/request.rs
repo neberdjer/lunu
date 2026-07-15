@@ -173,14 +173,6 @@ impl RequestRepo for SqlxRequestRepo {
 		map_row_opt(row, map_request)
 	}
 
-	async fn list(&self) -> Result<Vec<Request>> {
-		let rows = sqlx::query("SELECT * FROM requests ORDER BY created_at DESC")
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
-		map_rows(rows, map_request)
-	}
-
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
 		let rows =
 			sqlx::query("SELECT * FROM requests WHERE user_id = $1 ORDER BY created_at DESC")

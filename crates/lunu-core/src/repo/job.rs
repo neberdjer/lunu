@@ -14,6 +14,7 @@ pub trait JobRepo: Send + Sync {
 	async fn count(&self, status: Option<&str>) -> Result<i64>;
 	async fn requeue(&self, id: &str, at: DateTime<Utc>) -> Result<bool>;
 	async fn delete(&self, id: &str) -> Result<bool>;
+	async fn has_active(&self, job_type: &str, request_id: &str) -> Result<bool>;
 	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>>;
 	async fn renew_lease(&self, id: &str, locked_by: &str, now: DateTime<Utc>) -> Result<bool>;
 	async fn complete(&self, id: &str, locked_by: &str, at: DateTime<Utc>) -> Result<()>;
@@ -24,6 +25,7 @@ pub trait JobRepo: Send + Sync {
 		error: &str,
 		run_after: DateTime<Utc>,
 		at: DateTime<Utc>,
+		max_attempts: i64,
 	) -> Result<()>;
 	async fn fail(&self, id: &str, locked_by: &str, error: &str, at: DateTime<Utc>) -> Result<()>;
 	async fn reap_stale(&self, older_than: DateTime<Utc>, at: DateTime<Utc>) -> Result<u64>;

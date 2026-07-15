@@ -80,14 +80,6 @@ impl InviteRepo for SqlxInviteRepo {
 		Ok(result.rows_affected() > 0)
 	}
 
-	async fn list(&self) -> Result<Vec<Invite>> {
-		let rows = sqlx::query("SELECT * FROM invites ORDER BY created_at")
-			.fetch_all(&self.db)
-			.await
-			.map_err(db_error)?;
-		map_rows(rows, map_invite)
-	}
-
 	async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Invite>> {
 		let rows = sqlx::query("SELECT * FROM invites ORDER BY created_at LIMIT $1 OFFSET $2")
 			.bind(limit)
