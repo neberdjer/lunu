@@ -39,11 +39,13 @@ mod admin;
 mod approve;
 mod auth;
 mod builders;
+mod concurrency;
 mod data;
 mod grab;
 mod library;
 mod monitor;
 mod pipeline;
+mod repos;
 mod requests;
 mod reset;
 mod scheduler;
@@ -67,7 +69,17 @@ async fn memory_db() -> Db {
 	}
 }
 
+async fn concurrent_db(connections: u32) -> Option<Db> {
+	install_default_drivers();
+	let url = std::env::var("LUNU_TEST_DATABASE_URL").ok()?;
+	Some(postgres_isolated_db_with(&url, connections).await)
+}
+
 async fn postgres_isolated_db(url: &str) -> Db {
+	postgres_isolated_db_with(url, 1).await
+}
+
+async fn postgres_isolated_db_with(url: &str, connections: u32) -> Db {
 	use std::sync::atomic::Ordering;
 
 	let schema = format!(
@@ -92,7 +104,7 @@ async fn postgres_isolated_db(url: &str) -> Db {
 	admin.close().await;
 
 	let db = AnyPoolOptions::new()
-		.max_connections(1)
+		.max_connections(connections)
 		.after_connect(move |conn, _meta| {
 			let schema = schema.clone();
 			Box::pin(async move {
