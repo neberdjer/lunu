@@ -68,11 +68,9 @@ impl FromStr for JobStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobType {
-	Search,
 	Grab,
 	MonitorDownload,
 	Import,
-	Finalize,
 	Notify,
 	LibrarySync,
 }
@@ -80,11 +78,9 @@ pub enum JobType {
 impl JobType {
 	pub fn as_str(&self) -> &'static str {
 		match self {
-			JobType::Search => "search",
 			JobType::Grab => "grab",
 			JobType::MonitorDownload => "monitor-download",
 			JobType::Import => "import",
-			JobType::Finalize => "finalize",
 			JobType::Notify => "notify",
 			JobType::LibrarySync => "library-sync",
 		}
@@ -92,11 +88,7 @@ impl JobType {
 
 	pub fn propagates_failure_to_request(&self) -> bool {
 		match self {
-			JobType::Search
-			| JobType::Grab
-			| JobType::MonitorDownload
-			| JobType::Import
-			| JobType::Finalize => true,
+			JobType::Grab | JobType::MonitorDownload | JobType::Import => true,
 			JobType::Notify | JobType::LibrarySync => false,
 		}
 	}
@@ -113,11 +105,9 @@ impl FromStr for JobType {
 
 	fn from_str(value: &str) -> Result<Self> {
 		match value {
-			"search" => Ok(JobType::Search),
 			"grab" => Ok(JobType::Grab),
 			"monitor-download" => Ok(JobType::MonitorDownload),
 			"import" => Ok(JobType::Import),
-			"finalize" => Ok(JobType::Finalize),
 			"notify" => Ok(JobType::Notify),
 			"library-sync" => Ok(JobType::LibrarySync),
 			_ => Err(Error::Validation(reasons::JOB_TYPE_UNKNOWN.to_string())),
@@ -164,7 +154,7 @@ mod tests {
 		let now = Utc::now();
 		Job {
 			id: "j1".to_string(),
-			job_type: JobType::Search,
+			job_type: JobType::Grab,
 			request_id: None,
 			payload: "{}".to_string(),
 			status: JobStatus::Running,

@@ -3,12 +3,14 @@ use std::time::Duration;
 
 use chrono::Utc;
 use lunu_core::consts::jobs::{
-	DEFAULT_WORKER_COUNT, LEASE_TIMEOUT_SECS, POLL_INTERVAL_MS, SCHEDULER_TICK_SECS,
+	DEFAULT_WORKER_COUNT, LEASE_RENEW_SECS, LEASE_TIMEOUT_SECS, MAX_JOB_SECS, POLL_INTERVAL_MS,
+	SCHEDULER_TICK_SECS, TRANSIENT_MAX_ATTEMPTS,
 };
 use lunu_core::models::Job;
 use lunu_core::repo::JobRepo;
 use lunu_core::services::SchedulerService;
 use lunu_core::traits::JobHandler;
+use lunu_core::{Error, Result};
 
 mod pipeline;
 
@@ -80,20 +82,24 @@ async fn worker_loop(
 }
 
 async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, job: Job) {
-	let outcome = handler.handle(&job).await;
+	let outcome = run_with_lease(jobs, handler, &job).await;
 	let now = Utc::now();
+	let locked_by = job.locked_by.as_deref().unwrap_or_default();
 
 	let result = match outcome {
-		Ok(()) => jobs.complete(&job.id, now).await,
+		Ok(()) => jobs.complete(&job.id, locked_by, now).await,
 		Err(error) => {
+			let retry = job.should_retry()
+				|| (error.is_transient() && job.attempts < TRANSIENT_MAX_ATTEMPTS);
 			let error = error.to_string();
-			if job.should_retry() {
+			if retry {
 				let run_after = now + job.retry_backoff();
 				tracing::warn!(job = %job.id, kind = %job.job_type, attempt = job.attempts, %error, "job failed, retrying");
-				jobs.reschedule(&job.id, &error, run_after, now).await
+				jobs.reschedule(&job.id, locked_by, &error, run_after, now)
+					.await
 			} else {
 				tracing::error!(job = %job.id, kind = %job.job_type, %error, "job failed permanently");
-				let result = jobs.fail(&job.id, &error, now).await;
+				let result = jobs.fail(&job.id, locked_by, &error, now).await;
 				handler.on_failed(&job, &error).await;
 				result
 			}
@@ -103,6 +109,37 @@ async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, job: Jo
 	if let Err(error) = result {
 		tracing::error!(job = %job.id, %error, "failed to record job outcome");
 	}
+}
+
+async fn run_with_lease(
+	jobs: &Arc<dyn JobRepo>,
+	handler: &Arc<dyn JobHandler>,
+	job: &Job,
+) -> Result<()> {
+	let heartbeat = {
+		let jobs = jobs.clone();
+		let id = job.id.clone();
+		let locked_by = job.locked_by.clone().unwrap_or_default();
+		tokio::spawn(async move {
+			loop {
+				tokio::time::sleep(Duration::from_secs(LEASE_RENEW_SECS)).await;
+				if let Ok(false) | Err(_) = jobs.renew_lease(&id, &locked_by, Utc::now()).await {
+					return;
+				}
+			}
+		})
+	};
+
+	let outcome =
+		match tokio::time::timeout(Duration::from_secs(MAX_JOB_SECS), handler.handle(job)).await {
+			Ok(result) => result,
+			Err(_) => Err(Error::Integration(format!(
+				"job exceeded maximum duration of {MAX_JOB_SECS}s"
+			))),
+		};
+
+	heartbeat.abort();
+	outcome
 }
 
 async fn reaper_loop(jobs: Arc<dyn JobRepo>, lease_timeout: Duration) {
@@ -148,143 +185,4 @@ async fn scheduler_loop(scheduler: Arc<SchedulerService>, tick: Duration) {
 }
 
 #[cfg(test)]
-mod tests {
-	use std::sync::Mutex;
-
-	use async_trait::async_trait;
-	use chrono::{DateTime, Utc};
-	use lunu_core::models::{Job, JobStatus, JobType};
-	use lunu_core::{Error, Result};
-
-	use super::*;
-
-	#[derive(Default)]
-	struct RecordingRepo {
-		action: Mutex<Option<String>>,
-	}
-
-	impl RecordingRepo {
-		fn action(&self) -> Option<String> {
-			self.action.lock().unwrap().clone()
-		}
-	}
-
-	#[async_trait]
-	impl JobRepo for RecordingRepo {
-		async fn create(&self, _job: &Job) -> Result<()> {
-			Ok(())
-		}
-		async fn create_recurring(&self, _job: &Job) -> Result<bool> {
-			Ok(true)
-		}
-		async fn find_by_id(&self, _id: &str) -> Result<Option<Job>> {
-			Ok(None)
-		}
-		async fn list(&self) -> Result<Vec<Job>> {
-			Ok(Vec::new())
-		}
-		async fn list_page(
-			&self,
-			_status: Option<&str>,
-			_limit: i64,
-			_offset: i64,
-		) -> Result<Vec<Job>> {
-			Ok(Vec::new())
-		}
-		async fn count(&self, _status: Option<&str>) -> Result<i64> {
-			Ok(0)
-		}
-		async fn requeue(&self, _id: &str, _at: DateTime<Utc>) -> Result<bool> {
-			Ok(true)
-		}
-		async fn delete(&self, _id: &str) -> Result<bool> {
-			Ok(true)
-		}
-		async fn claim_next(&self, _worker_id: &str, _now: DateTime<Utc>) -> Result<Option<Job>> {
-			Ok(None)
-		}
-		async fn complete(&self, _id: &str, _at: DateTime<Utc>) -> Result<()> {
-			*self.action.lock().unwrap() = Some("complete".to_string());
-			Ok(())
-		}
-		async fn reschedule(
-			&self,
-			_id: &str,
-			_error: &str,
-			_run_after: DateTime<Utc>,
-			_at: DateTime<Utc>,
-		) -> Result<()> {
-			*self.action.lock().unwrap() = Some("reschedule".to_string());
-			Ok(())
-		}
-		async fn fail(&self, _id: &str, _error: &str, _at: DateTime<Utc>) -> Result<()> {
-			*self.action.lock().unwrap() = Some("fail".to_string());
-			Ok(())
-		}
-		async fn reap_stale(&self, _older_than: DateTime<Utc>, _at: DateTime<Utc>) -> Result<u64> {
-			Ok(0)
-		}
-	}
-
-	struct OkHandler;
-	#[async_trait]
-	impl JobHandler for OkHandler {
-		async fn handle(&self, _job: &Job) -> Result<()> {
-			Ok(())
-		}
-	}
-
-	struct ErrHandler;
-	#[async_trait]
-	impl JobHandler for ErrHandler {
-		async fn handle(&self, _job: &Job) -> Result<()> {
-			Err(Error::Integration("boom".to_string()))
-		}
-	}
-
-	fn job(attempts: i64, max_attempts: i64) -> Job {
-		let now = Utc::now();
-		Job {
-			id: "j1".to_string(),
-			job_type: JobType::Search,
-			request_id: None,
-			payload: "{}".to_string(),
-			status: JobStatus::Running,
-			attempts,
-			max_attempts,
-			run_after: now,
-			locked_by: Some("worker-0".to_string()),
-			locked_at: Some(now),
-			last_error: None,
-			created_at: now,
-			updated_at: now,
-		}
-	}
-
-	#[tokio::test]
-	async fn success_completes() {
-		let repo = Arc::new(RecordingRepo::default());
-		let jobs: Arc<dyn JobRepo> = repo.clone();
-		let handler: Arc<dyn JobHandler> = Arc::new(OkHandler);
-		run_job(&jobs, &handler, job(1, 3)).await;
-		assert_eq!(repo.action().as_deref(), Some("complete"));
-	}
-
-	#[tokio::test]
-	async fn failure_below_max_reschedules() {
-		let repo = Arc::new(RecordingRepo::default());
-		let jobs: Arc<dyn JobRepo> = repo.clone();
-		let handler: Arc<dyn JobHandler> = Arc::new(ErrHandler);
-		run_job(&jobs, &handler, job(1, 3)).await;
-		assert_eq!(repo.action().as_deref(), Some("reschedule"));
-	}
-
-	#[tokio::test]
-	async fn failure_at_max_fails() {
-		let repo = Arc::new(RecordingRepo::default());
-		let jobs: Arc<dyn JobRepo> = repo.clone();
-		let handler: Arc<dyn JobHandler> = Arc::new(ErrHandler);
-		run_job(&jobs, &handler, job(3, 3)).await;
-		assert_eq!(repo.action().as_deref(), Some("fail"));
-	}
-}
+mod tests;

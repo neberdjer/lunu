@@ -171,13 +171,28 @@ impl JobRepo for SqlxJobRepo {
 		}
 	}
 
-	async fn complete(&self, id: &str, at: DateTime<Utc>) -> Result<()> {
+	async fn renew_lease(&self, id: &str, locked_by: &str, now: DateTime<Utc>) -> Result<bool> {
+		let result = sqlx::query(
+			"UPDATE jobs SET locked_at = $1, updated_at = $1 \
+			 WHERE id = $2 AND locked_by = $3 AND status = 'running'",
+		)
+		.bind(format_dt(now))
+		.bind(id)
+		.bind(locked_by)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
+	async fn complete(&self, id: &str, locked_by: &str, at: DateTime<Utc>) -> Result<()> {
 		sqlx::query(
 			"UPDATE jobs SET status = 'completed', locked_by = NULL, locked_at = NULL, \
-			 updated_at = $1 WHERE id = $2",
+			 updated_at = $1 WHERE id = $2 AND locked_by = $3 AND status = 'running'",
 		)
 		.bind(format_dt(at))
 		.bind(id)
+		.bind(locked_by)
 		.execute(&self.db)
 		.await
 		.map_err(db_error)?;
@@ -187,32 +202,36 @@ impl JobRepo for SqlxJobRepo {
 	async fn reschedule(
 		&self,
 		id: &str,
+		locked_by: &str,
 		error: &str,
 		run_after: DateTime<Utc>,
 		at: DateTime<Utc>,
 	) -> Result<()> {
 		sqlx::query(
 			"UPDATE jobs SET status = 'pending', run_after = $1, last_error = $2, \
-			 locked_by = NULL, locked_at = NULL, updated_at = $3 WHERE id = $4",
+			 locked_by = NULL, locked_at = NULL, updated_at = $3 \
+			 WHERE id = $4 AND locked_by = $5 AND status = 'running'",
 		)
 		.bind(format_dt(run_after))
 		.bind(error)
 		.bind(format_dt(at))
 		.bind(id)
+		.bind(locked_by)
 		.execute(&self.db)
 		.await
 		.map_err(db_error)?;
 		Ok(())
 	}
 
-	async fn fail(&self, id: &str, error: &str, at: DateTime<Utc>) -> Result<()> {
+	async fn fail(&self, id: &str, locked_by: &str, error: &str, at: DateTime<Utc>) -> Result<()> {
 		sqlx::query(
 			"UPDATE jobs SET status = 'failed', last_error = $1, locked_by = NULL, \
-			 locked_at = NULL, updated_at = $2 WHERE id = $3",
+			 locked_at = NULL, updated_at = $2 WHERE id = $3 AND locked_by = $4 AND status = 'running'",
 		)
 		.bind(error)
 		.bind(format_dt(at))
 		.bind(id)
+		.bind(locked_by)
 		.execute(&self.db)
 		.await
 		.map_err(db_error)?;

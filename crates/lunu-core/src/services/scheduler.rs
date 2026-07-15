@@ -60,7 +60,8 @@ impl SchedulerService {
 	}
 
 	pub async fn configure(&self, kind: &str, enabled: bool, interval_secs: i64) -> Result<bool> {
-		if interval_secs < 1 {
+		const MAX_INTERVAL_SECS: i64 = 366 * 24 * 60 * 60;
+		if !(1..=MAX_INTERVAL_SECS).contains(&interval_secs) {
 			return Err(Error::Validation(
 				reasons::SCHEDULE_INTERVAL_INVALID.to_string(),
 			));

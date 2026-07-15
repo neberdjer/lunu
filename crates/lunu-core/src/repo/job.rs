@@ -15,14 +15,16 @@ pub trait JobRepo: Send + Sync {
 	async fn requeue(&self, id: &str, at: DateTime<Utc>) -> Result<bool>;
 	async fn delete(&self, id: &str) -> Result<bool>;
 	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>>;
-	async fn complete(&self, id: &str, at: DateTime<Utc>) -> Result<()>;
+	async fn renew_lease(&self, id: &str, locked_by: &str, now: DateTime<Utc>) -> Result<bool>;
+	async fn complete(&self, id: &str, locked_by: &str, at: DateTime<Utc>) -> Result<()>;
 	async fn reschedule(
 		&self,
 		id: &str,
+		locked_by: &str,
 		error: &str,
 		run_after: DateTime<Utc>,
 		at: DateTime<Utc>,
 	) -> Result<()>;
-	async fn fail(&self, id: &str, error: &str, at: DateTime<Utc>) -> Result<()>;
+	async fn fail(&self, id: &str, locked_by: &str, error: &str, at: DateTime<Utc>) -> Result<()>;
 	async fn reap_stale(&self, older_than: DateTime<Utc>, at: DateTime<Utc>) -> Result<u64>;
 }
