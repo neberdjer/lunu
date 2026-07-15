@@ -74,7 +74,7 @@ impl AuthService {
 			return Err(invalid());
 		};
 		if user.email_verified {
-			return Ok(());
+			return Err(invalid());
 		}
 		let Some(record) = self.email_verifications.find_for_user(&user.id).await? else {
 			return Err(invalid());
@@ -83,14 +83,13 @@ impl AuthService {
 			self.email_verifications.delete(&record.id).await?;
 			return Err(invalid());
 		}
+		if record.attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS {
+			return Err(invalid());
+		}
 		if record.code_hash != hash_token(code) {
-			if record.attempts + 1 >= EMAIL_VERIFICATION_MAX_ATTEMPTS {
-				self.email_verifications.delete(&record.id).await?;
-			} else {
-				self.email_verifications
-					.increment_attempts(&record.id)
-					.await?;
-			}
+			self.email_verifications
+				.increment_attempts(&record.id)
+				.await?;
 			return Err(invalid());
 		}
 

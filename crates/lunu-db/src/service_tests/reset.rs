@@ -55,7 +55,7 @@ async fn request_password_reset_issues_for_known_local_email_and_cools_down() {
 }
 
 #[tokio::test]
-async fn wrong_reset_code_is_burned_after_max_attempts() {
+async fn wrong_reset_code_locks_after_max_attempts() {
 	let db = memory_db().await;
 	let auth = auth_service(&db);
 	let admin = auth
@@ -77,8 +77,48 @@ async fn wrong_reset_code_is_burned_after_max_attempts() {
 		);
 	}
 
-	assert_eq!(reset_token_count(&db).await, 0);
+	assert_eq!(reset_token_count(&db).await, 1);
+	assert!(
+		auth.reset_password("admin@example.com", "123456", "brandnewpass")
+			.await
+			.is_err()
+	);
 	assert!(auth.login("admin", "password123").await.is_ok());
+}
+
+#[tokio::test]
+async fn exhausted_reset_code_cannot_be_reissued_within_cooldown() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin(
+			"admin",
+			"password123",
+			Some("admin@example.com".to_string()),
+		)
+		.await
+		.unwrap();
+
+	seed_reset_code(&db, &admin.user.id, "123456").await;
+
+	for _ in 0..5 {
+		assert!(
+			auth.reset_password("admin@example.com", "000000", "brandnewpass")
+				.await
+				.is_err()
+		);
+	}
+
+	auth.request_password_reset("admin@example.com", None)
+		.await
+		.unwrap();
+
+	assert_eq!(reset_token_count(&db).await, 1);
+	assert!(
+		auth.reset_password("admin@example.com", "123456", "brandnewpass")
+			.await
+			.is_err()
+	);
 }
 
 #[tokio::test]

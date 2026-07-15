@@ -1,7 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 use lunu_core::Error;
 use lunu_core::consts::auth::SESSION_COOKIE;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use lunu_core::services::Registration;
@@ -10,7 +10,17 @@ use crate::cookie::{authenticated_response, clear_session_cookie};
 use crate::dto::{SessionResponse, UserResponse};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, accept_language, user_agent};
+use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
+
+mod recovery;
+
+pub use recovery::{forgot_password, resend_verification, reset_password, verify_email};
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PendingVerificationResponse {
+	pub status: String,
+}
 
 fn enforce_auth_rate_limit(req: &HttpRequest, state: &AppState) -> Result<(), ApiError> {
 	let ip = crate::client_ip::client_ip(req, &state.config);
@@ -41,29 +51,6 @@ pub struct ChangePasswordRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ForgotPasswordRequest {
-	email: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct ResetPasswordRequest {
-	email: String,
-	code: String,
-	password: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct VerifyEmailRequest {
-	email: String,
-	code: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct ResendVerificationRequest {
-	email: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateProfileRequest {
 	email: Option<String>,
 	#[serde(default)]
@@ -72,7 +59,7 @@ pub struct UpdateProfileRequest {
 	locale: Option<String>,
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Authenticated, session cookie set", body = UserResponse), (status = 401, description = "Invalid credentials")))]
+#[utoipa::path(tag = "auth", security(()), request_body = LoginRequest, responses((status = 200, description = "Authenticated, session cookie set", body = UserResponse), (status = 401, description = "Invalid credentials")))]
 #[post("/auth/login")]
 pub async fn login(
 	req: HttpRequest,
@@ -98,7 +85,7 @@ pub async fn login(
 	))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 201, description = "Registered via invite; session set, or verification pending", body = UserResponse)))]
+#[utoipa::path(tag = "auth", security(()), request_body = RegisterRequest, responses((status = 201, description = "Registered via invite; session cookie set", body = UserResponse), (status = 202, description = "Registered; email verification pending", body = PendingVerificationResponse)))]
 #[post("/auth/register")]
 pub async fn register(
 	req: HttpRequest,
@@ -129,7 +116,9 @@ pub async fn register(
 			))
 		}
 		Registration::PendingVerification => {
-			Ok(HttpResponse::Created().json(json!({ "status": "pending_verification" })))
+			Ok(HttpResponse::Accepted().json(PendingVerificationResponse {
+				status: "pending_verification".to_string(),
+			}))
 		}
 	}
 }
@@ -154,7 +143,7 @@ pub async fn me(user: AuthUser) -> HttpResponse {
 	HttpResponse::Ok().json(UserResponse::from(&user.0))
 }
 
-#[utoipa::path(tag = "auth", responses((status = 200, description = "Email updated", body = UserResponse)))]
+#[utoipa::path(tag = "auth", request_body = UpdateProfileRequest, responses((status = 200, description = "Email updated", body = UserResponse)))]
 #[patch("/auth/me")]
 pub async fn update_me(
 	user: AuthUser,
@@ -169,7 +158,7 @@ pub async fn update_me(
 	Ok(HttpResponse::Ok().json(UserResponse::from(&updated)))
 }
 
-#[utoipa::path(tag = "auth", responses((status = 200, description = "Password changed and sessions rotated", body = UserResponse)))]
+#[utoipa::path(tag = "auth", request_body = ChangePasswordRequest, responses((status = 200, description = "Password changed and sessions rotated", body = UserResponse)))]
 #[post("/auth/password")]
 pub async fn change_password(
 	req: HttpRequest,
@@ -194,87 +183,33 @@ pub async fn change_password(
 	))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If the address matches a local account, a reset email is sent")))]
-#[post("/auth/forgot")]
-pub async fn forgot_password(
-	req: HttpRequest,
-	state: web::Data<AppState>,
-	body: web::Json<ForgotPasswordRequest>,
-) -> Result<HttpResponse, ApiError> {
-	enforce_auth_rate_limit(&req, &state)?;
-	let accept_language = req
-		.headers()
-		.get(actix_web::http::header::ACCEPT_LANGUAGE)
-		.and_then(|value| value.to_str().ok());
-	state
-		.auth
-		.request_password_reset(&body.email, accept_language)
-		.await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
-}
-
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Password reset"), (status = 400, description = "Invalid or expired token")))]
-#[post("/auth/reset")]
-pub async fn reset_password(
-	req: HttpRequest,
-	state: web::Data<AppState>,
-	body: web::Json<ResetPasswordRequest>,
-) -> Result<HttpResponse, ApiError> {
-	enforce_auth_rate_limit(&req, &state)?;
-	state
-		.auth
-		.reset_password(&body.email, &body.code, &body.password)
-		.await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
-}
-
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Email verified"), (status = 400, description = "Invalid or expired code")))]
-#[post("/auth/verify")]
-pub async fn verify_email(
-	req: HttpRequest,
-	state: web::Data<AppState>,
-	body: web::Json<VerifyEmailRequest>,
-) -> Result<HttpResponse, ApiError> {
-	enforce_auth_rate_limit(&req, &state)?;
-	state.auth.verify_email(&body.email, &body.code).await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
-}
-
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If verification is enabled and the address is unverified, a new code is sent")))]
-#[post("/auth/verify/resend")]
-pub async fn resend_verification(
-	req: HttpRequest,
-	state: web::Data<AppState>,
-	body: web::Json<ResendVerificationRequest>,
-) -> Result<HttpResponse, ApiError> {
-	enforce_auth_rate_limit(&req, &state)?;
-	state
-		.auth
-		.resend_verification(&body.email, accept_language(&req).as_deref())
-		.await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
-}
-
-#[utoipa::path(tag = "auth", responses((status = 200, description = "Active sessions for the caller", body = Vec<SessionResponse>)))]
+#[utoipa::path(tag = "auth", params(PageParams), responses((status = 200, description = "Active sessions for the caller", body = Page<SessionResponse>)))]
 #[get("/auth/sessions")]
 pub async fn sessions(
 	req: HttpRequest,
 	user: AuthUser,
+	query: web::Query<PageParams>,
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let current = match req.cookie(SESSION_COOKIE) {
 		Some(cookie) => state.auth.current_session_id(cookie.value()).await?,
 		None => None,
 	};
-	let sessions = state.auth.list_sessions(&user.0.id).await?;
+	let pagination = Pagination::resolve(query.page, query.limit);
+	let (sessions, total) = tokio::try_join!(
+		state
+			.auth
+			.list_sessions_page(&user.0.id, pagination.limit, pagination.offset),
+		state.auth.count_sessions(&user.0.id),
+	)?;
 	let items: Vec<SessionResponse> = sessions
 		.iter()
 		.map(|session| SessionResponse::new(session, current.as_deref() == Some(&session.id)))
 		.collect();
-	Ok(HttpResponse::Ok().json(items))
+	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "auth", responses((status = 204, description = "Session revoked"), (status = 404, description = "Not found")))]
+#[utoipa::path(tag = "auth", params(("id" = String, Path, description = "Session id")), responses((status = 204, description = "Session revoked"), (status = 404, description = "Not found")))]
 #[delete("/auth/sessions/{id}")]
 pub async fn revoke_session(
 	user: AuthUser,

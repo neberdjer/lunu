@@ -73,12 +73,11 @@ impl AuthService {
 			self.reset_tokens.delete(&record.id).await?;
 			return Err(invalid());
 		}
+		if record.attempts >= PASSWORD_RESET_MAX_ATTEMPTS {
+			return Err(invalid());
+		}
 		if record.code_hash != hash_token(code) {
-			if record.attempts + 1 >= PASSWORD_RESET_MAX_ATTEMPTS {
-				self.reset_tokens.delete(&record.id).await?;
-			} else {
-				self.reset_tokens.increment_attempts(&record.id).await?;
-			}
+			self.reset_tokens.increment_attempts(&record.id).await?;
 			return Err(invalid());
 		}
 

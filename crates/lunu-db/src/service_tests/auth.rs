@@ -195,3 +195,34 @@ async fn change_password_rotates_sessions_and_rejects_wrong_current() {
 	assert!(auth.login("admin", "newpassword123").await.is_ok());
 	assert!(auth.login("admin", "password123").await.is_err());
 }
+
+#[tokio::test]
+async fn weak_password_does_not_burn_single_use_invite() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	let issued = invites
+		.create(&admin.user.id, Role::User, None, 1, None)
+		.await
+		.unwrap();
+
+	assert!(matches!(
+		auth.register_with_invite(&issued.code, "bob", "short", None)
+			.await,
+		Err(Error::Validation(_))
+	));
+
+	let retry = auth
+		.register_with_invite(&issued.code, "bob", "hunter2password", None)
+		.await
+		.unwrap();
+	assert!(matches!(
+		retry,
+		lunu_core::services::Registration::Active(_)
+	));
+}

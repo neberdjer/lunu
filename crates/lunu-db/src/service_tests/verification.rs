@@ -140,3 +140,53 @@ async fn disabled_gate_registers_active_with_welcome_only() {
 	assert!(matches!(outcome, Registration::Active(_)));
 	assert_eq!(mailer.count(), 1);
 }
+
+#[tokio::test]
+async fn change_password_blocked_when_verification_pending() {
+	let db = memory_db().await;
+	enable_verification(&db).await;
+	let auth = auth_service(&db);
+	auth.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	let user = user_service(&db)
+		.create(
+			"bob",
+			"hunter2password",
+			Some("bob@example.com".to_string()),
+			Role::User,
+		)
+		.await
+		.unwrap();
+
+	assert!(matches!(
+		auth.change_password(&user.id, "hunter2password", "newpassword123")
+			.await,
+		Err(Error::Validation(_))
+	));
+}
+
+#[tokio::test]
+async fn changing_email_resets_verified_flag() {
+	let db = memory_db().await;
+	let users = user_service(&db);
+	let user = users
+		.create(
+			"bob",
+			"hunter2password",
+			Some("a@example.com".to_string()),
+			Role::User,
+		)
+		.await
+		.unwrap();
+	SqlxUserRepo::new(db.clone())
+		.mark_email_verified(&user.id)
+		.await
+		.unwrap();
+
+	let updated = users
+		.update_profile(&user.id, Some("b@example.com".to_string()), None, None)
+		.await
+		.unwrap();
+	assert!(!updated.email_verified);
+}

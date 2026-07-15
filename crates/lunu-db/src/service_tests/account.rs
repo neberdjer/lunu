@@ -222,3 +222,28 @@ async fn user_settings_upsert() {
 	assert_eq!(loaded.request_quota, Some(5));
 	assert_eq!(loaded.quota_days, Some(7));
 }
+
+#[tokio::test]
+async fn set_settings_rejects_quota_without_window() {
+	let db = memory_db().await;
+	let users = user_service(&db);
+	let user = users
+		.create("bob", "hunter2password", None, Role::User)
+		.await
+		.unwrap();
+
+	assert!(matches!(
+		users.set_settings(&user.id, false, Some(5), None).await,
+		Err(Error::Validation(_))
+	));
+	assert!(matches!(
+		users.set_settings(&user.id, false, Some(0), Some(30)).await,
+		Err(Error::Validation(_))
+	));
+	assert!(
+		users
+			.set_settings(&user.id, false, Some(5), Some(30))
+			.await
+			.is_ok()
+	);
+}

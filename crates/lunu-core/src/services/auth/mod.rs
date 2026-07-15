@@ -16,6 +16,7 @@ use crate::{Error, Result};
 
 mod device;
 mod reset;
+mod session;
 mod verify;
 
 pub struct Authenticated {
@@ -89,13 +90,13 @@ impl AuthService {
 
 	pub async fn login(&self, username: &str, password: &str) -> Result<Authenticated> {
 		if let Some(user) = self.users.find_by_username(username).await? {
-			if !user.enabled {
-				return Err(Error::Forbidden);
-			}
 			if user.auth_source == AuthSource::Local {
 				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
 				if !verify_password(password, hash)? {
 					return Err(Error::Unauthorized);
+				}
+				if !user.enabled {
+					return Err(Error::Forbidden);
 				}
 				if self.verification_pending(&user).await? {
 					return Err(Error::Validation(reasons::EMAIL_NOT_VERIFIED.to_string()));
@@ -108,6 +109,9 @@ impl AuthService {
 				.is_none()
 			{
 				return Err(Error::Unauthorized);
+			}
+			if !user.enabled {
+				return Err(Error::Forbidden);
 			}
 			return self.issue(user).await;
 		}
@@ -208,6 +212,10 @@ impl AuthService {
 			return Err(Error::Unauthorized);
 		}
 
+		if self.verification_pending(&user).await? {
+			return Err(Error::Validation(reasons::EMAIL_NOT_VERIFIED.to_string()));
+		}
+
 		validate_password(new)?;
 		user.password_hash = Some(hash_password(new)?);
 		user.updated_at = Utc::now();
@@ -220,25 +228,6 @@ impl AuthService {
 	pub async fn logout(&self, token: &str) -> Result<()> {
 		if let Some(session) = self.sessions.find_by_token_hash(&hash_token(token)).await? {
 			self.sessions.delete(&session.id).await?;
-		}
-		Ok(())
-	}
-
-	pub async fn list_sessions(&self, user_id: &str) -> Result<Vec<Session>> {
-		self.sessions.list_for_user(user_id).await
-	}
-
-	pub async fn current_session_id(&self, token: &str) -> Result<Option<String>> {
-		Ok(self
-			.sessions
-			.find_by_token_hash(&hash_token(token))
-			.await?
-			.map(|session| session.id))
-	}
-
-	pub async fn revoke_session(&self, user_id: &str, id: &str) -> Result<()> {
-		if !self.sessions.delete_scoped(user_id, id).await? {
-			return Err(Error::NotFound(format!("session {id}")));
 		}
 		Ok(())
 	}
@@ -262,11 +251,12 @@ impl AuthService {
 
 		ensure_username_available(self.users.as_ref(), username).await?;
 
+		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
+
 		if !self.invites.redeem(&invite.id).await? {
 			return Err(Error::Validation(reasons::INVITE_UNUSABLE.to_string()));
 		}
 
-		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
 		self.users.create(&user).await?;
 
 		let pending_verification = self.notify_account_created(&user, accept_language).await?;
