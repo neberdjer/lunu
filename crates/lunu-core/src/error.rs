@@ -53,6 +53,10 @@ impl Error {
 		}
 	}
 
+	pub fn is_transient(&self) -> bool {
+		matches!(self, Error::Integration(_) | Error::Database(_))
+	}
+
 	pub fn detail(&self) -> Option<&str> {
 		match self {
 			Error::Config(detail)

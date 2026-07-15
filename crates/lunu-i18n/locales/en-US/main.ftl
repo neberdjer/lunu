@@ -1,15 +1,4 @@
 app-name = Lunu
-app-tagline = Request audiobooks, automatically fulfilled.
-
-nav-home = Home
-nav-requests = Requests
-nav-settings = Settings
-nav-sign-out = Sign out
-
-auth-login-title = Sign in to Lunu
-auth-login-username = Username
-auth-login-password = Password
-auth-login-submit = Sign in
 
 error-config = A configuration error occurred.
 error-database = A database error occurred.
@@ -65,12 +54,17 @@ error-request-not-available = This request is not available yet.
 error-unknown-profile = That quality profile does not exist.
 error-job-not-retryable = Only a failed job can be requeued.
 error-empty-selection = Select at least one item.
+error-too-many-items = Too many items in one request.
+error-username-invalid = Enter a username with no spaces, up to 64 characters.
+error-profile-name-required = Enter a name for the quality profile.
 error-reset-token-invalid = This password reset code is invalid or has expired.
 error-email-not-verified = Verify your email address before signing in.
 error-verification-invalid = This verification code is invalid or has expired.
 error-media-source-unknown = That library source is not recognized.
 error-abs-not-configured = Audiobookshelf is not configured. Set its URL and API token in settings.
+error-abs-unauthorized = Audiobookshelf rejected the API token. Check the token in settings.
 error-request-title-required = Enter a title to request.
+error-quota-invalid = A request quota needs a positive limit and a window between 1 and 3650 days.
 error-schedule-interval-invalid = The schedule interval must be at least one second.
 error-unknown-locale = That language is not supported.
 

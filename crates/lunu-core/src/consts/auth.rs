@@ -2,6 +2,7 @@ pub const SESSION_TTL_DAYS: i64 = 30;
 pub const SESSION_COOKIE: &str = "lunu_session";
 
 pub const PASSWORD_MIN_LEN: usize = 8;
+pub const USERNAME_MAX_LEN: usize = 64;
 pub const PASSWORD_RESET_TTL_MINUTES: i64 = 15;
 pub const PASSWORD_RESET_CODE_DIGITS: u32 = 6;
 pub const PASSWORD_RESET_MAX_ATTEMPTS: i64 = 5;
@@ -24,3 +25,6 @@ pub const DEFAULT_INVITE_MAX_USES: i64 = 1;
 
 pub const AUTH_RATE_LIMIT_ATTEMPTS: u32 = 10;
 pub const AUTH_RATE_LIMIT_WINDOW_SECS: u64 = 60;
+
+pub const METADATA_RATE_LIMIT_ATTEMPTS: u32 = 60;
+pub const METADATA_RATE_LIMIT_WINDOW_SECS: u64 = 60;

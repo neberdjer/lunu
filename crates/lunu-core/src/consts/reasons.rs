@@ -39,12 +39,17 @@ pub const REQUEST_NOT_AVAILABLE: &str = "request-not-available";
 pub const UNKNOWN_PROFILE: &str = "unknown-profile";
 pub const JOB_NOT_RETRYABLE: &str = "job-not-retryable";
 pub const EMPTY_SELECTION: &str = "empty-selection";
+pub const TOO_MANY_ITEMS: &str = "too-many-items";
+pub const USERNAME_INVALID: &str = "username-invalid";
+pub const PROFILE_NAME_REQUIRED: &str = "profile-name-required";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
 pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
+pub const ABS_UNAUTHORIZED: &str = "abs-unauthorized";
 pub const REQUEST_TITLE_REQUIRED: &str = "request-title-required";
+pub const QUOTA_INVALID: &str = "quota-invalid";
 pub const SCHEDULE_INTERVAL_INVALID: &str = "schedule-interval-invalid";
 pub const UNKNOWN_LOCALE: &str = "unknown-locale";
 
@@ -90,12 +95,17 @@ pub const ALL: &[&str] = &[
 	UNKNOWN_PROFILE,
 	JOB_NOT_RETRYABLE,
 	EMPTY_SELECTION,
+	TOO_MANY_ITEMS,
+	USERNAME_INVALID,
+	PROFILE_NAME_REQUIRED,
 	RESET_TOKEN_INVALID,
 	EMAIL_NOT_VERIFIED,
 	VERIFICATION_INVALID,
 	MEDIA_SOURCE_UNKNOWN,
 	ABS_NOT_CONFIGURED,
+	ABS_UNAUTHORIZED,
 	REQUEST_TITLE_REQUIRED,
+	QUOTA_INVALID,
 	SCHEDULE_INTERVAL_INVALID,
 	UNKNOWN_LOCALE,
 ];

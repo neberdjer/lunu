@@ -1,7 +1,10 @@
 pub const DEFAULT_MAX_ATTEMPTS: i64 = 5;
+pub const TRANSIENT_MAX_ATTEMPTS: i64 = 100;
 pub const RETRY_BASE_SECS: i64 = 15;
 pub const RETRY_MAX_SECS: i64 = 3600;
 pub const LEASE_TIMEOUT_SECS: i64 = 300;
+pub const LEASE_RENEW_SECS: u64 = 60;
+pub const MAX_JOB_SECS: u64 = 3600;
 pub const POLL_INTERVAL_MS: u64 = 1000;
 pub const DEFAULT_WORKER_COUNT: usize = 2;
 
