@@ -5,9 +5,8 @@ use chrono::{Duration, Utc};
 use lunu_core::consts::auth::DEFAULT_INVITE_MAX_USES;
 use lunu_core::models::Role;
 use serde::Deserialize;
-use serde_json::json;
 
-use crate::dto::InviteResponse;
+use crate::dto::{InviteResponse, IssuedInviteResponse};
 use crate::error::ApiError;
 use crate::extract::AdminUser;
 use crate::pagination::{Page, PageParams, Pagination};
@@ -38,7 +37,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "invites", responses((status = 201, description = "Invite created; response includes the one-time code")))]
+#[utoipa::path(tag = "invites", request_body = CreateInviteRequest, responses((status = 201, description = "Invite created; response includes the one-time code", body = IssuedInviteResponse)))]
 #[post("/invites")]
 pub async fn create(
 	admin: AdminUser,
@@ -61,13 +60,13 @@ pub async fn create(
 		)
 		.await?;
 
-	Ok(HttpResponse::Created().json(json!({
-		"code": issued.code,
-		"invite": InviteResponse::from(&issued.invite),
-	})))
+	Ok(HttpResponse::Created().json(IssuedInviteResponse {
+		code: issued.code,
+		invite: InviteResponse::from(&issued.invite),
+	}))
 }
 
-#[utoipa::path(tag = "invites", responses((status = 204, description = "Invite revoked")))]
+#[utoipa::path(tag = "invites", params(("id" = String, Path, description = "Invite id")), responses((status = 204, description = "Invite revoked")))]
 #[delete("/invites/{id}")]
 pub async fn delete(
 	_admin: AdminUser,

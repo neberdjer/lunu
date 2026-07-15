@@ -24,7 +24,7 @@ pub struct MatchBody {
 	asin: String,
 }
 
-#[utoipa::path(tag = "library", params(LibraryQuery), responses((status = 200, description = "Paginated owned library; set unmatched=true for items with no ASIN")))]
+#[utoipa::path(tag = "library", params(LibraryQuery), responses((status = 200, description = "Paginated owned library; set unmatched=true for items with no ASIN", body = Page<MediaResponse>)))]
 #[get("/library")]
 pub async fn list(
 	_user: AuthUser,
@@ -56,7 +56,7 @@ pub async fn sync(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpR
 	Ok(HttpResponse::Accepted().json(json!({ "status": status })))
 }
 
-#[utoipa::path(tag = "library", responses((status = 200, description = "ASIN matched; metadata refreshed from the provider"), (status = 404, description = "Unknown media item")))]
+#[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), request_body = MatchBody, responses((status = 200, description = "ASIN matched; metadata refreshed from the provider", body = MediaResponse), (status = 404, description = "Unknown media item")))]
 #[post("/library/{id}/match")]
 pub async fn match_media(
 	_admin: AdminUser,

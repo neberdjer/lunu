@@ -29,6 +29,7 @@ pub async fn status(state: web::Data<AppState>) -> Result<HttpResponse, ApiError
 #[utoipa::path(
 	tag = "setup",
 	security(()),
+	request_body = SetupRequest,
 	responses(
 		(status = 201, description = "First admin created and session issued", body = UserResponse),
 		(status = 409, description = "Setup already completed")

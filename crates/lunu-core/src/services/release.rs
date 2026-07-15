@@ -69,11 +69,9 @@ impl ReleaseService {
 		self.blocklist.list_for_request(request_id).await
 	}
 
-	pub async fn remove_blocklist(&self, request_id: &str, download_url: &str) -> Result<()> {
-		if !self.blocklist.remove(request_id, download_url).await? {
-			return Err(Error::NotFound(format!(
-				"blocklist entry for request {request_id}"
-			)));
+	pub async fn remove_blocklist(&self, request_id: &str, entry_id: &str) -> Result<()> {
+		if !self.blocklist.remove_by_id(request_id, entry_id).await? {
+			return Err(Error::NotFound(format!("blocklist entry {entry_id}")));
 		}
 		Ok(())
 	}

@@ -45,7 +45,7 @@ pub async fn unread_count(
 	Ok(HttpResponse::Ok().json(UnreadCount { unread }))
 }
 
-#[utoipa::path(tag = "notifications", responses((status = 204, description = "Marked read"), (status = 404, description = "Not found")))]
+#[utoipa::path(tag = "notifications", params(("id" = String, Path, description = "Notification id")), responses((status = 204, description = "Marked read"), (status = 404, description = "Not found")))]
 #[post("/notifications/{id}/read")]
 pub async fn mark_read(
 	user: AuthUser,

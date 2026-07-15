@@ -14,7 +14,7 @@ pub struct ConfigureScheduleBody {
 	interval_secs: i64,
 }
 
-#[utoipa::path(tag = "schedules", responses((status = 200, description = "Recurring task schedules")))]
+#[utoipa::path(tag = "schedules", responses((status = 200, description = "Recurring task schedules", body = Vec<ScheduleResponse>)))]
 #[get("/admin/schedules")]
 pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let schedules = state.scheduler.list().await?;
@@ -22,7 +22,7 @@ pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpR
 	Ok(HttpResponse::Ok().json(items))
 }
 
-#[utoipa::path(tag = "schedules", responses((status = 200, description = "Schedule updated"), (status = 404, description = "Unknown schedule")))]
+#[utoipa::path(tag = "schedules", params(("kind" = String, Path, description = "Schedule kind")), request_body = ConfigureScheduleBody, responses((status = 200, description = "Schedule updated"), (status = 404, description = "Unknown schedule")))]
 #[patch("/admin/schedules/{kind}")]
 pub async fn configure(
 	_admin: AdminUser,

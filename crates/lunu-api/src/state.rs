@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use lunu_config::BootstrapConfig;
 use lunu_core::Result;
-use lunu_core::consts::auth::{AUTH_RATE_LIMIT_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECS};
+use lunu_core::consts::auth::{
+	AUTH_RATE_LIMIT_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECS, METADATA_RATE_LIMIT_ATTEMPTS,
+	METADATA_RATE_LIMIT_WINDOW_SECS,
+};
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
@@ -56,6 +59,7 @@ pub struct AppState {
 	pub notifications: Arc<NotificationService>,
 	pub hub: Arc<EventHub>,
 	pub auth_rate_limiter: Arc<RateLimiter>,
+	pub metadata_rate_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -112,6 +116,10 @@ impl AppState {
 		let auth_rate_limiter = Arc::new(RateLimiter::new(
 			AUTH_RATE_LIMIT_ATTEMPTS,
 			std::time::Duration::from_secs(AUTH_RATE_LIMIT_WINDOW_SECS),
+		));
+		let metadata_rate_limiter = Arc::new(RateLimiter::new(
+			METADATA_RATE_LIMIT_ATTEMPTS,
+			std::time::Duration::from_secs(METADATA_RATE_LIMIT_WINDOW_SECS),
 		));
 		let activity = Arc::new(ActivityService::new(activity_repo, hub.clone()));
 		let media = Arc::new(MediaService::new(media_repo.clone()));
@@ -211,6 +219,7 @@ impl AppState {
 			notifications,
 			hub,
 			auth_rate_limiter,
+			metadata_rate_limiter,
 		})
 	}
 }

@@ -59,6 +59,12 @@ impl From<&ApiKey> for ApiKeyResponse {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct IssuedApiKeyResponse {
+	pub secret: String,
+	pub api_key: ApiKeyResponse,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct SessionResponse {
 	pub id: String,
 	pub current: bool,
@@ -125,4 +131,10 @@ impl From<&Invite> for InviteResponse {
 			expires_at: invite.expires_at,
 		}
 	}
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct IssuedInviteResponse {
+	pub code: String,
+	pub invite: InviteResponse,
 }

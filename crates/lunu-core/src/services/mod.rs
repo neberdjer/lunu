@@ -42,7 +42,7 @@ pub use user::UserService;
 
 use chrono::Utc;
 
-use crate::consts::auth::PASSWORD_MIN_LEN;
+use crate::consts::auth::{PASSWORD_MIN_LEN, USERNAME_MAX_LEN};
 use crate::consts::reasons;
 use crate::crypto::hash_password;
 use crate::models::{AuthSource, Role, User};
@@ -55,6 +55,17 @@ pub(crate) fn validate_password(password: &str) -> Result<()> {
 		return Err(Error::Validation(reasons::PASSWORD_TOO_SHORT.to_string()));
 	}
 	Ok(())
+}
+
+pub(crate) fn validate_username(username: &str) -> Result<String> {
+	let trimmed = username.trim();
+	if trimmed.is_empty()
+		|| trimmed.chars().count() > USERNAME_MAX_LEN
+		|| trimmed.contains(char::is_whitespace)
+	{
+		return Err(Error::Validation(reasons::USERNAME_INVALID.to_string()));
+	}
+	Ok(trimmed.to_string())
 }
 
 pub(crate) fn normalize_email(email: Option<String>) -> Result<Option<String>> {
@@ -134,12 +145,13 @@ pub(crate) fn build_local_user(
 	email: Option<String>,
 	role: Role,
 ) -> Result<User> {
+	let username = validate_username(username)?;
 	validate_password(password)?;
 	let email = normalize_email(email)?;
 	let now = Utc::now();
 	Ok(User {
 		id: new_id(),
-		username: username.to_string(),
+		username,
 		email,
 		display_name: None,
 		locale: None,

@@ -1,10 +1,22 @@
 use actix_web::{HttpResponse, post, web};
+use lunu_core::consts::reasons;
 use lunu_core::services::NewRequest;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::state::AppState;
+
+const MAX_BULK_ITEMS: usize = 100;
+
+fn ensure_within_limit(len: usize) -> Result<(), ApiError> {
+	if len > MAX_BULK_ITEMS {
+		return Err(ApiError::from(lunu_core::Error::Validation(
+			reasons::TOO_MANY_ITEMS.to_string(),
+		)));
+	}
+	Ok(())
+}
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct BulkOutcome {
@@ -44,7 +56,7 @@ pub struct BulkIdsBody {
 	ids: Vec<String>,
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-ASIN request outcomes", body = Vec<BulkOutcome>)))]
+#[utoipa::path(tag = "requests", request_body = BulkRequestBody, responses((status = 200, description = "Per-ASIN request outcomes", body = Vec<BulkOutcome>)))]
 #[post("/requests/bulk")]
 pub async fn bulk_create(
 	user: AuthUser,
@@ -52,6 +64,7 @@ pub async fn bulk_create(
 	body: web::Json<BulkRequestBody>,
 ) -> Result<HttpResponse, ApiError> {
 	let body = body.into_inner();
+	ensure_within_limit(body.asins.len())?;
 	if let Some(profile_id) = body.quality_profile_id.as_deref() {
 		state.quality_profiles.require(profile_id).await?;
 	}
@@ -68,25 +81,29 @@ pub async fn bulk_create(
 	Ok(HttpResponse::Ok().json(outcomes))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-request approval outcomes", body = Vec<BulkOutcome>)))]
+#[utoipa::path(tag = "requests", request_body = BulkIdsBody, responses((status = 200, description = "Per-request approval outcomes", body = Vec<BulkOutcome>)))]
 #[post("/requests/bulk-approve")]
 pub async fn bulk_approve(
 	admin: AdminUser,
 	state: web::Data<AppState>,
 	body: web::Json<BulkIdsBody>,
 ) -> Result<HttpResponse, ApiError> {
-	let outcomes = bulk_transition(&state, &admin.id, body.into_inner().ids, true).await;
+	let ids = body.into_inner().ids;
+	ensure_within_limit(ids.len())?;
+	let outcomes = bulk_transition(&state, &admin.id, ids, true).await;
 	Ok(HttpResponse::Ok().json(outcomes))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Per-request decline outcomes", body = Vec<BulkOutcome>)))]
+#[utoipa::path(tag = "requests", request_body = BulkIdsBody, responses((status = 200, description = "Per-request decline outcomes", body = Vec<BulkOutcome>)))]
 #[post("/requests/bulk-decline")]
 pub async fn bulk_decline(
 	admin: AdminUser,
 	state: web::Data<AppState>,
 	body: web::Json<BulkIdsBody>,
 ) -> Result<HttpResponse, ApiError> {
-	let outcomes = bulk_transition(&state, &admin.id, body.into_inner().ids, false).await;
+	let ids = body.into_inner().ids;
+	ensure_within_limit(ids.len())?;
+	let outcomes = bulk_transition(&state, &admin.id, ids, false).await;
 	Ok(HttpResponse::Ok().json(outcomes))
 }
 

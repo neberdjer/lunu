@@ -99,7 +99,7 @@ impl From<&UserNotification> for NotificationResponse {
 		Self {
 			id: notification.id.clone(),
 			kind: notification.kind.as_str().to_string(),
-			summary: notification.kind.summary().to_string(),
+			summary: notification.kind.summary(),
 			request_id: notification.request_id.clone(),
 			title: notification.title.clone(),
 			read: notification.read_at.is_some(),

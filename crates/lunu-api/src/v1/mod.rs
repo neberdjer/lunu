@@ -52,6 +52,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(metadata::similar)
 		.service(metadata::author_books)
 		.service(users::list)
+		.service(users::get)
 		.service(users::create)
 		.service(users::update)
 		.service(users::set_password)

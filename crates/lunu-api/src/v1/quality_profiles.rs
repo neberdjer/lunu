@@ -77,7 +77,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "quality-profiles", responses((status = 200, body = QualityProfileResponse), (status = 404, description = "Not found")))]
+#[utoipa::path(tag = "quality-profiles", params(("id" = String, Path, description = "Quality profile id")), responses((status = 200, body = QualityProfileResponse), (status = 404, description = "Not found")))]
 #[get("/quality-profiles/{id}")]
 pub async fn get(
 	_admin: AdminUser,
@@ -93,7 +93,7 @@ pub async fn get(
 	Ok(HttpResponse::Ok().json(QualityProfileResponse::from(&profile)))
 }
 
-#[utoipa::path(tag = "quality-profiles", responses((status = 201, description = "Profile created", body = QualityProfileResponse)))]
+#[utoipa::path(tag = "quality-profiles", request_body = QualityProfileBody, responses((status = 201, description = "Profile created", body = QualityProfileResponse)))]
 #[post("/quality-profiles")]
 pub async fn create(
 	_admin: AdminUser,
@@ -107,7 +107,7 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(QualityProfileResponse::from(&profile)))
 }
 
-#[utoipa::path(tag = "quality-profiles", responses((status = 200, description = "Profile updated", body = QualityProfileResponse)))]
+#[utoipa::path(tag = "quality-profiles", params(("id" = String, Path, description = "Quality profile id")), request_body = QualityProfileBody, responses((status = 200, description = "Profile updated", body = QualityProfileResponse)))]
 #[put("/quality-profiles/{id}")]
 pub async fn update(
 	_admin: AdminUser,
@@ -122,7 +122,7 @@ pub async fn update(
 	Ok(HttpResponse::Ok().json(QualityProfileResponse::from(&profile)))
 }
 
-#[utoipa::path(tag = "quality-profiles", responses((status = 204, description = "Profile deleted")))]
+#[utoipa::path(tag = "quality-profiles", params(("id" = String, Path, description = "Quality profile id")), responses((status = 204, description = "Profile deleted")))]
 #[delete("/quality-profiles/{id}")]
 pub async fn delete(
 	_admin: AdminUser,

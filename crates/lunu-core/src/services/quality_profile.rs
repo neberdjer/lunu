@@ -49,10 +49,11 @@ impl QualityProfileService {
 	}
 
 	pub async fn create(&self, input: QualityProfileInput) -> Result<QualityProfile> {
+		let name = validate_name(&input.name)?;
 		let now = Utc::now();
 		let profile = QualityProfile {
 			id: new_id(),
-			name: input.name,
+			name,
 			allowed_formats: input.allowed_formats,
 			preferred_formats: input.preferred_formats,
 			min_seeders: input.min_seeders,
@@ -73,13 +74,14 @@ impl QualityProfileService {
 	}
 
 	pub async fn update(&self, id: &str, input: QualityProfileInput) -> Result<QualityProfile> {
+		let name = validate_name(&input.name)?;
 		let mut profile = self
 			.repo
 			.find_by_id(id)
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("quality profile {id}")))?;
 
-		profile.name = input.name;
+		profile.name = name;
 		profile.allowed_formats = input.allowed_formats;
 		profile.preferred_formats = input.preferred_formats;
 		profile.min_seeders = input.min_seeders;
@@ -100,4 +102,14 @@ impl QualityProfileService {
 	pub async fn delete(&self, id: &str) -> Result<()> {
 		self.repo.delete(id).await
 	}
+}
+
+fn validate_name(name: &str) -> Result<String> {
+	let trimmed = name.trim();
+	if trimmed.is_empty() {
+		return Err(Error::Validation(
+			reasons::PROFILE_NAME_REQUIRED.to_string(),
+		));
+	}
+	Ok(trimmed.to_string())
 }

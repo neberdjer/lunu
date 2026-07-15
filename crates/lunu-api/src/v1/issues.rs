@@ -24,7 +24,7 @@ pub struct IssueListParams {
 	status: Option<String>,
 }
 
-#[utoipa::path(tag = "issues", responses((status = 201, description = "Issue opened", body = IssueResponse), (status = 409, description = "Request not available")))]
+#[utoipa::path(tag = "issues", params(("id" = String, Path, description = "Request id")), request_body = OpenIssueBody, responses((status = 201, description = "Issue opened", body = IssueResponse), (status = 409, description = "Request not available")))]
 #[post("/requests/{id}/issues")]
 pub async fn open(
 	user: AuthUser,
@@ -41,7 +41,7 @@ pub async fn open(
 	Ok(HttpResponse::Created().json(IssueResponse::from(&issue)))
 }
 
-#[utoipa::path(tag = "issues", responses((status = 200, description = "Issues for a request", body = Vec<IssueResponse>)))]
+#[utoipa::path(tag = "issues", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Issues for a request", body = Vec<IssueResponse>)))]
 #[get("/requests/{id}/issues")]
 pub async fn for_request(
 	user: AuthUser,
@@ -77,7 +77,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "issues", responses((status = 200, description = "Issue resolved", body = IssueResponse), (status = 409, description = "Issue already resolved")))]
+#[utoipa::path(tag = "issues", params(("id" = String, Path, description = "Issue id")), responses((status = 200, description = "Issue resolved", body = IssueResponse), (status = 409, description = "Issue already resolved")))]
 #[post("/issues/{id}/resolve")]
 pub async fn resolve(
 	admin: AdminUser,

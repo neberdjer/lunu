@@ -66,14 +66,13 @@ impl BlocklistRepo for SqlxBlocklistRepo {
 		map_rows(rows, map_entry)
 	}
 
-	async fn remove(&self, request_id: &str, download_url: &str) -> Result<bool> {
-		let result =
-			sqlx::query("DELETE FROM blocklist WHERE request_id = $1 AND download_url = $2")
-				.bind(request_id)
-				.bind(download_url)
-				.execute(&self.db)
-				.await
-				.map_err(db_error)?;
+	async fn remove_by_id(&self, request_id: &str, entry_id: &str) -> Result<bool> {
+		let result = sqlx::query("DELETE FROM blocklist WHERE request_id = $1 AND id = $2")
+			.bind(request_id)
+			.bind(entry_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
 		Ok(result.rows_affected() > 0)
 	}
 }

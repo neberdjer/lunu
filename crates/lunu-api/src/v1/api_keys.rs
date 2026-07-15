@@ -2,9 +2,8 @@ use actix_web::{HttpResponse, delete, get, post, web};
 use chrono::{Duration, Utc};
 use lunu_core::consts::auth::KNOWN_API_KEY_SCOPES;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
-use crate::dto::ApiKeyResponse;
+use crate::dto::{ApiKeyResponse, IssuedApiKeyResponse};
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::pagination::{Page, PageParams, Pagination};
@@ -45,7 +44,7 @@ pub async fn list(
 	}))
 }
 
-#[utoipa::path(tag = "api-keys", responses((status = 201, description = "Key created; secret shown once")))]
+#[utoipa::path(tag = "api-keys", request_body = CreateApiKeyRequest, responses((status = 201, description = "Key created; secret shown once", body = IssuedApiKeyResponse)))]
 #[post("/api-keys")]
 pub async fn create(
 	user: AuthUser,
@@ -61,13 +60,13 @@ pub async fn create(
 		.issue(&user.id, &body.name, body.scopes.clone(), expires_at)
 		.await?;
 
-	Ok(HttpResponse::Created().json(json!({
-		"secret": issued.secret,
-		"api_key": ApiKeyResponse::from(&issued.api_key),
-	})))
+	Ok(HttpResponse::Created().json(IssuedApiKeyResponse {
+		secret: issued.secret,
+		api_key: ApiKeyResponse::from(&issued.api_key),
+	}))
 }
 
-#[utoipa::path(tag = "api-keys", responses((status = 204, description = "Key revoked")))]
+#[utoipa::path(tag = "api-keys", params(("id" = String, Path, description = "API key id")), responses((status = 204, description = "Key revoked")))]
 #[delete("/api-keys/{id}")]
 pub async fn delete(
 	user: AuthUser,

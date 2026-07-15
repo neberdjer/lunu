@@ -5,7 +5,9 @@ use lunu_core::models::RequestStatus;
 use lunu_core::services::{NewRequest, ReleaseSelection};
 use serde::Deserialize;
 
-use crate::dto::{ActivityResponse, BlocklistResponse, DownloadResponse, RequestResponse};
+use crate::dto::{
+	ActivityResponse, BlocklistResponse, DownloadResponse, RequestResponse, ScoredReleaseResponse,
+};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::pagination::{Page, Pagination};
@@ -48,7 +50,7 @@ pub struct BlocklistBody {
 	download_url: String,
 }
 
-#[utoipa::path(tag = "requests", responses((status = 204, description = "Request deleted")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 204, description = "Request deleted")))]
 #[delete("/requests/{id}")]
 pub async fn delete(
 	user: AuthUser,
@@ -59,7 +61,7 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Failed request reopened", body = RequestResponse)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Failed request reopened", body = RequestResponse)))]
 #[post("/requests/{id}/retry")]
 pub async fn retry(
 	user: AuthUser,
@@ -70,7 +72,7 @@ pub async fn retry(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 204, description = "Release blocklisted")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), request_body = BlocklistBody, responses((status = 204, description = "Release blocklisted")))]
 #[post("/requests/{id}/blocklist")]
 pub async fn blocklist(
 	_admin: AdminUser,
@@ -85,7 +87,7 @@ pub async fn blocklist(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Blocklisted releases for the request", body = Vec<BlocklistResponse>)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Blocklisted releases for the request", body = Vec<BlocklistResponse>)))]
 #[get("/requests/{id}/blocklist")]
 pub async fn blocklist_list(
 	_admin: AdminUser,
@@ -97,18 +99,15 @@ pub async fn blocklist_list(
 	Ok(HttpResponse::Ok().json(items))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 204, description = "Blocklist entry removed"), (status = 404, description = "Not found")))]
-#[delete("/requests/{id}/blocklist")]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id"), ("entry_id" = String, Path, description = "Blocklist entry id")), responses((status = 204, description = "Blocklist entry removed"), (status = 404, description = "Not found")))]
+#[delete("/requests/{id}/blocklist/{entry_id}")]
 pub async fn blocklist_remove(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
-	id: web::Path<String>,
-	body: web::Json<BlocklistBody>,
+	path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, ApiError> {
-	state
-		.releases
-		.remove_blocklist(&id.into_inner(), &body.download_url)
-		.await?;
+	let (id, entry_id) = path.into_inner();
+	state.releases.remove_blocklist(&id, &entry_id).await?;
 	Ok(HttpResponse::NoContent().finish())
 }
 
@@ -144,7 +143,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 201, description = "Request created", body = RequestResponse)))]
+#[utoipa::path(tag = "requests", request_body = CreateRequestBody, responses((status = 201, description = "Request created", body = RequestResponse)))]
 #[post("/requests")]
 pub async fn create(
 	user: AuthUser,
@@ -164,7 +163,7 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(RequestResponse::from(&request)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, body = RequestResponse), (status = 404, description = "Not found")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, body = RequestResponse), (status = 404, description = "Not found")))]
 #[get("/requests/{id}")]
 pub async fn get(
 	user: AuthUser,
@@ -176,7 +175,7 @@ pub async fn get(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 204, description = "Download cancelled"), (status = 404, description = "No download")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 204, description = "Download cancelled"), (status = 404, description = "No download")))]
 #[delete("/requests/{id}/download")]
 pub async fn cancel_download(
 	_admin: AdminUser,
@@ -187,7 +186,7 @@ pub async fn cancel_download(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Download progress", body = DownloadResponse), (status = 404, description = "No download")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Download progress", body = DownloadResponse), (status = 404, description = "No download")))]
 #[get("/requests/{id}/download")]
 pub async fn request_download(
 	user: AuthUser,
@@ -204,7 +203,7 @@ pub async fn request_download(
 	Ok(HttpResponse::Ok().json(DownloadResponse::from(&download)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Status timeline", body = Vec<ActivityResponse>)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Status timeline", body = Vec<ActivityResponse>)))]
 #[get("/requests/{id}/activity")]
 pub async fn activity(
 	user: AuthUser,
@@ -219,7 +218,7 @@ pub async fn activity(
 	Ok(HttpResponse::Ok().json(items))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Approved", body = RequestResponse)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Approved", body = RequestResponse)))]
 #[post("/requests/{id}/approve")]
 pub async fn approve(
 	admin: AdminUser,
@@ -230,7 +229,7 @@ pub async fn approve(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Declined", body = RequestResponse)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), request_body = DeclineBody, responses((status = 200, description = "Declined", body = RequestResponse)))]
 #[post("/requests/{id}/decline")]
 pub async fn decline(
 	admin: AdminUser,
@@ -243,7 +242,7 @@ pub async fn decline(
 	Ok(HttpResponse::Ok().json(RequestResponse::from(&request)))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 200, description = "Ranked releases for the request")))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), responses((status = 200, description = "Ranked releases for the request", body = Vec<ScoredReleaseResponse>)))]
 #[get("/requests/{id}/releases")]
 pub async fn releases(
 	_admin: AdminUser,
@@ -251,10 +250,12 @@ pub async fn releases(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	let releases = state.releases.for_request(&id).await?;
-	Ok(HttpResponse::Ok().json(releases))
+	let items: Vec<ScoredReleaseResponse> =
+		releases.iter().map(ScoredReleaseResponse::from).collect();
+	Ok(HttpResponse::Ok().json(items))
 }
 
-#[utoipa::path(tag = "requests", responses((status = 201, description = "Grab enqueued", body = DownloadResponse)))]
+#[utoipa::path(tag = "requests", params(("id" = String, Path, description = "Request id")), request_body = GrabBody, responses((status = 201, description = "Grab enqueued", body = DownloadResponse)))]
 #[post("/requests/{id}/grab")]
 pub async fn grab(
 	_admin: AdminUser,

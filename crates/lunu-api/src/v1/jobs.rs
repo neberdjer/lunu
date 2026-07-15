@@ -42,7 +42,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "jobs", responses((status = 204, description = "Job requeued"), (status = 409, description = "Only a failed job can be requeued")))]
+#[utoipa::path(tag = "jobs", params(("id" = String, Path, description = "Job id")), responses((status = 204, description = "Job requeued"), (status = 409, description = "Only a failed job can be requeued")))]
 #[post("/jobs/{id}/retry")]
 pub async fn retry(
 	_admin: AdminUser,
@@ -53,7 +53,7 @@ pub async fn retry(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "jobs", responses((status = 204, description = "Job cancelled")))]
+#[utoipa::path(tag = "jobs", params(("id" = String, Path, description = "Job id")), responses((status = 204, description = "Job cancelled")))]
 #[delete("/jobs/{id}")]
 pub async fn cancel(
 	_admin: AdminUser,

@@ -18,7 +18,7 @@ pub struct ManualRequestBody {
 	quality_profile_id: Option<String>,
 }
 
-#[utoipa::path(tag = "requests", responses((status = 201, description = "Manual request created (no ASIN); fulfilled by indexer search on the title", body = RequestResponse)))]
+#[utoipa::path(tag = "requests", request_body = ManualRequestBody, responses((status = 201, description = "Manual request created (no ASIN); fulfilled by indexer search on the title", body = RequestResponse)))]
 #[post("/requests/manual")]
 pub async fn create_manual(
 	user: AuthUser,

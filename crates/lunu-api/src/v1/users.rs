@@ -58,7 +58,23 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "users", responses((status = 201, description = "User created", body = UserResponse)))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), responses((status = 200, body = UserResponse), (status = 404, description = "Not found")))]
+#[get("/users/{id}")]
+pub async fn get(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	let id = id.into_inner();
+	let user = state
+		.users
+		.get(&id)
+		.await?
+		.ok_or_else(|| lunu_core::Error::NotFound(format!("user {id}")))?;
+	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
+}
+
+#[utoipa::path(tag = "users", request_body = CreateUserRequest, responses((status = 201, description = "User created", body = UserResponse)))]
 #[post("/users")]
 pub async fn create(
 	req: HttpRequest,
@@ -79,7 +95,7 @@ pub async fn create(
 	Ok(HttpResponse::Created().json(UserResponse::from(&user)))
 }
 
-#[utoipa::path(tag = "users", responses((status = 200, description = "User updated", body = UserResponse)))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), request_body = UpdateUserRequest, responses((status = 200, description = "User updated", body = UserResponse)))]
 #[patch("/users/{id}")]
 pub async fn update(
 	_admin: AdminUser,
@@ -102,7 +118,7 @@ pub async fn update(
 	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
 }
 
-#[utoipa::path(tag = "users", responses((status = 200, description = "Password reset", body = UserResponse), (status = 400, description = "Invalid password")))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), request_body = SetPasswordRequest, responses((status = 200, description = "Password reset", body = UserResponse), (status = 400, description = "Invalid password")))]
 #[post("/users/{id}/password")]
 pub async fn set_password(
 	_admin: AdminUser,
@@ -117,7 +133,7 @@ pub async fn set_password(
 	Ok(HttpResponse::Ok().json(UserResponse::from(&user)))
 }
 
-#[utoipa::path(tag = "users", responses((status = 204, description = "User deleted")))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), responses((status = 204, description = "User deleted")))]
 #[delete("/users/{id}")]
 pub async fn delete(
 	_admin: AdminUser,
@@ -128,7 +144,7 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "users", responses((status = 200, body = UserSettingsResponse)))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), responses((status = 200, body = UserSettingsResponse)))]
 #[get("/users/{id}/settings")]
 pub async fn get_settings(
 	_admin: AdminUser,
@@ -144,7 +160,7 @@ pub async fn get_settings(
 	Ok(HttpResponse::Ok().json(UserSettingsResponse::from(&settings)))
 }
 
-#[utoipa::path(tag = "users", responses((status = 200, description = "Settings updated", body = UserSettingsResponse)))]
+#[utoipa::path(tag = "users", params(("id" = String, Path, description = "User id")), request_body = SetUserSettingsRequest, responses((status = 200, description = "Settings updated", body = UserSettingsResponse)))]
 #[put("/users/{id}/settings")]
 pub async fn set_settings(
 	_admin: AdminUser,
