@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::Result;
 use crate::models::{NotificationEvent, NotificationKind};
 use crate::repo::UserRepo;
 use crate::traits::Notifier;
+use crate::{Error, Result};
 
 pub async fn resolve_recipients(
 	users: &dyn UserRepo,
@@ -16,6 +16,18 @@ pub async fn resolve_recipients(
 	}
 }
 
+pub struct DispatchReport {
+	pub delivered: usize,
+	pub failed: usize,
+	pub last_error: Option<Error>,
+}
+
+impl DispatchReport {
+	pub fn total_failure(&self) -> bool {
+		self.delivered == 0 && self.failed > 0
+	}
+}
+
 pub struct NotificationService {
 	notifiers: Vec<Arc<dyn Notifier>>,
 }
@@ -25,13 +37,21 @@ impl NotificationService {
 		Self { notifiers }
 	}
 
-	pub async fn dispatch(&self, event: &NotificationEvent) -> Result<()> {
-		let mut last_error = None;
+	pub async fn dispatch(&self, event: &NotificationEvent) -> Result<DispatchReport> {
+		let mut report = DispatchReport {
+			delivered: 0,
+			failed: 0,
+			last_error: None,
+		};
 		for notifier in &self.notifiers {
-			if let Err(error) = notifier.deliver(event).await {
-				last_error = Some(error);
+			match notifier.deliver(event).await {
+				Ok(()) => report.delivered += 1,
+				Err(error) => {
+					report.failed += 1;
+					report.last_error = Some(error);
+				}
 			}
 		}
-		last_error.map_or(Ok(()), Err)
+		Ok(report)
 	}
 }

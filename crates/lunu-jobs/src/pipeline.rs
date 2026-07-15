@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use lunu_core::Result;
 use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MonitorPayload, NotificationEvent,
 };
@@ -8,7 +9,6 @@ use lunu_core::services::{
 	GrabService, ImportService, LibraryService, MonitorService, NotificationService, RequestService,
 };
 use lunu_core::traits::JobHandler;
-use lunu_core::{Error, Result};
 
 pub struct PipelineHandler {
 	grabs: Arc<GrabService>,
@@ -41,7 +41,21 @@ impl PipelineHandler {
 
 	async fn notify(&self, payload: &str) -> Result<()> {
 		let event: NotificationEvent = serde_json::from_str(payload)?;
-		self.notifications.dispatch(&event).await
+		let report = self.notifications.dispatch(&event).await?;
+		if report.failed > 0 {
+			tracing::warn!(
+				delivered = report.delivered,
+				failed = report.failed,
+				kind = %event.kind,
+				"notification dispatch had failures"
+			);
+		}
+		if report.total_failure()
+			&& let Some(error) = report.last_error
+		{
+			return Err(error);
+		}
+		Ok(())
 	}
 
 	async fn grab(&self, payload: &str) -> Result<()> {
@@ -84,9 +98,6 @@ impl JobHandler for PipelineHandler {
 			JobType::Import => self.import(&job.payload).await,
 			JobType::Notify => self.notify(&job.payload).await,
 			JobType::LibrarySync => self.library_sync().await,
-			other => Err(Error::Internal(format!(
-				"job stage not yet implemented: {other}"
-			))),
 		}
 	}
 
@@ -98,7 +109,8 @@ impl JobHandler for PipelineHandler {
 		if !job.job_type.propagates_failure_to_request() {
 			return;
 		}
-		if let Err(err) = self.requests.mark_failed(request_id, Some(error)).await {
+		tracing::error!(job = %job.id, kind = %job.job_type, request = %request_id, %error, "request fulfillment failed permanently");
+		if let Err(err) = self.requests.mark_failed(request_id, None).await {
 			tracing::error!(%err, request = %request_id, "failed to mark request failed after job exhaustion");
 		}
 	}

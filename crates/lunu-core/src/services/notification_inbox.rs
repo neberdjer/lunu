@@ -28,10 +28,13 @@ impl NotificationInboxService {
 	}
 
 	pub async fn fan_out(&self, event: &NotificationEvent) -> Result<()> {
+		let mut last_error = None;
 		for user_id in resolve_recipients(self.users.as_ref(), event).await? {
-			self.deliver(&user_id, event).await?;
+			if let Err(error) = self.deliver(&user_id, event).await {
+				last_error = Some(error);
+			}
 		}
-		Ok(())
+		last_error.map_or(Ok(()), Err)
 	}
 
 	async fn deliver(&self, user_id: &str, event: &NotificationEvent) -> Result<()> {

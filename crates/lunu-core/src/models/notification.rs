@@ -17,14 +17,11 @@ pub enum NotificationKind {
 }
 
 impl NotificationKind {
-	pub fn summary(&self) -> &'static str {
-		match self {
-			NotificationKind::RequestPending => "New request pending approval",
-			NotificationKind::RequestApproved => "Request approved",
-			NotificationKind::RequestDeclined => "Request declined",
-			NotificationKind::RequestAvailable => "Now available",
-			NotificationKind::RequestFailed => "Request failed",
-		}
+	pub fn summary(&self) -> String {
+		lunu_i18n::t(
+			&lunu_i18n::default_locale(),
+			&format!("notification-{}", self.as_str()),
+		)
 	}
 
 	pub fn as_str(&self) -> &'static str {
