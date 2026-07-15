@@ -8,13 +8,25 @@ use lunu_core::models::LibraryItem;
 use lunu_core::services::SettingsService;
 use lunu_core::traits::LibrarySource;
 use lunu_core::{Error, Result};
+use reqwest::StatusCode;
 use serde::Deserialize;
+
+fn check_response(response: reqwest::Response) -> Result<reqwest::Response> {
+	if matches!(
+		response.status(),
+		StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+	) {
+		return Err(Error::Validation(reasons::ABS_UNAUTHORIZED.to_string()));
+	}
+	response.error_for_status().map_err(integration_error)
+}
 
 use crate::http::send_with_retry;
 use crate::{http_client_builder, integration_error, nonempty, optional_setting};
 
 const REQUEST_TIMEOUT_SECS: u64 = 60;
 const PAGE_SIZE: i64 = 100;
+const MAX_PAGES: i64 = 10_000;
 
 pub struct AbsLibrary {
 	http: reqwest::Client,
@@ -44,10 +56,8 @@ impl AbsLibrary {
 		}
 
 		let url = format!("{base}/api/libraries");
-		let response = send_with_retry(|| self.http.get(&url).bearer_auth(token))
-			.await?
-			.error_for_status()
-			.map_err(integration_error)?;
+		let response =
+			check_response(send_with_retry(|| self.http.get(&url).bearer_auth(token)).await?)?;
 		let body: LibrariesResponse = response.json().await.map_err(integration_error)?;
 		Ok(body
 			.libraries
@@ -66,16 +76,15 @@ impl AbsLibrary {
 		let url = format!("{base}/api/libraries/{library_id}/items");
 		let mut items = Vec::new();
 
-		for page in 0.. {
+		for page in 0..MAX_PAGES {
 			let response = send_with_retry(|| {
 				self.http
 					.get(&url)
 					.bearer_auth(token)
 					.query(&[("limit", PAGE_SIZE.to_string()), ("page", page.to_string())])
 			})
-			.await?
-			.error_for_status()
-			.map_err(integration_error)?;
+			.await?;
+			let response = check_response(response)?;
 			let body: ItemsResponse = response.json().await.map_err(integration_error)?;
 
 			let count = body.results.len();
@@ -83,10 +92,14 @@ impl AbsLibrary {
 				items.push(into_item(base, result));
 			}
 			if count < PAGE_SIZE as usize {
-				break;
+				return Ok(items);
 			}
 		}
 
+		tracing::warn!(
+			max_pages = MAX_PAGES,
+			"audiobookshelf library sync hit the page ceiling; results may be truncated"
+		);
 		Ok(items)
 	}
 }
@@ -109,7 +122,7 @@ fn into_item(base: &str, item: AbsItem) -> LibraryItem {
 
 	let (title, author, asin, series_raw) = match metadata {
 		Some(metadata) => (
-			metadata.title,
+			nonempty(metadata.title),
 			nonempty(metadata.author_name),
 			nonempty(metadata.asin),
 			metadata.series_name,
@@ -141,13 +154,17 @@ fn parse_series_name(series_name: Option<String>) -> (Option<String>, Option<Str
 		return (None, None);
 	};
 
-	match first.rsplit_once(" #") {
-		Some((name, sequence)) => (
-			nonempty(Some(name.to_string())),
-			nonempty(Some(sequence.to_string())),
-		),
-		None => (Some(first.to_string()), None),
+	if let Some((name, sequence)) = first.rsplit_once(" #") {
+		let sequence = sequence.trim();
+		let numeric = !sequence.is_empty()
+			&& sequence
+				.chars()
+				.all(|c| c.is_ascii_digit() || c == '.' || c == '-');
+		if numeric {
+			return (nonempty(Some(name.to_string())), Some(sequence.to_string()));
+		}
 	}
+	(Some(first.to_string()), None)
 }
 
 #[derive(Deserialize)]
@@ -165,8 +182,19 @@ struct AbsLibraryInfo {
 
 #[derive(Deserialize)]
 struct ItemsResponse {
-	#[serde(default)]
+	#[serde(default, deserialize_with = "lenient_items")]
 	results: Vec<AbsItem>,
+}
+
+fn lenient_items<'de, D>(deserializer: D) -> std::result::Result<Vec<AbsItem>, D::Error>
+where
+	D: serde::Deserializer<'de>,
+{
+	let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+	Ok(values
+		.into_iter()
+		.filter_map(|value| serde_json::from_value(value).ok())
+		.collect())
 }
 
 #[derive(Deserialize)]
@@ -258,6 +286,10 @@ mod tests {
 		assert_eq!(
 			parse_series_name(Some("Series A #1, Series B #2".to_string())),
 			(Some("Series A".to_string()), Some("1".to_string()))
+		);
+		assert_eq!(
+			parse_series_name(Some("Star Wars #7 Legends".to_string())),
+			(Some("Star Wars #7 Legends".to_string()), None)
 		);
 		assert_eq!(parse_series_name(Some(String::new())), (None, None));
 		assert_eq!(parse_series_name(None), (None, None));

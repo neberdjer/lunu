@@ -101,10 +101,7 @@ fn summarize_series(books: Vec<Book>) -> Vec<SeriesSummary> {
 		let author = book.authors.first().cloned();
 		let cover_url = book.cover_url.clone();
 		for entry in book.series {
-			let key = entry
-				.asin
-				.clone()
-				.unwrap_or_else(|| entry.name.to_ascii_lowercase());
+			let key = entry.name.trim().to_ascii_lowercase();
 			summaries
 				.entry(key.clone())
 				.and_modify(|summary| summary.books_in_results += 1)

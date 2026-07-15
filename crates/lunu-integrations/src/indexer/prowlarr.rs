@@ -118,7 +118,7 @@ impl ProwlarrRelease {
 			indexer: self.indexer.unwrap_or_default(),
 			protocol: Protocol::Torrent,
 			size: self.size.unwrap_or(0),
-			seeders: self.seeders.unwrap_or(0),
+			seeders: self.seeders.unwrap_or(1),
 			leechers: self.leechers.unwrap_or(0),
 			download_url: self.download_url?,
 			info_hash: self.info_hash,

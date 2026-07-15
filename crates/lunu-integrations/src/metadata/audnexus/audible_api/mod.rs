@@ -116,14 +116,25 @@ fn audible_host(region: &str) -> &'static str {
 
 #[derive(Deserialize)]
 struct AudibleSearchResponse {
-	#[serde(default)]
+	#[serde(default, deserialize_with = "lenient_products")]
 	products: Vec<AudibleProduct>,
 }
 
 #[derive(Deserialize)]
 struct AudibleSimilarResponse {
-	#[serde(default)]
+	#[serde(default, deserialize_with = "lenient_products")]
 	similar_products: Vec<AudibleProduct>,
+}
+
+fn lenient_products<'de, D>(deserializer: D) -> std::result::Result<Vec<AudibleProduct>, D::Error>
+where
+	D: serde::Deserializer<'de>,
+{
+	let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+	Ok(values
+		.into_iter()
+		.filter_map(|value| serde_json::from_value(value).ok())
+		.collect())
 }
 
 #[derive(Deserialize)]

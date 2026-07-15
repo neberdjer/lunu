@@ -170,3 +170,45 @@ async fn match_assigns_asin_and_marks_overridden() {
 	assert_eq!(total, 0);
 	assert!(still_unmatched.is_empty());
 }
+
+#[tokio::test]
+async fn sync_merges_duplicate_request_and_abs_rows_without_crashing() {
+	let db = memory_db().await;
+	library_service(&db, vec![item("b", None)])
+		.sync()
+		.await
+		.unwrap();
+
+	let media_repo = SqlxMediaRepo::new(db.clone());
+	media_repo
+		.upsert_request(&lunu_core::models::Media {
+			id: "req-row".to_string(),
+			asin: Some("B01".to_string()),
+			abs_item_id: None,
+			title: "Book b".to_string(),
+			author: None,
+			cover_url: None,
+			series_name: None,
+			series_sequence: None,
+			library_path: "/lib/b".to_string(),
+			source: lunu_core::models::MediaSource::Request,
+			overridden: false,
+			request_id: Some("r1".to_string()),
+			created_at: chrono::Utc::now(),
+		})
+		.await
+		.unwrap();
+	assert_eq!(media_repo.count().await.unwrap(), 2);
+
+	let summary = library_service(&db, vec![item("b", Some("B01"))])
+		.sync()
+		.await
+		.unwrap();
+	assert_eq!(summary.updated, 1);
+	assert_eq!(media_repo.count().await.unwrap(), 1);
+	let owned = media_repo
+		.available_among(&["B01".to_string()])
+		.await
+		.unwrap();
+	assert_eq!(owned, vec!["B01".to_string()]);
+}
