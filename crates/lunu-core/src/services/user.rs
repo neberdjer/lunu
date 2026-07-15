@@ -46,6 +46,7 @@ impl UserService {
 		quota_days: Option<i64>,
 	) -> Result<UserSettings> {
 		require_user(self.users.as_ref(), user_id).await?;
+		validate_quota(request_quota, quota_days)?;
 
 		let settings = UserSettings {
 			user_id: user_id.to_string(),
@@ -93,7 +94,11 @@ impl UserService {
 	) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
-		user.email = normalize_email(email)?;
+		let new_email = normalize_email(email)?;
+		if user.auth_source == AuthSource::Local && new_email != user.email {
+			user.email_verified = false;
+		}
+		user.email = new_email;
 		user.display_name = nonempty(display_name);
 		user.locale = validate_locale(locale)?;
 		user.updated_at = Utc::now();
@@ -176,5 +181,15 @@ impl UserService {
 			return Err(Error::Conflict(reasons::LAST_ADMIN.to_string()));
 		}
 		Ok(Some(guard))
+	}
+}
+
+fn validate_quota(request_quota: Option<i64>, quota_days: Option<i64>) -> Result<()> {
+	const MAX_QUOTA_DAYS: i64 = 3650;
+	let invalid = || Error::Validation(reasons::QUOTA_INVALID.to_string());
+	match (request_quota, quota_days) {
+		(None, None) => Ok(()),
+		(Some(quota), Some(days)) if quota >= 1 && (1..=MAX_QUOTA_DAYS).contains(&days) => Ok(()),
+		_ => Err(invalid()),
 	}
 }

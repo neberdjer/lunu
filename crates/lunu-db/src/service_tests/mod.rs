@@ -36,9 +36,11 @@ use std::sync::Arc;
 
 mod account;
 mod admin;
+mod approve;
 mod auth;
 mod builders;
 mod data;
+mod grab;
 mod library;
 mod monitor;
 mod pipeline;

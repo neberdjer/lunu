@@ -131,6 +131,27 @@ impl RequestRepo for SqlxRequestRepo {
 		Ok(())
 	}
 
+	async fn transition_if_pending(
+		&self,
+		id: &str,
+		status: &str,
+		approved_by: &str,
+		at: chrono::DateTime<chrono::Utc>,
+	) -> Result<bool> {
+		let result = sqlx::query(
+			"UPDATE requests SET status = $1, approved_by = $2, updated_at = $3 \
+			 WHERE id = $4 AND status = 'pending'",
+		)
+		.bind(status)
+		.bind(approved_by)
+		.bind(format_dt(at))
+		.bind(id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
+	}
+
 	async fn find_by_id(&self, id: &str) -> Result<Option<Request>> {
 		let row = sqlx::query("SELECT * FROM requests WHERE id = $1")
 			.bind(id)

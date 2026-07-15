@@ -86,13 +86,14 @@ impl RequestService {
 			return Ok((RequestStatus::Approved, None));
 		}
 		let settings = self.user_settings.get(&user.id).await?;
+		let guard = Self::quota_guard(settings.as_ref());
 		if settings
 			.as_ref()
 			.is_some_and(|settings| settings.auto_approve)
 		{
-			Ok((RequestStatus::Approved, None))
+			Ok((RequestStatus::Approved, guard))
 		} else {
-			Ok((RequestStatus::Pending, Self::quota_guard(settings.as_ref())))
+			Ok((RequestStatus::Pending, guard))
 		}
 	}
 

@@ -89,12 +89,26 @@ impl LibraryService {
 	}
 
 	async fn resolve(&self, asin: Option<&str>, abs_item_id: &str) -> Result<Option<Media>> {
-		if let Some(asin) = asin
-			&& let Some(media) = self.media.find_by_asin(asin).await?
-		{
-			return Ok(Some(media));
+		let by_asin = match asin {
+			Some(asin) => self.media.find_by_asin(asin).await?,
+			None => None,
+		};
+		let by_abs = self.media.find_by_abs_item_id(abs_item_id).await?;
+
+		match (by_asin, by_abs) {
+			(Some(a), Some(b)) if a.id != b.id && a.overridden && b.overridden => Ok(Some(a)),
+			(Some(a), Some(b)) if a.id != b.id => {
+				let (keep, drop) = if a.overridden || a.request_id.is_some() {
+					(a, b)
+				} else {
+					(b, a)
+				};
+				self.media.delete(&drop.id).await?;
+				Ok(Some(keep))
+			}
+			(Some(a), _) => Ok(Some(a)),
+			(None, by_abs) => Ok(by_abs),
 		}
-		self.media.find_by_abs_item_id(abs_item_id).await
 	}
 
 	pub async fn list(

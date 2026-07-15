@@ -20,7 +20,7 @@ impl Pagination {
 		Self {
 			page,
 			limit,
-			offset: (page - 1) * limit,
+			offset: page.saturating_sub(1).saturating_mul(limit),
 		}
 	}
 }
@@ -41,5 +41,25 @@ impl<T> Page<T> {
 			limit: pagination.limit,
 			total,
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn huge_page_does_not_overflow() {
+		let p = Pagination::resolve(Some(i64::MAX), Some(100));
+		assert_eq!(p.page, i64::MAX);
+		assert_eq!(p.offset, i64::MAX);
+	}
+
+	#[test]
+	fn resolve_clamps_page_and_limit() {
+		let p = Pagination::resolve(Some(-5), Some(0));
+		assert_eq!(p.page, 1);
+		assert_eq!(p.limit, 1);
+		assert_eq!(p.offset, 0);
 	}
 }

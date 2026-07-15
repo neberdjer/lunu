@@ -273,20 +273,23 @@ impl RequestService {
 		admin_id: &str,
 		detail: Option<&str>,
 	) -> Result<Request> {
-		let mut request = self
+		let won = self
+			.requests
+			.transition_if_pending(id, status.as_str(), admin_id, Utc::now())
+			.await?;
+		if !won {
+			if self.requests.find_by_id(id).await?.is_none() {
+				return Err(Error::NotFound(format!("request {id}")));
+			}
+			return Err(Error::Conflict(reasons::REQUEST_NOT_PENDING.to_string()));
+		}
+
+		let request = self
 			.requests
 			.find_by_id(id)
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("request {id}")))?;
-
-		if !request.status.is_pending() {
-			return Err(Error::Conflict(reasons::REQUEST_NOT_PENDING.to_string()));
-		}
-
-		request.status = status;
-		request.approved_by = Some(admin_id.to_string());
-		request.updated_at = Utc::now();
-		self.persist(&request, detail, Some(admin_id)).await?;
+		self.record_status(&request, detail, Some(admin_id)).await?;
 		if status == RequestStatus::Approved {
 			self.enqueue_fulfillment(&request.id).await?;
 		}
