@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use super::{NewRequest, RequestService};
 use crate::consts::reasons;
-use crate::models::{Book, ExternalId, Format, Request, RequestStatus, User, UserSettings};
+use crate::models::{Book, Format, Request, RequestStatus, User, UserSettings};
 use crate::services::{new_id, nonempty};
 use crate::{Error, Result};
 
@@ -33,7 +33,7 @@ impl RequestService {
 	pub async fn create(&self, user: &User, input: NewRequest) -> Result<Request> {
 		let book = self
 			.metadata
-			.get_book(&ExternalId::asin(&input.asin))
+			.get_book(&input.id)
 			.await?
 			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 		self.create_with_book(user, input, book).await
@@ -45,9 +45,13 @@ impl RequestService {
 		input: NewRequest,
 		book: Book,
 	) -> Result<Request> {
-		let asin = input.asin.as_str();
-		let (work_id, owned) =
-			tokio::try_join!(self.works.for_book(&book), self.media.find_by_asin(asin))?;
+		let asin = book.asin().map(str::to_string);
+		let (work_id, owned) = tokio::try_join!(self.works.for_book(&book), async {
+			match asin.as_deref() {
+				Some(value) => self.media.find_by_asin(value).await,
+				None => Ok(None),
+			}
+		})?;
 		let work_id =
 			work_id.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
@@ -65,7 +69,7 @@ impl RequestService {
 			user_id: user.id.clone(),
 			work_id,
 			format: Format::Audiobook,
-			asin: Some(asin.to_string()),
+			asin,
 			title: book.title,
 			author: book.authors.into_iter().next(),
 			cover_url: book.cover_url,

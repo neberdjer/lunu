@@ -1,5 +1,6 @@
 use actix_web::{HttpResponse, post, web};
 use lunu_core::consts::reasons;
+use lunu_core::models::ExternalId;
 use lunu_core::services::NewRequest;
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +50,7 @@ impl BulkOutcome {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct BulkRequestBody {
-	asins: Vec<String>,
+	ids: Vec<String>,
 	#[serde(default)]
 	notes: Option<String>,
 	#[serde(default)]
@@ -61,7 +62,7 @@ pub struct BulkIdsBody {
 	ids: Vec<String>,
 }
 
-#[utoipa::path(tag = "requests", request_body = BulkRequestBody, responses((status = 200, description = "Per-ASIN request outcomes", body = Vec<BulkOutcome>)))]
+#[utoipa::path(tag = "requests", request_body = BulkRequestBody, responses((status = 200, description = "Per-id request outcomes", body = Vec<BulkOutcome>)))]
 #[post("/requests/bulk")]
 pub async fn bulk_create(
 	user: AuthUser,
@@ -69,19 +70,19 @@ pub async fn bulk_create(
 	body: web::Json<BulkRequestBody>,
 ) -> Result<HttpResponse, ApiError> {
 	let body = body.into_inner();
-	ensure_within_limit(body.asins.len())?;
+	ensure_within_limit(body.ids.len())?;
 	if let Some(profile_id) = body.quality_profile_id.as_deref() {
 		state.quality_profiles.require(profile_id).await?;
 	}
-	let mut outcomes = Vec::with_capacity(body.asins.len());
-	for asin in body.asins {
+	let mut outcomes = Vec::with_capacity(body.ids.len());
+	for id in body.ids {
 		let input = NewRequest {
-			asin: asin.clone(),
+			id: ExternalId::asin(&id),
 			notes: body.notes.clone(),
 			quality_profile_id: body.quality_profile_id.clone(),
 		};
 		let result = state.requests.create(&user.0, input).await;
-		outcomes.push(BulkOutcome::from_result(asin, result));
+		outcomes.push(BulkOutcome::from_result(id, result));
 	}
 	Ok(HttpResponse::Ok().json(outcomes))
 }

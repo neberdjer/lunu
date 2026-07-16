@@ -5,7 +5,8 @@ use chrono::Utc;
 
 use crate::consts::reasons;
 use crate::models::{
-	GrabPayload, JobType, NotificationEvent, NotificationKind, Request, RequestStatus, User,
+	ExternalId, GrabPayload, JobType, NotificationEvent, NotificationKind, Request, RequestStatus,
+	User,
 };
 use crate::repo::{DownloadRepo, MediaRepo, RequestRepo, UserSettingsRepo};
 use crate::services::{
@@ -17,17 +18,17 @@ mod create;
 
 pub use create::ManualRequest;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct NewRequest {
-	pub asin: String,
+	pub id: ExternalId,
 	pub notes: Option<String>,
 	pub quality_profile_id: Option<String>,
 }
 
 impl NewRequest {
-	pub fn new(asin: impl Into<String>) -> Self {
+	pub fn new(id: ExternalId) -> Self {
 		Self {
-			asin: asin.into(),
+			id,
 			notes: None,
 			quality_profile_id: None,
 		}

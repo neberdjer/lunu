@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use actix_web::{HttpResponse, delete, get, post, web};
+use lunu_core::models::ExternalId;
 use lunu_core::models::RequestStatus;
 use lunu_core::services::{NewRequest, ReleaseSelection};
 use serde::Deserialize;
@@ -21,7 +22,7 @@ pub use manual::create_manual;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRequestBody {
-	asin: String,
+	id: String,
 	#[serde(default)]
 	notes: Option<String>,
 	#[serde(default)]
@@ -155,7 +156,7 @@ pub async fn create(
 		state.quality_profiles.require(profile_id).await?;
 	}
 	let input = NewRequest {
-		asin: body.asin,
+		id: ExternalId::asin(body.id),
 		notes: body.notes,
 		quality_profile_id: body.quality_profile_id,
 	};

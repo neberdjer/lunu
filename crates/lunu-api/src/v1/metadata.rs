@@ -204,7 +204,7 @@ pub async fn series_request(
 			continue;
 		}
 		let input = NewRequest {
-			asin: asin.clone(),
+			id: ExternalId::asin(&asin),
 			notes: body.notes.clone(),
 			quality_profile_id: body.quality_profile_id.clone(),
 		};

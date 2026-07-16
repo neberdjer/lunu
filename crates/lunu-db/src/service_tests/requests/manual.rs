@@ -1,5 +1,6 @@
 use super::super::builders::*;
 use super::super::*;
+use lunu_core::services::NewRequest;
 
 #[tokio::test]
 async fn manual_request_creates_no_asin_request_and_grabs() {
@@ -124,4 +125,37 @@ async fn two_users_may_each_request_the_same_unidentified_book() {
 		"both are asking for the same book, so they share a work"
 	);
 	assert_ne!(one.id, two.id, "but they are two separate requests");
+}
+
+#[tokio::test]
+async fn a_book_known_only_by_isbn_can_be_requested() {
+	let db = memory_db().await;
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs.clone());
+	let admin = caller("admin", Role::Admin);
+
+	let mut ebook = book("Some Ebook");
+	ebook.ids = vec![ExternalId::isbn("9780007487295")];
+	let input = NewRequest {
+		id: ExternalId::isbn("9780007487295"),
+		notes: None,
+		quality_profile_id: None,
+	};
+
+	let request = requests
+		.create_with_book(&admin, input.clone(), ebook.clone())
+		.await
+		.unwrap();
+
+	assert!(
+		request.asin.is_none(),
+		"nothing may invent an audible identifier the source never reported"
+	);
+	assert!(!request.work_id.is_empty());
+
+	let again = requests.create_with_book(&admin, input, ebook).await;
+	assert!(
+		matches!(again, Err(Error::Conflict(_))),
+		"dedup keys on the work, so an asin-less book still cannot be asked for twice"
+	);
 }
