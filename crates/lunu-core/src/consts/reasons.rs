@@ -24,6 +24,7 @@ pub const NO_RELEASES: &str = "no-releases";
 pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const PROTOCOL_UNKNOWN: &str = "protocol-unknown";
 pub const PROTOCOL_REQUIRED: &str = "protocol-required";
+pub const INVALID_LOG_LEVEL: &str = "invalid-log-level";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const ID_SCHEME_UNKNOWN: &str = "id-scheme-unknown";
 pub const FORMAT_UNKNOWN: &str = "format-unknown";
@@ -92,6 +93,7 @@ pub const ALL: &[&str] = &[
 	DOWNLOAD_STATE_UNKNOWN,
 	PROTOCOL_UNKNOWN,
 	PROTOCOL_REQUIRED,
+	INVALID_LOG_LEVEL,
 	JOB_TYPE_UNKNOWN,
 	ID_SCHEME_UNKNOWN,
 	FORMAT_UNKNOWN,

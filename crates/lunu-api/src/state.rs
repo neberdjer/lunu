@@ -10,9 +10,10 @@ use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
-	InviteService, IssueService, JobService, LibraryService, MediaService, MetadataService,
-	MonitorService, NotificationInboxService, NotificationService, QualityProfileService,
-	ReleaseService, RequestService, SchedulerService, SettingsService, UserService, WorkService,
+	InviteService, IssueService, JobService, LibraryService, LogBuffer, MediaService,
+	MetadataService, MonitorService, NotificationInboxService, NotificationService,
+	QualityProfileService, ReleaseService, RequestService, SchedulerService, SettingsService,
+	UserService, WorkService,
 };
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
@@ -33,10 +34,38 @@ use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
 use lunu_integrations::metadata::{AudnexusProvider, OpenLibraryProvider};
 use lunu_integrations::notify::{EmailNotifier, NtfyChannel, SmtpMailer, WebhookChannel};
 
+pub struct LogControl {
+	setter: Box<dyn Fn(&str) -> bool + Send + Sync>,
+	current: std::sync::RwLock<String>,
+}
+
+impl LogControl {
+	pub fn new(initial: &str, setter: Box<dyn Fn(&str) -> bool + Send + Sync>) -> Self {
+		Self {
+			setter,
+			current: std::sync::RwLock::new(initial.to_string()),
+		}
+	}
+
+	pub fn set(&self, level: &str) -> bool {
+		let applied = (self.setter)(level);
+		if applied {
+			*self.current.write().expect("log level lock") = level.to_string();
+		}
+		applied
+	}
+
+	pub fn current(&self) -> String {
+		self.current.read().expect("log level lock").clone()
+	}
+}
+
 pub struct AppState {
 	pub db: Db,
 	pub config: Arc<BootstrapConfig>,
 	pub version: &'static str,
+	pub logs: Arc<LogBuffer>,
+	pub log_control: Arc<LogControl>,
 	pub auth: Arc<AuthService>,
 	pub users: Arc<UserService>,
 	pub api_keys: Arc<ApiKeyService>,
@@ -64,7 +93,13 @@ pub struct AppState {
 }
 
 impl AppState {
-	pub fn build(db: Db, config: BootstrapConfig, version: &'static str) -> Result<Self> {
+	pub fn build(
+		db: Db,
+		config: BootstrapConfig,
+		version: &'static str,
+		logs: Arc<LogBuffer>,
+		log_control: Arc<LogControl>,
+	) -> Result<Self> {
 		let users_repo = Arc::new(SqlxUserRepo::new(db.clone()));
 		let sessions_repo = Arc::new(SqlxSessionRepo::new(db.clone()));
 		let api_keys_repo = Arc::new(SqlxApiKeyRepo::new(db.clone()));
@@ -209,6 +244,8 @@ impl AppState {
 		Ok(Self {
 			db,
 			config: Arc::new(config),
+			logs,
+			log_control,
 			version,
 			auth,
 			users,

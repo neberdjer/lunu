@@ -1,12 +1,101 @@
-use actix_web::{HttpResponse, get, web};
+use actix_web::{HttpResponse, get, put, web};
+use chrono::{DateTime, Utc};
+use lunu_core::Error;
 use lunu_core::consts::library::SETTING_LIBRARY_DIR;
+use lunu_core::consts::logging::{DEFAULT_LOG_LIMIT, LOG_BUFFER_CAPACITY, VALID_LOG_LEVELS};
+use lunu_core::consts::reasons;
 use lunu_core::consts::settings::{PROWLARR_URL, QBITTORRENT_URL};
 use lunu_core::models::{IssueStatus, JobStatus, RequestStatus};
-use serde::Serialize;
+use lunu_core::services::LogEntry;
+use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
 use crate::extract::AdminUser;
 use crate::state::AppState;
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LogEntryResponse {
+	at: DateTime<Utc>,
+	level: String,
+	target: String,
+	message: String,
+}
+
+impl From<LogEntry> for LogEntryResponse {
+	fn from(entry: LogEntry) -> Self {
+		Self {
+			at: entry.at,
+			level: entry.level,
+			target: entry.target,
+			message: entry.message,
+		}
+	}
+}
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct LogQuery {
+	limit: Option<usize>,
+	level: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct LogLevelBody {
+	level: String,
+}
+
+fn validated_level(level: &str) -> Result<String, ApiError> {
+	let level = level.trim().to_lowercase();
+	if !VALID_LOG_LEVELS.contains(&level.as_str()) {
+		return Err(Error::Validation(reasons::INVALID_LOG_LEVEL.to_string()).into());
+	}
+	Ok(level)
+}
+
+#[utoipa::path(tag = "system", params(LogQuery), responses((status = 200, description = "Newest captured log lines, redacted", body = [LogEntryResponse])))]
+#[get("/logs")]
+pub async fn logs(
+	_admin: AdminUser,
+	query: web::Query<LogQuery>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let level = query.level.as_deref().map(validated_level).transpose()?;
+	let limit = query
+		.limit
+		.unwrap_or(DEFAULT_LOG_LIMIT)
+		.min(LOG_BUFFER_CAPACITY);
+	let entries: Vec<LogEntryResponse> = state
+		.logs
+		.snapshot(limit, level.as_deref())
+		.into_iter()
+		.map(LogEntryResponse::from)
+		.collect();
+	Ok(HttpResponse::Ok().json(entries))
+}
+
+#[utoipa::path(tag = "system", responses((status = 200, description = "Active log level", body = LogLevelBody)))]
+#[get("/log-level")]
+pub async fn log_level(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	Ok(HttpResponse::Ok().json(LogLevelBody {
+		level: state.log_control.current(),
+	}))
+}
+
+#[utoipa::path(tag = "system", request_body = LogLevelBody, responses((status = 200, description = "Log level changed", body = LogLevelBody)))]
+#[put("/log-level")]
+pub async fn set_log_level(
+	_admin: AdminUser,
+	state: web::Data<AppState>,
+	body: web::Json<LogLevelBody>,
+) -> Result<HttpResponse, ApiError> {
+	let level = validated_level(&body.level)?;
+	if !state.log_control.set(&level) {
+		return Err(Error::Internal("the log filter refused to reload".to_string()).into());
+	}
+	Ok(HttpResponse::Ok().json(LogLevelBody { level }))
+}
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct Configured {

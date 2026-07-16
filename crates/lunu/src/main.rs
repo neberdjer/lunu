@@ -2,14 +2,21 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use actix_web::{App, HttpResponse, HttpServer, web};
-use lunu_api::AppState;
+use lunu_api::{AppState, LogControl};
 use lunu_config::BootstrapConfig;
+use lunu_core::consts::logging::LOG_BUFFER_CAPACITY;
+use lunu_core::services::LogBuffer;
 use lunu_jobs::{PipelineHandler, SchedulerPool, WorkerConfig, WorkerPool};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, reload};
 use utoipa::OpenApi;
 use utoipa_actix_web::{AppExt, scope};
 
-const DEFAULT_LOG_FILTER: &str = "info,actix_server=warn";
+mod log;
+
+const DEFAULT_LOG_LEVEL: &str = "info";
+const QUIET_TARGETS: &str = "actix_server=warn";
 
 fn load_dotenv() {
 	if let Err(error) = dotenvy::dotenv()
@@ -19,16 +26,35 @@ fn load_dotenv() {
 	}
 }
 
-fn init_tracing() {
-	let filter =
-		EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
-	tracing_subscriber::fmt().with_env_filter(filter).init();
+fn init_tracing() -> (Arc<LogBuffer>, Arc<LogControl>) {
+	let initial =
+		std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or_else(|_| DEFAULT_LOG_LEVEL.to_string());
+	let filter = EnvFilter::try_from_default_env()
+		.unwrap_or_else(|_| EnvFilter::new(format!("{DEFAULT_LOG_LEVEL},{QUIET_TARGETS}")));
+	let (filter, handle) = reload::Layer::new(filter);
+	let buffer = Arc::new(LogBuffer::new(LOG_BUFFER_CAPACITY));
+
+	tracing_subscriber::registry()
+		.with(filter)
+		.with(tracing_subscriber::fmt::layer())
+		.with(log::BufferLayer::new(buffer.clone()))
+		.init();
+
+	let control = Arc::new(LogControl::new(
+		&initial,
+		Box::new(move |level| {
+			handle
+				.reload(EnvFilter::new(format!("{level},{QUIET_TARGETS}")))
+				.is_ok()
+		}),
+	));
+	(buffer, control)
 }
 
 #[actix_web::main]
 async fn main() -> ExitCode {
 	load_dotenv();
-	init_tracing();
+	let (log_buffer, log_control) = init_tracing();
 
 	let config = match BootstrapConfig::from_env() {
 		Ok(config) => config,
@@ -54,7 +80,13 @@ async fn main() -> ExitCode {
 	let bind = config.bind.clone();
 	let workers = config.workers;
 
-	let state = match AppState::build(db, config, env!("CARGO_PKG_VERSION")) {
+	let state = match AppState::build(
+		db,
+		config,
+		env!("CARGO_PKG_VERSION"),
+		log_buffer,
+		log_control,
+	) {
 		Ok(state) => state,
 		Err(error) => {
 			tracing::error!(%error, "failed to build application state");

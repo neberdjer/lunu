@@ -39,6 +39,7 @@ error-no-releases = No releases were found for this title.
 error-download-state-unknown = That download state is not recognized.
 error-protocol-unknown = That protocol is not recognized.
 error-protocol-required = A manual release selection must say which protocol it uses.
+error-invalid-log-level = That log level is not recognized. Use error, warn, info, debug, or trace.
 error-id-scheme-unknown = That identifier type is not recognized.
 error-no-provider-for-id = No enabled metadata source can look up that kind of identifier.
 error-match-kind-unknown = That match kind is not recognized.

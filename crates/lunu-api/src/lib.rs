@@ -16,5 +16,5 @@ mod wire;
 pub use lunu_core::consts::api::API_PREFIX;
 pub use middleware::{normalize_errors, security_headers};
 pub use openapi::ApiDoc;
-pub use state::AppState;
+pub use state::{AppState, LogControl};
 pub use v1::configure;

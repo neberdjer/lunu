@@ -1738,6 +1738,7 @@ dependencies = [
  "dotenvy",
  "lunu-api",
  "lunu-config",
+ "lunu-core",
  "lunu-db",
  "lunu-jobs",
  "tokio",

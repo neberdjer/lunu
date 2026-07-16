@@ -13,6 +13,7 @@ name = "lunu"
 path = "src/main.rs"
 
 [dependencies]
+lunu-core.workspace = true
 lunu-config.workspace = true
 lunu-db.workspace = true
 lunu-api.workspace = true
