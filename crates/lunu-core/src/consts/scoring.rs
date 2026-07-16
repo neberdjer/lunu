@@ -3,6 +3,9 @@ pub const KNOWN_AUDIO_FORMATS: &[&str] =
 
 pub const DEFAULT_PREFERRED_FORMATS: &[&str] = &["m4b", "m4a", "mp3"];
 
+pub const DEFAULT_AVOIDED_KEYWORDS: &[&str] = &["abridged"];
+
 pub const DEFAULT_MIN_SEEDERS: i64 = 1;
 pub const DEFAULT_SEEDER_WEIGHT: i64 = 1;
 pub const DEFAULT_FORMAT_WEIGHT: i64 = 100;
+pub const DEFAULT_KEYWORD_WEIGHT: i64 = 100;

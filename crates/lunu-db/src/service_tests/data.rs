@@ -145,6 +145,9 @@ async fn quality_profile_crud_and_default() {
 		max_size_mb: None,
 		seeder_weight: 1,
 		format_weight: 100,
+		preferred_keywords: vec!["unabridged".to_string()],
+		avoided_keywords: vec!["abridged".to_string()],
+		keyword_weight: 50,
 		is_default: true,
 		created_at: now,
 		updated_at: now,
@@ -153,6 +156,9 @@ async fn quality_profile_crud_and_default() {
 
 	let loaded = repo.find_by_id("p1").await.unwrap().unwrap();
 	assert_eq!(loaded.allowed_formats, vec!["m4b", "mp3"]);
+	assert_eq!(loaded.preferred_keywords, vec!["unabridged"]);
+	assert_eq!(loaded.avoided_keywords, vec!["abridged"]);
+	assert_eq!(loaded.keyword_weight, 50);
 	assert_eq!(loaded.min_seeders, 2);
 	assert_eq!(loaded.min_size_mb, Some(10));
 	assert!(loaded.is_default);

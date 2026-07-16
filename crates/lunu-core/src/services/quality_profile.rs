@@ -17,6 +17,9 @@ pub struct QualityProfileInput {
 	pub max_size_mb: Option<i64>,
 	pub seeder_weight: i64,
 	pub format_weight: i64,
+	pub preferred_keywords: Vec<String>,
+	pub avoided_keywords: Vec<String>,
+	pub keyword_weight: i64,
 	pub is_default: bool,
 }
 
@@ -61,6 +64,9 @@ impl QualityProfileService {
 			max_size_mb: input.max_size_mb,
 			seeder_weight: input.seeder_weight,
 			format_weight: input.format_weight,
+			preferred_keywords: input.preferred_keywords,
+			avoided_keywords: input.avoided_keywords,
+			keyword_weight: input.keyword_weight,
 			is_default: input.is_default,
 			created_at: now,
 			updated_at: now,
@@ -89,6 +95,9 @@ impl QualityProfileService {
 		profile.max_size_mb = input.max_size_mb;
 		profile.seeder_weight = input.seeder_weight;
 		profile.format_weight = input.format_weight;
+		profile.preferred_keywords = input.preferred_keywords;
+		profile.avoided_keywords = input.avoided_keywords;
+		profile.keyword_weight = input.keyword_weight;
 		profile.is_default = input.is_default;
 		profile.updated_at = Utc::now();
 

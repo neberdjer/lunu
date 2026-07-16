@@ -22,6 +22,8 @@ impl SqlxQualityProfileRepo {
 fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 	let allowed_formats: String = row.try_get("allowed_formats").map_err(db_error)?;
 	let preferred_formats: String = row.try_get("preferred_formats").map_err(db_error)?;
+	let preferred_keywords: String = row.try_get("preferred_keywords").map_err(db_error)?;
+	let avoided_keywords: String = row.try_get("avoided_keywords").map_err(db_error)?;
 	let is_default: i64 = row.try_get("is_default").map_err(db_error)?;
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
@@ -36,6 +38,9 @@ fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 		max_size_mb: row.try_get("max_size_mb").map_err(db_error)?,
 		seeder_weight: row.try_get("seeder_weight").map_err(db_error)?,
 		format_weight: row.try_get("format_weight").map_err(db_error)?,
+		preferred_keywords: split_list(&preferred_keywords),
+		avoided_keywords: split_list(&avoided_keywords),
+		keyword_weight: row.try_get("keyword_weight").map_err(db_error)?,
 		is_default: int_to_bool(is_default),
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
@@ -48,8 +53,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		sqlx::query(
 			"INSERT INTO quality_profiles \
 			 (id, name, allowed_formats, preferred_formats, min_seeders, min_size_mb, max_size_mb, \
-			 seeder_weight, format_weight, is_default, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+			 seeder_weight, format_weight, preferred_keywords, avoided_keywords, keyword_weight, \
+			 is_default, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
 		)
 		.bind(&profile.id)
 		.bind(&profile.name)
@@ -60,6 +66,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(profile.max_size_mb)
 		.bind(profile.seeder_weight)
 		.bind(profile.format_weight)
+		.bind(join_list(&profile.preferred_keywords))
+		.bind(join_list(&profile.avoided_keywords))
+		.bind(profile.keyword_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.created_at))
 		.bind(format_dt(profile.updated_at))
@@ -74,7 +83,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			"UPDATE quality_profiles SET \
 			 name = $1, allowed_formats = $2, preferred_formats = $3, min_seeders = $4, \
 			 min_size_mb = $5, max_size_mb = $6, seeder_weight = $7, format_weight = $8, \
-			 is_default = $9, updated_at = $10 WHERE id = $11",
+			 preferred_keywords = $9, avoided_keywords = $10, keyword_weight = $11, \
+			 is_default = $12, updated_at = $13 \
+			 WHERE id = $14",
 		)
 		.bind(&profile.name)
 		.bind(join_list(&profile.allowed_formats))
@@ -84,6 +95,9 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(profile.max_size_mb)
 		.bind(profile.seeder_weight)
 		.bind(profile.format_weight)
+		.bind(join_list(&profile.preferred_keywords))
+		.bind(join_list(&profile.avoided_keywords))
+		.bind(profile.keyword_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.updated_at))
 		.bind(&profile.id)

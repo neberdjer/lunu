@@ -1,7 +1,7 @@
 use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::scoring::{
-	DEFAULT_FORMAT_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_SEEDER_WEIGHT,
+	DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_SEEDER_WEIGHT,
 };
 use lunu_core::services::QualityProfileInput;
 use serde::Deserialize;
@@ -24,6 +24,10 @@ fn default_format_weight() -> i64 {
 	DEFAULT_FORMAT_WEIGHT
 }
 
+fn default_keyword_weight() -> i64 {
+	DEFAULT_KEYWORD_WEIGHT
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct QualityProfileBody {
 	name: String,
@@ -40,6 +44,12 @@ pub struct QualityProfileBody {
 	#[serde(default = "default_format_weight")]
 	format_weight: i64,
 	#[serde(default)]
+	preferred_keywords: Vec<String>,
+	#[serde(default)]
+	avoided_keywords: Vec<String>,
+	#[serde(default = "default_keyword_weight")]
+	keyword_weight: i64,
+	#[serde(default)]
 	is_default: bool,
 }
 
@@ -54,6 +64,9 @@ impl QualityProfileBody {
 			max_size_mb: self.max_size_mb,
 			seeder_weight: self.seeder_weight,
 			format_weight: self.format_weight,
+			preferred_keywords: self.preferred_keywords,
+			avoided_keywords: self.avoided_keywords,
+			keyword_weight: self.keyword_weight,
 			is_default: self.is_default,
 		}
 	}

@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use lunu_core::Result;
 use lunu_core::consts::settings::{
-	DISCORD_WEBHOOK_URL, NOTIFICATION_WEBHOOK_URL, SLACK_WEBHOOK_URL,
+	APPRISE_URL, DISCORD_WEBHOOK_URL, NOTIFICATION_WEBHOOK_URL, SLACK_WEBHOOK_URL,
 };
 use lunu_core::models::NotificationEvent;
 use lunu_core::services::SettingsService;
@@ -63,6 +63,10 @@ impl WebhookChannel {
 	pub fn slack(settings: Arc<SettingsService>) -> Self {
 		Self::build(settings, "slack", SLACK_WEBHOOK_URL, slack_body)
 	}
+
+	pub fn apprise(settings: Arc<SettingsService>) -> Self {
+		Self::build(settings, "apprise", APPRISE_URL, apprise_body)
+	}
 }
 
 fn generic_body(event: &NotificationEvent) -> Value {
@@ -79,6 +83,10 @@ fn discord_body(event: &NotificationEvent) -> Value {
 
 fn slack_body(event: &NotificationEvent) -> Value {
 	json!({ "text": event.message() })
+}
+
+fn apprise_body(event: &NotificationEvent) -> Value {
+	json!({ "title": event.kind.summary(), "body": event.message() })
 }
 
 #[async_trait]
@@ -132,5 +140,12 @@ mod tests {
 	#[test]
 	fn slack_body_uses_text_field() {
 		assert_eq!(slack_body(&event())["text"], "Now available: Dune");
+	}
+
+	#[test]
+	fn apprise_body_carries_title_and_body() {
+		let value = apprise_body(&event());
+		assert_eq!(value["title"], "Now available");
+		assert_eq!(value["body"], "Now available: Dune");
 	}
 }

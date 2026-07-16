@@ -14,6 +14,15 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 		return None;
 	}
 
+	let title = format!(" {} ", tokenize(&release.title));
+	if profile
+		.avoided_keywords
+		.iter()
+		.any(|keyword| contains_keyword(&title, keyword))
+	{
+		return None;
+	}
+
 	let format = detect_format(&release.title);
 	if !profile.allowed_formats.is_empty() {
 		let allowed = format.is_some_and(|found| contains_format(&profile.allowed_formats, found));
@@ -33,7 +42,28 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 		score = score.saturating_add(rank.saturating_mul(profile.format_weight));
 	}
 
+	let hits = profile
+		.preferred_keywords
+		.iter()
+		.filter(|keyword| contains_keyword(&title, keyword))
+		.count() as i64;
+	score = score.saturating_add(hits.saturating_mul(profile.keyword_weight));
+
 	Some(score)
+}
+
+fn contains_keyword(padded_title: &str, keyword: &str) -> bool {
+	let keyword = tokenize(keyword);
+	!keyword.is_empty() && padded_title.contains(&format!(" {keyword} "))
+}
+
+fn tokenize(value: &str) -> String {
+	value
+		.to_lowercase()
+		.split(|c: char| !c.is_alphanumeric())
+		.filter(|token| !token.is_empty())
+		.collect::<Vec<_>>()
+		.join(" ")
 }
 
 pub fn rank_releases(releases: Vec<Release>, profile: &QualityProfile) -> Vec<ScoredRelease> {
@@ -73,6 +103,9 @@ mod tests {
 			max_size_mb: None,
 			seeder_weight: 1,
 			format_weight: 100,
+			preferred_keywords: Vec::new(),
+			avoided_keywords: Vec::new(),
+			keyword_weight: 40,
 			is_default: true,
 			created_at: Utc::now(),
 			updated_at: Utc::now(),
@@ -120,5 +153,45 @@ mod tests {
 		assert_eq!(ranked.len(), 2);
 		assert_eq!(ranked[0].release.title, "Book [M4B]");
 		assert!(ranked[0].score > ranked[1].score);
+	}
+
+	#[test]
+	fn an_avoided_keyword_rejects_the_release() {
+		let mut p = profile();
+		p.avoided_keywords = vec!["abridged".to_string(), "graphic audio".to_string()];
+		assert!(score_release(&release("Title (Abridged) [M4B]", 10), &p).is_none());
+		assert!(score_release(&release("Title Graphic.Audio [M4B]", 10), &p).is_none());
+	}
+
+	#[test]
+	fn unabridged_survives_an_avoided_abridged_keyword() {
+		let mut p = profile();
+		p.avoided_keywords = vec!["abridged".to_string()];
+		assert!(
+			score_release(&release("Title Unabridged [M4B]", 10), &p).is_some(),
+			"a keyword must match on word boundaries, not as a substring"
+		);
+	}
+
+	#[test]
+	fn a_preferred_keyword_outranks_a_plain_release() {
+		let mut p = profile();
+		p.preferred_keywords = vec!["unabridged".to_string()];
+		let ranked = rank_releases(
+			vec![
+				release("Title [M4B]", 10),
+				release("Title Unabridged [M4B]", 10),
+			],
+			&p,
+		);
+		assert_eq!(ranked[0].release.title, "Title Unabridged [M4B]");
+		assert_eq!(ranked[0].score - ranked[1].score, p.keyword_weight);
+	}
+
+	#[test]
+	fn blank_keywords_match_nothing() {
+		let mut p = profile();
+		p.avoided_keywords = vec!["".to_string(), "  ".to_string()];
+		assert!(score_release(&release("Title [M4B]", 10), &p).is_some());
 	}
 }

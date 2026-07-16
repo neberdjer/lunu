@@ -8,6 +8,9 @@ CREATE TABLE quality_profiles (
 	max_size_mb BIGINT,
 	seeder_weight BIGINT NOT NULL DEFAULT 1,
 	format_weight BIGINT NOT NULL DEFAULT 100,
+	preferred_keywords TEXT NOT NULL DEFAULT '',
+	avoided_keywords TEXT NOT NULL DEFAULT '',
+	keyword_weight BIGINT NOT NULL DEFAULT 100,
 	is_default BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL

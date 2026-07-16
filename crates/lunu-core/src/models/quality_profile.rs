@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 
 use crate::consts::scoring::{
-	DEFAULT_FORMAT_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_PREFERRED_FORMATS, DEFAULT_SEEDER_WEIGHT,
+	DEFAULT_AVOIDED_KEYWORDS, DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS,
+	DEFAULT_PREFERRED_FORMATS, DEFAULT_SEEDER_WEIGHT,
 };
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,9 @@ pub struct QualityProfile {
 	pub max_size_mb: Option<i64>,
 	pub seeder_weight: i64,
 	pub format_weight: i64,
+	pub preferred_keywords: Vec<String>,
+	pub avoided_keywords: Vec<String>,
+	pub keyword_weight: i64,
 	pub is_default: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
@@ -36,6 +40,12 @@ impl QualityProfile {
 			max_size_mb: None,
 			seeder_weight: DEFAULT_SEEDER_WEIGHT,
 			format_weight: DEFAULT_FORMAT_WEIGHT,
+			preferred_keywords: Vec::new(),
+			avoided_keywords: DEFAULT_AVOIDED_KEYWORDS
+				.iter()
+				.map(|keyword| (*keyword).to_string())
+				.collect(),
+			keyword_weight: DEFAULT_KEYWORD_WEIGHT,
 			is_default: true,
 			created_at: now,
 			updated_at: now,
