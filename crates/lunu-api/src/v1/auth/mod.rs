@@ -81,7 +81,7 @@ pub async fn login(
 	Ok(authenticated_response(
 		HttpResponse::Ok(),
 		&authenticated,
-		state.config.secure_cookies,
+		&state.config,
 	))
 }
 
@@ -112,7 +112,7 @@ pub async fn register(
 			Ok(authenticated_response(
 				HttpResponse::Created(),
 				&authenticated,
-				state.config.secure_cookies,
+				&state.config,
 			))
 		}
 		Registration::PendingVerification => {
@@ -133,7 +133,7 @@ pub async fn logout(
 		state.auth.logout(cookie.value()).await?;
 	}
 	Ok(HttpResponse::Ok()
-		.cookie(clear_session_cookie(state.config.secure_cookies))
+		.cookie(clear_session_cookie(&state.config))
 		.json(json!({ "status": "ok" })))
 }
 
@@ -179,7 +179,7 @@ pub async fn change_password(
 	Ok(authenticated_response(
 		HttpResponse::Ok(),
 		&authenticated,
-		state.config.secure_cookies,
+		&state.config,
 	))
 }
 

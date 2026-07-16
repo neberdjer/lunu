@@ -82,8 +82,10 @@ async fn main() -> ExitCode {
 
 	let state = web::Data::new(state);
 	let hsts = state.config.secure_cookies;
+	let api_scope = format!("{}{}", state.config.url_base, lunu_api::API_PREFIX);
+	let docs_path = format!("{}/api-docs/openapi.json", state.config.url_base);
 
-	tracing::info!(%bind, workers, hsts, "starting lunu");
+	tracing::info!(%bind, workers, hsts, url_base = %state.config.url_base, "starting lunu");
 
 	let server = HttpServer::new(move || {
 		let (app, api) = App::new()
@@ -96,12 +98,12 @@ async fn main() -> ExitCode {
 					}))
 					.app_data(state.clone())
 			})
-			.service(scope(lunu_api::API_PREFIX).configure(lunu_api::configure))
+			.service(scope(api_scope.as_str()).configure(lunu_api::configure))
 			.split_for_parts();
 
 		let spec = web::Bytes::from(api.to_json().unwrap_or_default());
 		app.route(
-			"/api-docs/openapi.json",
+			&docs_path,
 			web::get().to(move || {
 				let spec = spec.clone();
 				async move {

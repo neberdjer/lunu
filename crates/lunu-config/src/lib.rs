@@ -7,6 +7,7 @@ pub const ENV_WORKERS: &str = "LUNU_WORKERS";
 pub const ENV_TRUSTED_PROXY_HOPS: &str = "LUNU_TRUSTED_PROXY_HOPS";
 pub const ENV_TRUSTED_CLIENT_IP_HEADER: &str = "LUNU_TRUSTED_CLIENT_IP_HEADER";
 pub const ENV_SECURE_COOKIES: &str = "LUNU_SECURE_COOKIES";
+pub const ENV_URL_BASE: &str = "LUNU_URL_BASE";
 
 pub const DEFAULT_BIND: &str = "127.0.0.1:8080";
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/lunu.db?mode=rwc";
@@ -22,9 +23,18 @@ pub struct BootstrapConfig {
 	pub trusted_proxy_hops: usize,
 	pub trusted_client_ip_header: Option<String>,
 	pub secure_cookies: bool,
+	pub url_base: String,
 }
 
 impl BootstrapConfig {
+	pub fn base_path(&self) -> &str {
+		if self.url_base.is_empty() {
+			"/"
+		} else {
+			&self.url_base
+		}
+	}
+
 	pub fn from_env() -> Result<Self, ConfigError> {
 		let mut issues = Vec::new();
 
@@ -64,6 +74,15 @@ impl BootstrapConfig {
 			},
 		};
 
+		let url_base = normalize_url_base(&env_optional(ENV_URL_BASE).unwrap_or_default());
+		if !is_valid_url_base(&url_base) {
+			issues.push(Issue {
+				var: ENV_URL_BASE,
+				problem: format!("'{url_base}' is not a valid path prefix"),
+				hint: "expected slash-separated segments of letters, digits, or -._~, for example /lunu or /apps/lunu; leave unset to serve from the root",
+			});
+		}
+
 		let master_key = std::env::var(ENV_MASTER_KEY).unwrap_or_default();
 		if master_key.trim().is_empty() {
 			issues.push(Issue {
@@ -91,6 +110,7 @@ impl BootstrapConfig {
 				trusted_proxy_hops: env_usize(ENV_TRUSTED_PROXY_HOPS),
 				trusted_client_ip_header: env_optional(ENV_TRUSTED_CLIENT_IP_HEADER),
 				secure_cookies: env_flag_or(ENV_SECURE_COOKIES, true),
+				url_base,
 			})
 		} else {
 			Err(ConfigError { issues })
@@ -127,6 +147,26 @@ impl fmt::Display for ConfigError {
 }
 
 impl std::error::Error for ConfigError {}
+
+fn normalize_url_base(value: &str) -> String {
+	let trimmed = value.trim().trim_matches('/');
+	if trimmed.is_empty() {
+		return String::new();
+	}
+	format!("/{trimmed}")
+}
+
+fn is_valid_url_base(value: &str) -> bool {
+	value.is_empty()
+		|| value.strip_prefix('/').is_some_and(|rest| {
+			rest.split('/').all(|segment| {
+				!segment.is_empty()
+					&& segment
+						.chars()
+						.all(|c| c.is_ascii_alphanumeric() || "-._~".contains(c))
+			})
+		})
+}
 
 fn env_or(key: &str, default: &str) -> String {
 	std::env::var(key)
@@ -174,4 +214,45 @@ fn default_workers() -> usize {
 	std::thread::available_parallelism()
 		.map(|count| count.get().min(MAX_DEFAULT_WORKERS))
 		.unwrap_or(4)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn a_url_base_is_normalized_to_one_leading_slash() {
+		assert_eq!(normalize_url_base("lunu"), "/lunu");
+		assert_eq!(normalize_url_base("/lunu/"), "/lunu");
+		assert_eq!(normalize_url_base("//lunu//"), "/lunu");
+		assert_eq!(normalize_url_base("/apps/lunu"), "/apps/lunu");
+	}
+
+	#[test]
+	fn an_empty_or_root_url_base_means_no_prefix() {
+		assert_eq!(normalize_url_base(""), "");
+		assert_eq!(normalize_url_base("/"), "");
+		assert_eq!(normalize_url_base("  "), "");
+	}
+
+	#[test]
+	fn url_base_segments_are_limited_to_unreserved_characters() {
+		assert!(is_valid_url_base(""));
+		assert!(is_valid_url_base("/lunu"));
+		assert!(is_valid_url_base("/apps/lunu-2.0_beta~1"));
+		assert!(
+			!is_valid_url_base("/lunu{x}"),
+			"braces are actix route metacharacters and must not reach scope()"
+		);
+		assert!(!is_valid_url_base("/lu nu"));
+		assert!(
+			!is_valid_url_base("/lunu;v=1"),
+			"a semicolon corrupts the cookie path attribute"
+		);
+		assert!(!is_valid_url_base("/lunu?x"));
+		assert!(
+			!is_valid_url_base("/apps//lunu"),
+			"an empty segment is a dead mount"
+		);
+	}
 }

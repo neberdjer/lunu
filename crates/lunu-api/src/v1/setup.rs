@@ -55,6 +55,6 @@ pub async fn create(
 	Ok(authenticated_response(
 		HttpResponse::Created(),
 		&authenticated,
-		state.config.secure_cookies,
+		&state.config,
 	))
 }
