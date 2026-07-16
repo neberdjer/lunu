@@ -5,7 +5,7 @@ use lunu_core::repo::MediaRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{fetch_count, map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows, placeholders};
 use crate::convert::{bool_to_int, format_dt, int_to_bool, parse_dt, parse_enum};
 use crate::{Db, db_error, map_write_error};
 
@@ -170,10 +170,9 @@ impl MediaRepo for SqlxMediaRepo {
 		if asins.is_empty() {
 			return Ok(Vec::new());
 		}
-		let placeholders: Vec<String> = (1..=asins.len()).map(|n| format!("${n}")).collect();
 		let sql = format!(
 			"SELECT asin FROM media WHERE asin IN ({})",
-			placeholders.join(", ")
+			placeholders(1, asins.len())
 		);
 		let mut query = sqlx::query(&sql);
 		for asin in asins {

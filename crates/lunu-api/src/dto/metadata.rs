@@ -45,7 +45,7 @@ pub(crate) struct BookResponse {
 impl From<&Book> for BookResponse {
 	fn from(book: &Book) -> Self {
 		Self {
-			id: book.ids.first().map(ExternalId::to_string),
+			id: book.primary_id().map(ExternalId::to_string),
 			asin: book.asin().map(str::to_string),
 			title: book.title.clone(),
 			subtitle: book.subtitle.clone(),

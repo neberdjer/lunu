@@ -233,6 +233,14 @@ impl MetadataService {
 		.await
 	}
 
+	pub async fn refresh_book(&self, id: &ExternalId) -> Result<Option<Book>> {
+		let region = self.region().await?;
+		let key = format!("{region}:{id}");
+		self.cache.delete(KIND_BOOK, &key).await?;
+		self.cache.delete(KIND_CHAPTERS, &key).await?;
+		self.get_book(id).await
+	}
+
 	pub async fn get_chapters(&self, id: &ExternalId) -> Result<Option<Chapters>> {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{id}");

@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use actix_web::{HttpResponse, delete, get, post, web};
-use lunu_core::models::ExternalId;
 use lunu_core::models::RequestStatus;
 use lunu_core::services::{NewRequest, ReleaseSelection};
 use serde::Deserialize;
@@ -156,7 +155,7 @@ pub async fn create(
 		state.quality_profiles.require(profile_id).await?;
 	}
 	let input = NewRequest {
-		id: body.id.parse::<ExternalId>()?,
+		id: crate::wire::parse_wire_id(&body.id)?,
 		notes: body.notes,
 		quality_profile_id: body.quality_profile_id,
 	};

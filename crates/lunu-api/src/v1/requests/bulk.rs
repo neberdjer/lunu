@@ -1,6 +1,5 @@
 use actix_web::{HttpResponse, post, web};
 use lunu_core::consts::reasons;
-use lunu_core::models::ExternalId;
 use lunu_core::services::NewRequest;
 use serde::{Deserialize, Serialize};
 
@@ -76,7 +75,7 @@ pub async fn bulk_create(
 	}
 	let mut outcomes = Vec::with_capacity(body.ids.len());
 	for id in body.ids {
-		let parsed = match id.parse::<ExternalId>() {
+		let parsed = match crate::wire::parse_wire_id(&id) {
 			Ok(parsed) => parsed,
 			Err(error) => {
 				outcomes.push(BulkOutcome::from_result::<()>(id, Err(error)));

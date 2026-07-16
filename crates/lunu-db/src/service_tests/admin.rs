@@ -95,7 +95,7 @@ async fn create_initial_admin_rejects_second_insert() {
 }
 
 #[tokio::test]
-async fn status_by_asin_scopes_to_user_and_keeps_newest() {
+async fn status_by_works_scopes_to_user_and_keeps_newest() {
 	let db = memory_db().await;
 	let repo = SqlxRequestRepo::new(db.clone());
 
@@ -137,38 +137,29 @@ async fn status_by_asin_scopes_to_user_and_keeps_newest() {
 	let service = request_service(&db, jobs);
 
 	let page = [
-		"asinX".to_string(),
-		"asinY".to_string(),
-		"asinZ".to_string(),
+		"work-asinX".to_string(),
+		"work-asinY".to_string(),
+		"work-asinZ".to_string(),
 	];
-	let map = service.status_by_asin("u1", &page).await.unwrap();
+	let map = service.status_by_works("u1", &page).await.unwrap();
 	assert_eq!(map.len(), 2);
-	assert_eq!(map.get("asinX"), Some(&RequestStatus::Available));
-	assert_eq!(map.get("asinY"), Some(&RequestStatus::Pending));
+	assert_eq!(map.get("work-asinX"), Some(&RequestStatus::Available));
+	assert_eq!(map.get("work-asinY"), Some(&RequestStatus::Pending));
 	assert!(
-		!map.contains_key("asinZ"),
+		!map.contains_key("work-asinZ"),
 		"another user's request must not leak into this user's statuses"
 	);
 
 	assert!(
-		service.status_by_asin("u1", &[]).await.unwrap().is_empty(),
+		service.status_by_works("u1", &[]).await.unwrap().is_empty(),
 		"an empty page must not query at all"
 	);
 	assert!(
 		!service
-			.status_by_asin("u1", &["asinY".to_string()])
+			.status_by_works("u1", &["work-asinY".to_string()])
 			.await
 			.unwrap()
-			.contains_key("asinX"),
-		"only the requested page's asins are returned"
-	);
-
-	assert_eq!(
-		service.status_for_asin("u1", "asinX").await.unwrap(),
-		Some(RequestStatus::Available)
-	);
-	assert_eq!(
-		service.status_for_asin("u1", "missing").await.unwrap(),
-		None
+			.contains_key("work-asinX"),
+		"only the requested page's works are returned"
 	);
 }

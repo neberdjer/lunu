@@ -108,3 +108,10 @@ pub(crate) async fn count_by_status(db: &Db, table: &str, status: Option<&str>) 
 	}
 	fetch_count(db, query).await
 }
+
+pub(crate) fn placeholders(start: usize, count: usize) -> String {
+	(start..start + count)
+		.map(|n| format!("${n}"))
+		.collect::<Vec<_>>()
+		.join(", ")
+}

@@ -12,4 +12,5 @@ pub trait MetadataCacheRepo: Send + Sync {
 		key: &str,
 	) -> Result<Option<MetadataCacheEntry>>;
 	async fn put(&self, entry: &MetadataCacheEntry) -> Result<()>;
+	async fn delete(&self, kind: &str, key: &str) -> Result<()>;
 }

@@ -7,7 +7,7 @@ use lunu_core::models::{Request, RequestStatus};
 use lunu_core::repo::RequestRepo;
 use sqlx::Row;
 
-use super::{fetch_count, map_row_opt, map_rows};
+use super::{fetch_count, map_row_opt, map_rows, placeholders};
 use crate::convert::format_dt;
 use crate::{Db, db_error, map_write_error};
 
@@ -144,16 +144,14 @@ impl RequestRepo for SqlxRequestRepo {
 		map_row_opt(row, map_request)
 	}
 
-	async fn find_by_user_and_asin(&self, user_id: &str, asin: &str) -> Result<Option<Request>> {
-		let row = sqlx::query(
-			"SELECT * FROM requests WHERE user_id = $1 AND asin = $2 ORDER BY created_at DESC LIMIT 1",
-		)
-		.bind(user_id)
-		.bind(asin)
-		.fetch_optional(&self.db)
-		.await
-		.map_err(db_error)?;
-		map_row_opt(row, map_request)
+	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
+		let rows =
+			sqlx::query("SELECT * FROM requests WHERE user_id = $1 ORDER BY created_at DESC")
+				.bind(user_id)
+				.fetch_all(&self.db)
+				.await
+				.map_err(db_error)?;
+		map_rows(rows, map_request)
 	}
 
 	async fn status_by_works(
@@ -164,11 +162,10 @@ impl RequestRepo for SqlxRequestRepo {
 		if work_ids.is_empty() {
 			return Ok(Vec::new());
 		}
-		let placeholders: Vec<String> = (2..=work_ids.len() + 1).map(|n| format!("${n}")).collect();
 		let sql = format!(
 			"SELECT work_id, status FROM requests WHERE user_id = $1 AND work_id IN ({}) \
 			 ORDER BY created_at DESC",
-			placeholders.join(", ")
+			placeholders(2, work_ids.len())
 		);
 		let mut query = sqlx::query(&sql).bind(user_id);
 		for work_id in work_ids {
@@ -183,45 +180,6 @@ impl RequestRepo for SqlxRequestRepo {
 			statuses.push((work_id, RequestStatus::from_str(&status)?));
 		}
 		Ok(statuses)
-	}
-
-	async fn status_by_asins(
-		&self,
-		user_id: &str,
-		asins: &[String],
-	) -> Result<Vec<(String, RequestStatus)>> {
-		if asins.is_empty() {
-			return Ok(Vec::new());
-		}
-		let placeholders: Vec<String> = (2..=asins.len() + 1).map(|n| format!("${n}")).collect();
-		let sql = format!(
-			"SELECT asin, status FROM requests WHERE user_id = $1 AND asin IN ({}) \
-			 ORDER BY created_at DESC",
-			placeholders.join(", ")
-		);
-		let mut query = sqlx::query(&sql).bind(user_id);
-		for asin in asins {
-			query = query.bind(asin);
-		}
-		let rows = query.fetch_all(&self.db).await.map_err(db_error)?;
-
-		let mut statuses = Vec::with_capacity(rows.len());
-		for row in rows {
-			let asin: String = row.try_get("asin").map_err(db_error)?;
-			let status: String = row.try_get("status").map_err(db_error)?;
-			statuses.push((asin, RequestStatus::from_str(&status)?));
-		}
-		Ok(statuses)
-	}
-
-	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {
-		let rows =
-			sqlx::query("SELECT * FROM requests WHERE user_id = $1 ORDER BY created_at DESC")
-				.bind(user_id)
-				.fetch_all(&self.db)
-				.await
-				.map_err(db_error)?;
-		map_rows(rows, map_request)
 	}
 
 	async fn list_page(

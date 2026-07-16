@@ -11,7 +11,7 @@ use crate::state::AppState;
 
 mod annotate;
 
-use annotate::{SearchResult, annotate};
+use annotate::{Presence, SearchResult, annotate, annotated_detail};
 
 const OPAQUE_BOOK_ID: &str = "Opaque book identifier, taken from a search result. Treat it as \
 	meaningless text: do not parse it, construct it, or assume it stays an ASIN.";
@@ -145,17 +145,7 @@ pub async fn series_request(
 		.metadata
 		.series_books(&body.name, series.as_ref())
 		.await?;
-	let ids: Vec<ExternalId> = books.iter().flat_map(|book| book.ids.clone()).collect();
-	let asins: Vec<String> = books
-		.iter()
-		.filter_map(|book| book.asin().map(str::to_string))
-		.collect();
-	let works = state.works.resolve_ids(&ids).await?;
-	let work_ids: Vec<String> = works.values().cloned().collect();
-	let (statuses, available) = tokio::try_join!(
-		state.requests.status_by_works(&user.0.id, &work_ids),
-		state.media.available_among(&asins),
-	)?;
+	let presence = Presence::load(&state, &user.0.id, &books).await?;
 
 	let mut requested = Vec::new();
 	let mut already_present = 0;
@@ -164,12 +154,7 @@ pub async fn series_request(
 		let Some(asin) = book.asin().map(str::to_string) else {
 			continue;
 		};
-		let requested_already = book
-			.ids
-			.iter()
-			.find_map(|id| works.get(id))
-			.is_some_and(|work_id| statuses.contains_key(work_id));
-		if requested_already || available.contains(&asin) {
+		if presence.status_for(&book).is_some() || presence.available(&book) {
 			already_present += 1;
 			continue;
 		}
@@ -202,7 +187,10 @@ pub async fn similar(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let books = state.metadata.similar(&id.parse::<ExternalId>()?).await?;
+	let books = state
+		.metadata
+		.similar(&crate::wire::parse_wire_id(&id)?)
+		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
 }
@@ -217,7 +205,7 @@ pub async fn author_books(
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
 	let books = state
 		.metadata
-		.books_by_author(&id.parse::<ExternalId>()?)
+		.books_by_author(&crate::wire::parse_wire_id(&id)?)
 		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
@@ -232,17 +220,30 @@ pub async fn book_detail(
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
 	let wire = id.into_inner();
-	let external = wire.parse::<ExternalId>()?;
 	let book = state
 		.metadata
-		.get_book(&external)
+		.get_book(&crate::wire::parse_wire_id(&wire)?)
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("book {wire}")))?;
-	let results = annotate(&state, &user.0.id, vec![book]).await?;
-	let result = results
-		.into_iter()
-		.next()
+	let result = annotated_detail(&state, &user.0.id, book).await?;
+	Ok(HttpResponse::Ok().json(result))
+}
+
+#[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_BOOK_ID)), responses((status = 200, description = "Freshly fetched book detail, bypassing the cache", body = SearchResult), (status = 404, description = "Unknown book")))]
+#[post("/books/{id}/refresh")]
+pub async fn refresh_book(
+	user: AuthUser,
+	state: web::Data<AppState>,
+	id: web::Path<String>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_metadata_rate_limit(&state, &user.0.id)?;
+	let wire = id.into_inner();
+	let book = state
+		.metadata
+		.refresh_book(&crate::wire::parse_wire_id(&wire)?)
+		.await?
 		.ok_or_else(|| Error::NotFound(format!("book {wire}")))?;
+	let result = annotated_detail(&state, &user.0.id, book).await?;
 	Ok(HttpResponse::Ok().json(result))
 }
 
@@ -257,7 +258,7 @@ pub async fn chapters(
 	let wire = id.into_inner();
 	let chapters = state
 		.metadata
-		.get_chapters(&wire.parse::<ExternalId>()?)
+		.get_chapters(&crate::wire::parse_wire_id(&wire)?)
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("chapters {wire}")))?;
 	Ok(HttpResponse::Ok().json(chapters))

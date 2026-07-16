@@ -11,6 +11,7 @@ mod pagination;
 mod rate_limit;
 mod state;
 mod v1;
+mod wire;
 
 pub use lunu_core::consts::api::API_PREFIX;
 pub use middleware::{normalize_errors, security_headers};

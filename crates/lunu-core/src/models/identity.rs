@@ -81,10 +81,10 @@ impl FromStr for ExternalId {
 	type Err = Error;
 
 	fn from_str(value: &str) -> Result<Self> {
-		match value.split_once(':') {
-			Some((scheme, rest)) => Ok(Self::new(IdScheme::from_str(scheme)?, rest)),
-			None => Ok(Self::asin(value)),
-		}
+		let Some((scheme, rest)) = value.split_once(':') else {
+			return Err(Error::Validation(reasons::ID_SCHEME_UNKNOWN.to_string()));
+		};
+		Ok(Self::new(IdScheme::from_str(scheme)?, rest))
 	}
 }
 
@@ -130,11 +130,13 @@ mod tests {
 	}
 
 	#[test]
-	fn a_bare_wire_id_reads_as_an_asin() {
-		assert_eq!(
-			ExternalId::from_str("1705009050").unwrap(),
-			ExternalId::asin("1705009050"),
-			"every id a client held before schemes existed was an asin"
+	fn a_bare_value_is_not_an_external_id() {
+		assert!(
+			matches!(
+				ExternalId::from_str("1705009050"),
+				Err(Error::Validation(_))
+			),
+			"the bare form is wire back-compat, and that policy belongs to the api boundary"
 		);
 	}
 

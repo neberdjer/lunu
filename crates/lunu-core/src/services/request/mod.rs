@@ -149,30 +149,6 @@ impl RequestService {
 		Ok(statuses)
 	}
 
-	pub async fn status_by_asin(
-		&self,
-		user_id: &str,
-		asins: &[String],
-	) -> Result<HashMap<String, RequestStatus>> {
-		let mut statuses = HashMap::new();
-		for (asin, status) in self.requests.status_by_asins(user_id, asins).await? {
-			statuses.entry(asin).or_insert(status);
-		}
-		Ok(statuses)
-	}
-
-	pub async fn status_for_asin(
-		&self,
-		user_id: &str,
-		asin: &str,
-	) -> Result<Option<RequestStatus>> {
-		Ok(self
-			.requests
-			.find_by_user_and_asin(user_id, asin)
-			.await?
-			.map(|request| request.status))
-	}
-
 	pub async fn list_page(
 		&self,
 		caller: &User,

@@ -63,6 +63,10 @@ impl Book {
 		self.ids.iter().find_map(|id| id.value_for(scheme))
 	}
 
+	pub fn primary_id(&self) -> Option<&ExternalId> {
+		self.ids.first()
+	}
+
 	pub fn asin(&self) -> Option<&str> {
 		self.id(IdScheme::Asin)
 	}
@@ -100,4 +104,41 @@ pub struct MetadataCacheEntry {
 	pub key: String,
 	pub payload: String,
 	pub fetched_at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn the_primary_id_is_the_sources_native_handle() {
+		let mut book = Book {
+			ids: vec![ExternalId::asin("B123"), ExternalId::isbn("9780007487295")],
+			title: String::new(),
+			subtitle: None,
+			authors: Vec::new(),
+			author_asins: Vec::new(),
+			narrators: Vec::new(),
+			series: Vec::new(),
+			description: None,
+			cover_url: None,
+			release_date: None,
+			runtime_minutes: None,
+			language: None,
+			publisher: None,
+			genres: Vec::new(),
+			tags: Vec::new(),
+			format_type: None,
+			rating: None,
+			is_adult: None,
+		};
+		assert_eq!(
+			book.primary_id(),
+			Some(&ExternalId::asin("B123")),
+			"a provider must list the id it natively speaks first, or the wire id it hands \
+			 out routes its own results through a different source"
+		);
+		book.ids.clear();
+		assert_eq!(book.primary_id(), None);
+	}
 }

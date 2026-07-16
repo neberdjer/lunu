@@ -89,3 +89,33 @@ async fn a_fallback_cache_entry_does_not_outrank_the_preferred_source() {
 		"one outage must not pin queries to the fallback's cache until it expires"
 	);
 }
+
+#[tokio::test]
+async fn refresh_discards_the_cached_answer_and_asks_again() {
+	let db = memory_db().await;
+	let id = ExternalId::asin("asin-Old");
+
+	let stale = service(
+		&db,
+		vec![Arc::new(CountingProvider::returning("audnexus", &["Old"]))],
+	);
+	assert_eq!(stale.get_book(&id).await.unwrap().unwrap().title, "Old");
+
+	let upstream_changed = service(
+		&db,
+		vec![Arc::new(CountingProvider::returning("audnexus", &["New"]))],
+	);
+	assert_eq!(
+		upstream_changed.get_book(&id).await.unwrap().unwrap().title,
+		"Old",
+		"the cache still answers, which is exactly the staleness refresh exists to fix"
+	);
+
+	let refreshed = upstream_changed.refresh_book(&id).await.unwrap().unwrap();
+	assert_eq!(refreshed.title, "New");
+	assert_eq!(
+		upstream_changed.get_book(&id).await.unwrap().unwrap().title,
+		"New",
+		"the fresh answer is cached in turn"
+	);
+}

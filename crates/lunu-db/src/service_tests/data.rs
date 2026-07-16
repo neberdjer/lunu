@@ -110,7 +110,7 @@ async fn request_lifecycle_and_quota_count() {
 	requests.create(&request).await.unwrap();
 
 	let found = requests
-		.find_by_user_and_asin("u1", "B01")
+		.find_by_user_and_work("u1", "work-B01")
 		.await
 		.unwrap()
 		.unwrap();

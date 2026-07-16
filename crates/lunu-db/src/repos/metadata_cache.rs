@@ -51,6 +51,16 @@ impl MetadataCacheRepo for SqlxMetadataCacheRepo {
 		map_row_opt(row, map_entry)
 	}
 
+	async fn delete(&self, kind: &str, key: &str) -> Result<()> {
+		sqlx::query("DELETE FROM metadata_cache WHERE kind = $1 AND key = $2")
+			.bind(kind)
+			.bind(key)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
+
 	async fn put(&self, entry: &MetadataCacheEntry) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO metadata_cache (provider, kind, key, payload, fetched_at) \

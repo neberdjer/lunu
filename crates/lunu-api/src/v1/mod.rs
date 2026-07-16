@@ -47,6 +47,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(schedules::list)
 		.service(schedules::configure)
 		.service(schedules::run_now)
+		.service(metadata::refresh_book)
 		.service(metadata::book_detail)
 		.service(metadata::chapters)
 		.service(metadata::similar)
