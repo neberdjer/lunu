@@ -31,6 +31,7 @@ pub const UNKNOWN_SETTING: &str = "unknown-setting";
 pub const SETTING_EMPTY: &str = "setting-empty";
 pub const SETTING_INVALID_URL: &str = "setting-invalid-url";
 pub const SETTING_INVALID_CHOICE: &str = "setting-invalid-choice";
+pub const SETTING_OUT_OF_RANGE: &str = "setting-out-of-range";
 pub const NOTIFICATION_KIND_UNKNOWN: &str = "notification-kind-unknown";
 pub const ISSUE_STATUS_UNKNOWN: &str = "issue-status-unknown";
 pub const ISSUE_TYPE_UNKNOWN: &str = "issue-type-unknown";
@@ -47,6 +48,7 @@ pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
+pub const NO_METADATA_PROVIDER: &str = "no-metadata-provider";
 pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
 pub const ABS_UNAUTHORIZED: &str = "abs-unauthorized";
 pub const REQUEST_TITLE_REQUIRED: &str = "request-title-required";
@@ -88,6 +90,7 @@ pub const ALL: &[&str] = &[
 	SETTING_EMPTY,
 	SETTING_INVALID_URL,
 	SETTING_INVALID_CHOICE,
+	SETTING_OUT_OF_RANGE,
 	NOTIFICATION_KIND_UNKNOWN,
 	ISSUE_STATUS_UNKNOWN,
 	ISSUE_TYPE_UNKNOWN,
@@ -104,6 +107,7 @@ pub const ALL: &[&str] = &[
 	EMAIL_NOT_VERIFIED,
 	VERIFICATION_INVALID,
 	MEDIA_SOURCE_UNKNOWN,
+	NO_METADATA_PROVIDER,
 	ABS_NOT_CONFIGURED,
 	ABS_UNAUTHORIZED,
 	REQUEST_TITLE_REQUIRED,

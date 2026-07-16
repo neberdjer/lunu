@@ -1,7 +1,3 @@
-use crate::consts::library::SETTING_LIBRARY_DIR;
-use crate::consts::metadata::{
-	DEFAULT_METADATA_REGION, METADATA_REGION_SETTING, VALID_METADATA_REGIONS,
-};
 use crate::consts::reasons;
 
 pub const PROWLARR: &str = "prowlarr";
@@ -32,14 +28,22 @@ pub const SMTP_ENCRYPTION_MODES: &[&str] = &["starttls", "tls", "none"];
 pub const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
 
 pub const REQUIRE_EMAIL_VERIFICATION: &str = "require_email_verification";
-pub const TOGGLE_MODES: &[&str] = &["off", "on"];
-pub const DEFAULT_TOGGLE: &str = "off";
+pub const TOGGLE_ON: &str = "on";
+pub const TOGGLE_OFF: &str = "off";
+pub const TOGGLE_MODES: &[&str] = &[TOGGLE_OFF, TOGGLE_ON];
+pub const DEFAULT_TOGGLE: &str = TOGGLE_OFF;
+pub const DEFAULT_PROVIDER_TOGGLE: &str = TOGGLE_ON;
+
+mod registry;
+
+pub use registry::{REGISTRY, lookup};
 
 pub enum SettingKind {
 	Text,
 	Url,
 	Path,
 	Enum(&'static [&'static str]),
+	Number { min: i64, max: i64 },
 }
 
 impl SettingKind {
@@ -49,6 +53,7 @@ impl SettingKind {
 			SettingKind::Url => "url",
 			SettingKind::Path => "path",
 			SettingKind::Enum(_) => "enum",
+			SettingKind::Number { .. } => "number",
 		}
 	}
 
@@ -82,6 +87,10 @@ impl SettingSpec {
 					Err(reasons::SETTING_INVALID_URL)
 				}
 			}
+			SettingKind::Number { min, max } => match trimmed.parse::<i64>() {
+				Ok(number) if (*min..=*max).contains(&number) => Ok(()),
+				_ => Err(reasons::SETTING_OUT_OF_RANGE),
+			},
 			SettingKind::Enum(choices) => {
 				if choices.contains(&trimmed) {
 					Ok(())
@@ -100,154 +109,10 @@ fn is_http_url(value: &str) -> bool {
 	rest.is_some_and(|host| !host.is_empty() && !host.starts_with('/'))
 }
 
-pub const REGISTRY: &[SettingSpec] = &[
-	SettingSpec {
-		key: PROWLARR_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: PROWLARR_API_KEY,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: QBITTORRENT_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: QBITTORRENT_API_KEY,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: QBITTORRENT_USERNAME,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: QBITTORRENT_PASSWORD,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: DOWNLOAD_DIR,
-		kind: SettingKind::Path,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SETTING_LIBRARY_DIR,
-		kind: SettingKind::Path,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: METADATA_REGION_SETTING,
-		kind: SettingKind::Enum(VALID_METADATA_REGIONS),
-		secret: false,
-		default: Some(DEFAULT_METADATA_REGION),
-	},
-	SettingSpec {
-		key: ABS_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: ABS_API_TOKEN,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: ABS_LIBRARY_ID,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: NOTIFICATION_WEBHOOK_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: DISCORD_WEBHOOK_URL,
-		kind: SettingKind::Url,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: SLACK_WEBHOOK_URL,
-		kind: SettingKind::Url,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: BASE_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_HOST,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_PORT,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_USERNAME,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_PASSWORD,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_FROM,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_ENCRYPTION,
-		kind: SettingKind::Enum(SMTP_ENCRYPTION_MODES),
-		secret: false,
-		default: Some(DEFAULT_SMTP_ENCRYPTION),
-	},
-	SettingSpec {
-		key: REQUIRE_EMAIL_VERIFICATION,
-		kind: SettingKind::Enum(TOGGLE_MODES),
-		secret: false,
-		default: Some(DEFAULT_TOGGLE),
-	},
-];
-
-pub fn lookup(key: &str) -> Option<&'static SettingSpec> {
-	REGISTRY.iter().find(|spec| spec.key == key)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::consts::metadata::METADATA_REGION_SETTING;
 
 	fn spec(key: &str) -> &'static SettingSpec {
 		lookup(key).expect("registry has key")
@@ -293,5 +158,55 @@ mod tests {
 	#[test]
 	fn unknown_key_is_absent() {
 		assert!(lookup("not_a_real_setting").is_none());
+	}
+
+	#[test]
+	fn every_provider_setting_is_registered() {
+		for settings in crate::consts::metadata::METADATA_PROVIDER_SETTINGS {
+			let provider = settings.provider;
+			for key in [settings.enabled, settings.priority] {
+				let spec = lookup(key).unwrap_or_else(|| {
+					panic!(
+						"provider {provider} maps to setting {key}, which is not in the registry: it would be unsettable through the api and invisible in the catalog"
+					)
+				});
+				assert!(
+					spec.default.is_some(),
+					"provider setting {key} needs a default, or a fresh install has no opinion on it"
+				);
+			}
+
+			let enabled = lookup(settings.enabled).expect("registered above");
+			assert!(
+				matches!(enabled.kind, SettingKind::Enum(TOGGLE_MODES)),
+				"provider toggle {} must be an on/off setting",
+				settings.enabled
+			);
+
+			let priority = lookup(settings.priority).expect("registered above");
+			assert!(
+				matches!(priority.kind, SettingKind::Number { .. }),
+				"provider priority {} must be a number",
+				settings.priority
+			);
+			assert!(
+				priority
+					.default
+					.is_some_and(|value| priority.validate(value).is_ok()),
+				"provider priority {} declares a default outside its own range",
+				settings.priority
+			);
+		}
+	}
+
+	#[test]
+	fn number_kind_enforces_its_range() {
+		let priority = spec(crate::consts::metadata::METADATA_AUDNEXUS_PRIORITY);
+		assert!(priority.validate("1").is_ok());
+		assert!(priority.validate("100").is_ok());
+		assert_eq!(priority.validate("0"), Err(reasons::SETTING_OUT_OF_RANGE));
+		assert_eq!(priority.validate("101"), Err(reasons::SETTING_OUT_OF_RANGE));
+		assert_eq!(priority.validate("abc"), Err(reasons::SETTING_OUT_OF_RANGE));
+		assert_eq!(priority.validate("1.5"), Err(reasons::SETTING_OUT_OF_RANGE));
 	}
 }

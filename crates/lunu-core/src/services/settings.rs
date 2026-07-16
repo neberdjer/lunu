@@ -4,6 +4,7 @@ use chrono::Utc;
 
 use crate::consts::reasons;
 use crate::consts::settings;
+use crate::consts::settings::TOGGLE_ON;
 use crate::crypto::Encryptor;
 use crate::models::Setting;
 use crate::repo::SettingsRepo;
@@ -36,6 +37,26 @@ impl SettingsService {
 		};
 
 		Ok(Some(value))
+	}
+
+	pub async fn get_or_default(&self, key: &str) -> Result<Option<String>> {
+		if let Some(value) = self.get(key).await? {
+			return Ok(Some(value));
+		}
+		Ok(settings::lookup(key)
+			.and_then(|spec| spec.default)
+			.map(str::to_string))
+	}
+
+	pub async fn toggle(&self, key: &str) -> Result<bool> {
+		Ok(self.get_or_default(key).await?.as_deref() == Some(TOGGLE_ON))
+	}
+
+	pub async fn number(&self, key: &str) -> Result<Option<i64>> {
+		Ok(self
+			.get_or_default(key)
+			.await?
+			.and_then(|value| value.trim().parse().ok()))
 	}
 
 	pub async fn view(&self, key: &str) -> Result<Option<SettingView>> {

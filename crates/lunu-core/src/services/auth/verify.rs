@@ -15,12 +15,7 @@ use crate::{Error, Result};
 
 impl AuthService {
 	pub async fn verification_required(&self) -> Result<bool> {
-		Ok(self
-			.settings
-			.get(REQUIRE_EMAIL_VERIFICATION)
-			.await?
-			.as_deref()
-			== Some("on"))
+		self.settings.toggle(REQUIRE_EMAIL_VERIFICATION).await
 	}
 
 	pub(super) async fn verification_pending(&self, user: &User) -> Result<bool> {
