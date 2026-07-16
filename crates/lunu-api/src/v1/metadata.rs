@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use actix_web::{HttpResponse, get, post, web};
 use lunu_core::Error;
-use lunu_core::models::{Book, RequestStatus};
+use lunu_core::models::{Book, ExternalId, RequestStatus};
 use lunu_core::services::NewRequest;
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +11,11 @@ use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
+
+const OPAQUE_BOOK_ID: &str = "Opaque book identifier, taken from a search result. Treat it as \
+	meaningless text: do not parse it, construct it, or assume it stays an ASIN.";
+const OPAQUE_AUTHOR_ID: &str = "Opaque author identifier, taken from a book's author_asins. Treat \
+	it as meaningless text: do not parse it, construct it, or assume it stays an ASIN.";
 
 fn enforce_metadata_rate_limit(state: &AppState, user_id: &str) -> Result<(), ApiError> {
 	if state.metadata_rate_limiter.check(user_id) {
@@ -107,15 +112,19 @@ async fn annotate(
 	user_id: &str,
 	books: Vec<Book>,
 ) -> Result<Vec<SearchResult>, ApiError> {
-	let asins: Vec<String> = books.iter().map(|book| book.asin.clone()).collect();
+	let asins: Vec<String> = books
+		.iter()
+		.filter_map(|book| book.asin().map(str::to_string))
+		.collect();
 	let (statuses, available) = presence(state, user_id, &asins).await?;
 	Ok(books
 		.into_iter()
 		.map(|book| SearchResult {
-			request_status: statuses
-				.get(&book.asin)
+			request_status: book
+				.asin()
+				.and_then(|asin| statuses.get(asin))
 				.map(|status| status.as_str().to_string()),
-			available: available.contains(&book.asin),
+			available: book.asin().is_some_and(|asin| available.contains(asin)),
 			book: BookResponse::from(&book),
 		})
 		.collect())
@@ -141,9 +150,10 @@ pub async fn series_books(
 	query: web::Query<SeriesBooksQuery>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
+	let series = query.asin.as_deref().map(ExternalId::asin);
 	let all = state
 		.metadata
-		.series_books(&query.name, query.asin.as_deref())
+		.series_books(&query.name, series.as_ref())
 		.await?;
 
 	let pagination = Pagination::resolve(query.page, query.limit);
@@ -171,18 +181,24 @@ pub async fn series_request(
 		state.quality_profiles.require(profile_id).await?;
 	}
 
+	let series = body.asin.as_deref().map(ExternalId::asin);
 	let books = state
 		.metadata
-		.series_books(&body.name, body.asin.as_deref())
+		.series_books(&body.name, series.as_ref())
 		.await?;
-	let asins: Vec<String> = books.iter().map(|book| book.asin.clone()).collect();
+	let asins: Vec<String> = books
+		.iter()
+		.filter_map(|book| book.asin().map(str::to_string))
+		.collect();
 	let (statuses, available) = presence(&state, &user.0.id, &asins).await?;
 
 	let mut requested = Vec::new();
 	let mut already_present = 0;
 	let mut failed = Vec::new();
 	for book in books {
-		let asin = book.asin.clone();
+		let Some(asin) = book.asin().map(str::to_string) else {
+			continue;
+		};
 		if statuses.contains_key(&asin) || available.contains(&asin) {
 			already_present += 1;
 			continue;
@@ -208,44 +224,50 @@ pub async fn series_request(
 	}))
 }
 
-#[utoipa::path(tag = "metadata", params(("asin" = String, Path, description = "Book ASIN")), responses((status = 200, description = "Similar books", body = Vec<SearchResult>)))]
-#[get("/books/{asin}/similar")]
+#[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_BOOK_ID)), responses((status = 200, description = "Similar books", body = Vec<SearchResult>)))]
+#[get("/books/{id}/similar")]
 pub async fn similar(
 	user: AuthUser,
 	state: web::Data<AppState>,
-	asin: web::Path<String>,
+	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let books = state.metadata.similar(&asin.into_inner()).await?;
+	let books = state
+		.metadata
+		.similar(&ExternalId::asin(id.into_inner()))
+		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
 }
 
-#[utoipa::path(tag = "metadata", params(("asin" = String, Path, description = "Author ASIN")), responses((status = 200, description = "More books by the author", body = Vec<SearchResult>)))]
-#[get("/authors/{asin}/books")]
+#[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_AUTHOR_ID)), responses((status = 200, description = "More books by the author", body = Vec<SearchResult>)))]
+#[get("/authors/{id}/books")]
 pub async fn author_books(
 	user: AuthUser,
 	state: web::Data<AppState>,
-	asin: web::Path<String>,
+	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let books = state.metadata.books_by_author(&asin.into_inner()).await?;
+	let books = state
+		.metadata
+		.books_by_author(&ExternalId::asin(id.into_inner()))
+		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
 }
 
-#[utoipa::path(tag = "metadata", params(("asin" = String, Path, description = "Book ASIN")), responses((status = 200, description = "Book detail with request status", body = SearchResult), (status = 404, description = "Unknown ASIN")))]
-#[get("/books/{asin}")]
+#[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_BOOK_ID)), responses((status = 200, description = "Book detail with request status", body = SearchResult), (status = 404, description = "Unknown book")))]
+#[get("/books/{id}")]
 pub async fn book_detail(
 	user: AuthUser,
 	state: web::Data<AppState>,
-	asin: web::Path<String>,
+	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let asin = asin.into_inner();
+	let asin = id.into_inner();
 	let book = state
 		.metadata
-		.get_book(&asin)
+		.get_book(&ExternalId::asin(&asin))
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("book {asin}")))?;
 	let (status, media) = tokio::try_join!(
@@ -259,18 +281,18 @@ pub async fn book_detail(
 	}))
 }
 
-#[utoipa::path(tag = "metadata", params(("asin" = String, Path, description = "Book ASIN")), responses((status = 200, description = "Chapter list"), (status = 404, description = "No chapters")))]
-#[get("/books/{asin}/chapters")]
+#[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_BOOK_ID)), responses((status = 200, description = "Chapter list"), (status = 404, description = "No chapters")))]
+#[get("/books/{id}/chapters")]
 pub async fn chapters(
 	user: AuthUser,
 	state: web::Data<AppState>,
-	asin: web::Path<String>,
+	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let asin = asin.into_inner();
+	let asin = id.into_inner();
 	let chapters = state
 		.metadata
-		.get_chapters(&asin)
+		.get_chapters(&ExternalId::asin(&asin))
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("chapters {asin}")))?;
 	Ok(HttpResponse::Ok().json(chapters))

@@ -20,7 +20,7 @@ impl From<&SeriesRef> for SeriesRefResponse {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct BookResponse {
-	pub asin: String,
+	pub asin: Option<String>,
 	pub title: String,
 	pub subtitle: Option<String>,
 	pub authors: Vec<String>,
@@ -44,7 +44,7 @@ pub(crate) struct BookResponse {
 impl From<&Book> for BookResponse {
 	fn from(book: &Book) -> Self {
 		Self {
-			asin: book.asin.clone(),
+			asin: book.asin().map(str::to_string),
 			title: book.title.clone(),
 			subtitle: book.subtitle.clone(),
 			authors: book.authors.clone(),
@@ -59,7 +59,7 @@ impl From<&Book> for BookResponse {
 			publisher: book.publisher.clone(),
 			genres: book.genres.clone(),
 			tags: book.tags.clone(),
-			isbn: book.isbn.clone(),
+			isbn: book.isbn().map(str::to_string),
 			format_type: book.format_type.clone(),
 			rating: book.rating.clone(),
 			is_adult: book.is_adult,

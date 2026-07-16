@@ -12,7 +12,7 @@ use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
 	IssueService, JobService, LibraryService, MediaService, MetadataService, MonitorService,
 	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
-	RequestService, SchedulerService, SettingsService, UserService,
+	RequestService, SchedulerService, SettingsService, UserService, WorkService,
 };
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
@@ -21,7 +21,7 @@ use lunu_db::repos::{
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
 	SqlxMetadataCacheRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
 	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 
 use crate::hub::EventHub;
@@ -124,10 +124,12 @@ impl AppState {
 		));
 		let activity = Arc::new(ActivityService::new(activity_repo, hub.clone()));
 		let media = Arc::new(MediaService::new(media_repo.clone()));
+		let works = Arc::new(WorkService::new(Arc::new(SqlxWorkRepo::new(db.clone()))));
 		let library = Arc::new(LibraryService::new(
 			Arc::new(AbsLibrary::new(settings.clone())),
 			media_repo.clone(),
 			metadata.clone(),
+			works.clone(),
 		));
 		let inbox = Arc::new(NotificationInboxService::new(
 			Arc::new(SqlxUserNotificationRepo::new(db.clone())),
@@ -143,6 +145,7 @@ impl AppState {
 			downloads_repo.clone(),
 			media_repo.clone(),
 			inbox.clone(),
+			works.clone(),
 		));
 
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
