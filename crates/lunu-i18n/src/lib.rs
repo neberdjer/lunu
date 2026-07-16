@@ -27,6 +27,10 @@ pub fn t(lang: &LanguageIdentifier, key: &str) -> String {
 	LOCALES.lookup(lang, key)
 }
 
+pub fn has_key(lang: &LanguageIdentifier, key: &str) -> bool {
+	LOCALES.try_lookup(lang, key).is_some()
+}
+
 pub fn t_vars(lang: &LanguageIdentifier, key: &str, vars: &[(&str, &str)]) -> String {
 	let args: HashMap<Cow<'static, str>, FluentValue> = vars
 		.iter()

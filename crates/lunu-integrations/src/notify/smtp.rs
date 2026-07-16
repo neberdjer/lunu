@@ -6,8 +6,8 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use lunu_core::Result;
 use lunu_core::consts::settings::{
-	DEFAULT_SMTP_ENCRYPTION, SMTP_ENCRYPTION, SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT,
-	SMTP_USERNAME,
+	DEFAULT_SMTP_ENCRYPTION, SMTP_ENCRYPTION, SMTP_ENCRYPTION_NONE, SMTP_ENCRYPTION_TLS, SMTP_FROM,
+	SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
 };
 use lunu_core::services::SettingsService;
 use lunu_core::traits::Mailer;
@@ -29,11 +29,11 @@ impl SmtpMailer {
 			.unwrap_or_else(|| DEFAULT_SMTP_ENCRYPTION.to_string());
 
 		let (builder, default_port) = match mode.as_str() {
-			"tls" => (
+			SMTP_ENCRYPTION_TLS => (
 				AsyncSmtpTransport::<Tokio1Executor>::relay(host).map_err(integration_error)?,
 				465,
 			),
-			"none" => (
+			SMTP_ENCRYPTION_NONE => (
 				AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host),
 				25,
 			),

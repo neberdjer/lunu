@@ -25,7 +25,7 @@ impl SchedulerService {
 		for (kind, interval_secs) in DEFAULT_SCHEDULES {
 			self.schedules
 				.insert_if_absent(&Schedule {
-					kind: kind.to_string(),
+					kind: kind.as_str().to_string(),
 					interval_secs: *interval_secs,
 					enabled: false,
 					next_run_at: now,

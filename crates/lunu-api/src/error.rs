@@ -182,10 +182,10 @@ mod tests {
 		let locale = lunu_i18n::default_locale();
 		for error in all_variants() {
 			let code = error.code();
-			let message = lunu_i18n::error_message(&locale, code, None);
+			let key = format!("error-{}", code.replace('_', "-"));
 			assert!(
-				!message.starts_with("error-"),
-				"no catalog message for error code '{code}'"
+				lunu_i18n::has_key(&locale, &key),
+				"no catalog message for error code '{code}', expected key '{key}'"
 			);
 		}
 	}
@@ -207,10 +207,10 @@ mod tests {
 		];
 		for status in statuses {
 			let code = status_slug(status);
-			let message = lunu_i18n::error_message(&locale, code, None);
+			let key = format!("error-{}", code.replace('_', "-"));
 			assert!(
-				!message.starts_with("error-"),
-				"no catalog message for status slug '{code}'"
+				lunu_i18n::has_key(&locale, &key),
+				"no catalog message for status slug '{code}', expected key '{key}'"
 			);
 		}
 	}
@@ -220,8 +220,17 @@ mod tests {
 		let locale = lunu_i18n::default_locale();
 		for reason in lunu_core::consts::reasons::ALL {
 			let key = format!("error-{reason}");
-			let message = lunu_i18n::t(&locale, &key);
-			assert_ne!(message, key, "no catalog message for reason key '{reason}'");
+			assert!(
+				lunu_i18n::has_key(&locale, &key),
+				"no catalog message for reason key '{reason}'"
+			);
 		}
+	}
+
+	#[test]
+	fn a_missing_key_is_detected_rather_than_papered_over() {
+		let locale = lunu_i18n::default_locale();
+		assert!(!lunu_i18n::has_key(&locale, "error-not-a-real-key"));
+		assert!(lunu_i18n::has_key(&locale, "error-username-taken"));
 	}
 }

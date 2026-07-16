@@ -24,8 +24,15 @@ pub const SMTP_PASSWORD: &str = "smtp_password";
 pub const SMTP_FROM: &str = "smtp_from";
 pub const SMTP_ENCRYPTION: &str = "smtp_encryption";
 
-pub const SMTP_ENCRYPTION_MODES: &[&str] = &["starttls", "tls", "none"];
-pub const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
+pub const SMTP_ENCRYPTION_STARTTLS: &str = "starttls";
+pub const SMTP_ENCRYPTION_TLS: &str = "tls";
+pub const SMTP_ENCRYPTION_NONE: &str = "none";
+pub const SMTP_ENCRYPTION_MODES: &[&str] = &[
+	SMTP_ENCRYPTION_STARTTLS,
+	SMTP_ENCRYPTION_TLS,
+	SMTP_ENCRYPTION_NONE,
+];
+pub const DEFAULT_SMTP_ENCRYPTION: &str = SMTP_ENCRYPTION_STARTTLS;
 
 pub const REQUIRE_EMAIL_VERIFICATION: &str = "require_email_verification";
 pub const TOGGLE_ON: &str = "on";
@@ -197,6 +204,16 @@ mod tests {
 				settings.priority
 			);
 		}
+	}
+
+	#[test]
+	fn the_provider_priority_default_agrees_with_itself() {
+		use crate::consts::metadata::{DEFAULT_PROVIDER_PRIORITY, DEFAULT_PROVIDER_PRIORITY_VALUE};
+		assert_eq!(
+			DEFAULT_PROVIDER_PRIORITY_VALUE.parse::<i64>(),
+			Ok(DEFAULT_PROVIDER_PRIORITY),
+			"the registry default and the priority the service falls back to are the same number written twice"
+		);
 	}
 
 	#[test]
