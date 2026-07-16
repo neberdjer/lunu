@@ -35,6 +35,13 @@ pub(crate) async fn optional_setting(
 	Ok(nonempty(settings.get(key).await?))
 }
 
+pub(crate) async fn setting_present(
+	settings: &Arc<SettingsService>,
+	key: &str,
+) -> lunu_core::Result<bool> {
+	Ok(optional_setting(settings, key).await?.is_some())
+}
+
 pub(crate) async fn required_setting(
 	settings: &Arc<SettingsService>,
 	key: &str,

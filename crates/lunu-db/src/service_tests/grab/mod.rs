@@ -24,6 +24,7 @@ struct StubClient {
 	id: &'static str,
 	protocol: Protocol,
 	assigned: Option<&'static str>,
+	configured: bool,
 	adds: std::sync::Mutex<Vec<String>>,
 }
 
@@ -33,7 +34,16 @@ impl StubClient {
 			id: "ok",
 			protocol: Protocol::Torrent,
 			assigned: None,
+			configured: true,
 			adds: std::sync::Mutex::new(Vec::new()),
+		}
+	}
+
+	fn unconfigured_torrent() -> Self {
+		Self {
+			id: "idle",
+			configured: false,
+			..Self::torrent()
 		}
 	}
 
@@ -42,6 +52,7 @@ impl StubClient {
 			id: "sabnzbd",
 			protocol: Protocol::Usenet,
 			assigned: Some("nzo-1"),
+			configured: true,
 			adds: std::sync::Mutex::new(Vec::new()),
 		}
 	}
@@ -58,6 +69,9 @@ impl DownloadClient for StubClient {
 	}
 	fn protocol(&self) -> Protocol {
 		self.protocol
+	}
+	async fn is_configured(&self) -> CoreResult<bool> {
+		Ok(self.configured)
 	}
 	async fn add(&self, url: &str, _category: &str) -> CoreResult<Option<String>> {
 		self.adds.lock().unwrap().push(url.to_string());

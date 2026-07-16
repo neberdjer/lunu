@@ -67,3 +67,55 @@ async fn a_usenet_grab_without_a_usenet_client_is_refused() {
 		"a refused grab must not strand a download row"
 	);
 }
+
+#[tokio::test]
+async fn an_unconfigured_client_is_skipped_for_a_configured_one() {
+	let db = memory_db().await;
+	seed_approved_request(&db).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let idle = Arc::new(StubClient::unconfigured_torrent());
+	let active = Arc::new(StubClient::torrent());
+	let grabs = grab_service_with(&db, jobs.clone(), vec![idle.clone(), active.clone()]);
+
+	grabs
+		.grab("r1", Some(selection(Some("abc"))))
+		.await
+		.unwrap();
+
+	assert!(idle.adds().is_empty());
+	assert_eq!(active.adds().len(), 1);
+
+	let download = SqlxDownloadRepo::new(db.clone())
+		.find_by_request("r1")
+		.await
+		.unwrap()
+		.unwrap();
+	assert_eq!(download.client, "ok");
+}
+
+#[tokio::test]
+async fn the_first_configured_client_of_a_protocol_wins() {
+	let db = memory_db().await;
+	seed_approved_request(&db).await;
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let first = Arc::new(StubClient::torrent());
+	let second = Arc::new(StubClient {
+		id: "second",
+		..StubClient::torrent()
+	});
+	let grabs = grab_service_with(&db, jobs.clone(), vec![first.clone(), second.clone()]);
+
+	grabs
+		.grab("r1", Some(selection(Some("abc"))))
+		.await
+		.unwrap();
+
+	assert_eq!(
+		first.adds().len(),
+		1,
+		"roster order is the tiebreak between two configured clients of one protocol"
+	);
+	assert!(second.adds().is_empty());
+}

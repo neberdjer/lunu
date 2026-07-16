@@ -27,7 +27,7 @@ use lunu_db::repos::{
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
 use lunu_integrations::auth::AudiobookshelfProvider;
-use lunu_integrations::download::{QbittorrentClient, SabnzbdClient};
+use lunu_integrations::download::{QbittorrentClient, SabnzbdClient, TransmissionClient};
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
 use lunu_integrations::metadata::{AudnexusProvider, OpenLibraryProvider};
@@ -162,6 +162,7 @@ impl AppState {
 
 		let download_clients = ClientRoster::new(vec![
 			Arc::new(QbittorrentClient::new(settings.clone())),
+			Arc::new(TransmissionClient::new(settings.clone())),
 			Arc::new(SabnzbdClient::new(settings.clone())),
 		]);
 		let monitor = Arc::new(MonitorService::new(

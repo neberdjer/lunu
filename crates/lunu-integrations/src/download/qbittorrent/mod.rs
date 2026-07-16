@@ -186,6 +186,10 @@ impl DownloadClient for QbittorrentClient {
 		Protocol::Torrent
 	}
 
+	async fn is_configured(&self) -> Result<bool> {
+		crate::setting_present(&self.settings, SETTING_URL).await
+	}
+
 	async fn add(&self, download_url: &str, category: &str) -> Result<Option<String>> {
 		let (base_url, api_key) = self.prepare().await?;
 		let _ = self.ensure_category(&base_url, &api_key, category).await;

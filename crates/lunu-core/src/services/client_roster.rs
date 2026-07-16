@@ -20,10 +20,14 @@ impl ClientRoster {
 			.ok_or_else(|| Error::NotFound(format!("download client {client_id}")))
 	}
 
-	pub fn by_protocol(&self, protocol: Protocol) -> Result<&Arc<dyn DownloadClient>> {
-		self.0
-			.iter()
-			.find(|client| client.protocol() == protocol)
-			.ok_or_else(|| Error::Validation(reasons::NO_CLIENT_FOR_PROTOCOL.to_string()))
+	pub async fn by_protocol(&self, protocol: Protocol) -> Result<&Arc<dyn DownloadClient>> {
+		for client in &self.0 {
+			if client.protocol() == protocol && client.is_configured().await? {
+				return Ok(client);
+			}
+		}
+		Err(Error::Validation(
+			reasons::NO_CLIENT_FOR_PROTOCOL.to_string(),
+		))
 	}
 }

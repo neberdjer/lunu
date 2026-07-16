@@ -31,6 +31,7 @@ error-prowlarr-unauthorized = Prowlarr rejected the API key. Check the key in se
 error-qbittorrent-not-configured = qBittorrent is not configured. Set its URL, username, and password in settings.
 error-qbittorrent-auth-failed = qBittorrent rejected the login. Check the username and password in settings.
 error-sabnzbd-not-configured = SABnzbd is not configured. Set the url and api key in settings.
+error-transmission-not-configured = Transmission is not configured. Set the url in settings.
 error-no-client-for-protocol = No download client is configured for this release's protocol.
 error-invalid-region = The configured metadata region is not supported.
 error-already-exists = That already exists.

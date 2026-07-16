@@ -82,7 +82,7 @@ impl GrabService {
 			None => self.best_release(request_id).await?,
 		};
 
-		let client = self.clients.by_protocol(selection.protocol)?;
+		let client = self.clients.by_protocol(selection.protocol).await?;
 		let assigned = client.add(&selection.download_url, GRAB_CATEGORY).await?;
 
 		let now = Utc::now();

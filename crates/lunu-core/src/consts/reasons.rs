@@ -16,6 +16,7 @@ pub const PROWLARR_UNAUTHORIZED: &str = "prowlarr-unauthorized";
 pub const QBITTORRENT_NOT_CONFIGURED: &str = "qbittorrent-not-configured";
 pub const QBITTORRENT_AUTH_FAILED: &str = "qbittorrent-auth-failed";
 pub const SABNZBD_NOT_CONFIGURED: &str = "sabnzbd-not-configured";
+pub const TRANSMISSION_NOT_CONFIGURED: &str = "transmission-not-configured";
 pub const NO_CLIENT_FOR_PROTOCOL: &str = "no-client-for-protocol";
 pub const INVALID_REGION: &str = "invalid-region";
 pub const ALREADY_EXISTS: &str = "already-exists";
@@ -83,6 +84,7 @@ pub const ALL: &[&str] = &[
 	QBITTORRENT_NOT_CONFIGURED,
 	QBITTORRENT_AUTH_FAILED,
 	SABNZBD_NOT_CONFIGURED,
+	TRANSMISSION_NOT_CONFIGURED,
 	NO_CLIENT_FOR_PROTOCOL,
 	INVALID_REGION,
 	ALREADY_EXISTS,

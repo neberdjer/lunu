@@ -183,6 +183,10 @@ impl DownloadClient for SabnzbdClient {
 		Protocol::Usenet
 	}
 
+	async fn is_configured(&self) -> Result<bool> {
+		crate::setting_present(&self.settings, SETTING_URL).await
+	}
+
 	async fn add(&self, download_url: &str, category: &str) -> Result<Option<String>> {
 		let added: AddResponse = self
 			.call_json(&[

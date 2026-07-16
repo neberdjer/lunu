@@ -30,6 +30,9 @@ impl DownloadClient for FakeClient {
 	fn protocol(&self) -> Protocol {
 		Protocol::Torrent
 	}
+	async fn is_configured(&self) -> CoreResult<bool> {
+		Ok(true)
+	}
 	async fn add(&self, _download_url: &str, _category: &str) -> CoreResult<Option<String>> {
 		Ok(None)
 	}
