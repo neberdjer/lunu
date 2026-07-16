@@ -32,7 +32,7 @@ pub async fn connect(database_url: &str) -> Result<Db> {
 	install_default_drivers();
 	ensure_sqlite_parent(database_url)?;
 
-	let is_sqlite = database_url.starts_with("sqlite:");
+	let is_sqlite = is_sqlite_url(database_url);
 	AnyPoolOptions::new()
 		.max_connections(DEFAULT_MAX_CONNECTIONS)
 		.after_connect(move |conn, _meta| {
@@ -84,10 +84,18 @@ pub async fn ping(db: &Db) -> Result<()> {
 		.map_err(db_error)
 }
 
+fn is_sqlite_url(database_url: &str) -> bool {
+	database_url.starts_with("sqlite:")
+}
+
 fn ensure_sqlite_parent(database_url: &str) -> Result<()> {
-	let Some(rest) = database_url.strip_prefix("sqlite://") else {
+	if !is_sqlite_url(database_url) {
 		return Ok(());
-	};
+	}
+	let rest = database_url
+		.strip_prefix("sqlite://")
+		.or_else(|| database_url.strip_prefix("sqlite:"))
+		.unwrap_or_default();
 
 	let path_part = rest.split('?').next().unwrap_or(rest);
 	if path_part.is_empty() || path_part == ":memory:" {
