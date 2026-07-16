@@ -102,6 +102,8 @@ async fn status_by_asin_scopes_to_user_and_keeps_newest() {
 	let make =
 		|id: &str, user: &str, asin: &str, status: RequestStatus, at: chrono::DateTime<Utc>| {
 			Request {
+				work_id: format!("work-{asin}"),
+				format: Format::Audiobook,
 				id: id.to_string(),
 				user_id: user.to_string(),
 				asin: Some(asin.to_string()),

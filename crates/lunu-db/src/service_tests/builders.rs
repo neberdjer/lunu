@@ -135,7 +135,7 @@ pub(super) fn release(download_url: &str) -> Release {
 
 pub(super) fn book(title: &str) -> Book {
 	Book {
-		asin: format!("asin-{title}"),
+		ids: vec![ExternalId::asin(format!("asin-{title}"))],
 		title: title.to_string(),
 		subtitle: None,
 		authors: Vec::new(),
@@ -150,7 +150,6 @@ pub(super) fn book(title: &str) -> Book {
 		publisher: None,
 		genres: Vec::new(),
 		tags: Vec::new(),
-		isbn: None,
 		format_type: None,
 		rating: None,
 		is_adult: None,
@@ -205,12 +204,19 @@ pub(super) fn request_service_with_activity(
 			Arc::new(SqlxUserRepo::new(db.clone())),
 			Arc::new(NoopPublisher),
 		)),
+		work_service(db),
 	))
+}
+
+pub(super) fn work_service(db: &Db) -> Arc<WorkService> {
+	Arc::new(WorkService::new(Arc::new(SqlxWorkRepo::new(db.clone()))))
 }
 
 pub(super) async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
+			work_id: "work-B01".to_string(),
+			format: Format::Audiobook,
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
 			asin: Some("B01".to_string()),

@@ -89,6 +89,8 @@ async fn grab_without_info_hash_fails_request_instead_of_stranding() {
 	let now = Utc::now();
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
+			work_id: "work-B01".to_string(),
+			format: Format::Audiobook,
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
 			asin: Some("B01".to_string()),

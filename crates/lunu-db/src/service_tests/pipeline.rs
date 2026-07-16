@@ -10,6 +10,8 @@ async fn approving_a_request_enqueues_a_grab_job() {
 
 	let now = Utc::now();
 	let request = Request {
+		work_id: "work-B01".to_string(),
+		format: Format::Audiobook,
 		id: "r1".to_string(),
 		user_id: "u1".to_string(),
 		asin: Some("B01".to_string()),
@@ -47,6 +49,8 @@ async fn marking_available_enqueues_a_notification() {
 	let now = Utc::now();
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
+			work_id: "work-B01".to_string(),
+			format: Format::Audiobook,
 			id: "r1".to_string(),
 			user_id: "u1".to_string(),
 			asin: Some("B01".to_string()),
@@ -127,6 +131,8 @@ async fn request_transitions_record_activity() {
 
 	let now = Utc::now();
 	let request = Request {
+		work_id: "work-B01".to_string(),
+		format: Format::Audiobook,
 		id: "r1".to_string(),
 		user_id: "u1".to_string(),
 		asin: Some("B01".to_string()),

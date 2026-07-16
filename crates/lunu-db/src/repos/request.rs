@@ -3,7 +3,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use lunu_core::Result;
-use lunu_core::models::{Request, RequestStatus};
+use lunu_core::models::{Format, Request, RequestStatus};
 use lunu_core::repo::RequestRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
@@ -24,12 +24,15 @@ impl SqlxRequestRepo {
 
 fn map_request(row: &AnyRow) -> Result<Request> {
 	let status: String = row.try_get("status").map_err(db_error)?;
+	let format: String = row.try_get("format").map_err(db_error)?;
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
 
 	Ok(Request {
 		id: row.try_get("id").map_err(db_error)?,
 		user_id: row.try_get("user_id").map_err(db_error)?,
+		work_id: row.try_get("work_id").map_err(db_error)?,
+		format: parse_enum::<Format>(&format)?,
 		asin: row.try_get("asin").map_err(db_error)?,
 		title: row.try_get("title").map_err(db_error)?,
 		author: row.try_get("author").map_err(db_error)?,
@@ -66,11 +69,13 @@ impl RequestRepo for SqlxRequestRepo {
 	async fn create(&self, request: &Request) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO requests \
-			 (id, user_id, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+			 (id, user_id, work_id, format, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
 		)
 		.bind(&request.id)
 		.bind(&request.user_id)
+		.bind(&request.work_id)
+		.bind(request.format.as_str())
 		.bind(request.asin.as_deref())
 		.bind(&request.title)
 		.bind(request.author.as_deref())
@@ -95,12 +100,14 @@ impl RequestRepo for SqlxRequestRepo {
 	) -> Result<bool> {
 		let result = sqlx::query(
 			"INSERT INTO requests \
-			 (id, user_id, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 \
-			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $13) < $14",
+			 (id, user_id, work_id, format, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 \
+			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $15) < $16",
 		)
 		.bind(&request.id)
 		.bind(&request.user_id)
+		.bind(&request.work_id)
+		.bind(request.format.as_str())
 		.bind(request.asin.as_deref())
 		.bind(&request.title)
 		.bind(request.author.as_deref())
@@ -160,6 +167,19 @@ impl RequestRepo for SqlxRequestRepo {
 			.fetch_optional(&self.db)
 			.await
 			.map_err(db_error)?;
+		map_row_opt(row, map_request)
+	}
+
+	async fn find_by_user_and_work(&self, user_id: &str, work_id: &str) -> Result<Option<Request>> {
+		let row = sqlx::query(
+			"SELECT * FROM requests WHERE user_id = $1 AND work_id = $2 \
+			 ORDER BY created_at DESC LIMIT 1",
+		)
+		.bind(user_id)
+		.bind(work_id)
+		.fetch_optional(&self.db)
+		.await
+		.map_err(db_error)?;
 		map_row_opt(row, map_request)
 	}
 

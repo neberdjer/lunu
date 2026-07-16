@@ -9,7 +9,7 @@ use crate::models::{
 };
 use crate::repo::{DownloadRepo, MediaRepo, RequestRepo, UserSettingsRepo};
 use crate::services::{
-	ActivityService, JobService, MetadataService, NotificationInboxService, nonempty,
+	ActivityService, JobService, MetadataService, NotificationInboxService, WorkService, nonempty,
 };
 use crate::{Error, Result};
 
@@ -43,6 +43,7 @@ pub struct RequestService {
 	downloads: Arc<dyn DownloadRepo>,
 	media: Arc<dyn MediaRepo>,
 	inbox: Arc<NotificationInboxService>,
+	works: Arc<WorkService>,
 }
 
 impl RequestService {
@@ -56,6 +57,7 @@ impl RequestService {
 		downloads: Arc<dyn DownloadRepo>,
 		media: Arc<dyn MediaRepo>,
 		inbox: Arc<NotificationInboxService>,
+		works: Arc<WorkService>,
 	) -> Self {
 		Self {
 			requests,
@@ -66,6 +68,7 @@ impl RequestService {
 			downloads,
 			media,
 			inbox,
+			works,
 		}
 	}
 

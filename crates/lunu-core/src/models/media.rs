@@ -3,6 +3,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 
 use crate::consts::reasons;
+use crate::models::Format;
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +48,8 @@ pub struct LibraryItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Media {
 	pub id: String,
+	pub work_id: Option<String>,
+	pub format: Format,
 	pub asin: Option<String>,
 	pub abs_item_id: Option<String>,
 	pub title: String,

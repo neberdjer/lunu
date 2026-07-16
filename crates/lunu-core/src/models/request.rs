@@ -4,6 +4,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 
 use crate::consts::reasons;
+use crate::models::Format;
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +73,8 @@ impl FromStr for RequestStatus {
 pub struct Request {
 	pub id: String,
 	pub user_id: String,
+	pub work_id: String,
+	pub format: Format,
 	pub asin: Option<String>,
 	pub title: String,
 	pub author: Option<String>,

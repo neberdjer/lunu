@@ -17,7 +17,7 @@ chrono.workspace = true
 uuid.workspace = true
 askama.workspace = true
 async-trait = "0.1"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "macros"] }
 argon2 = "0.5"
 aes-gcm = "0.10"
 hkdf = "0.12"

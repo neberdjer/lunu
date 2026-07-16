@@ -23,6 +23,8 @@ impl MediaService {
 				return Ok(());
 			}
 			let updated = Media {
+				work_id: Some(request.work_id.clone()),
+				format: request.format,
 				asin: request.asin.clone(),
 				title: request.title.clone(),
 				author: request.author.clone(),
@@ -34,6 +36,8 @@ impl MediaService {
 		}
 		let media = Media {
 			id: new_id(),
+			work_id: Some(request.work_id.clone()),
+			format: request.format,
 			asin: request.asin.clone(),
 			abs_item_id: None,
 			title: request.title.clone(),

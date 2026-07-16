@@ -3,7 +3,7 @@ use crate::repos::{
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
 	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo,
 	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo,
+	SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
@@ -13,9 +13,10 @@ use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::{Encryptor, hash_token};
 use lunu_core::models::{
 	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus,
-	EmailVerificationToken, Job, JobStatus, JobType, MetadataCacheEntry, MonitorPayload,
-	NotificationEvent, NotificationKind, PasswordResetToken, Protocol, QualityProfile, Release,
-	Request, RequestStatus, Role, SeriesSummary, User, UserSettings,
+	EmailVerificationToken, ExternalId, Format, IdScheme, Job, JobStatus, JobType,
+	MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind, PasswordResetToken,
+	Protocol, QualityProfile, Release, Request, RequestStatus, Role, SeriesSummary, User,
+	UserSettings,
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, EmailVerificationRepo, JobRepo, MetadataCacheRepo,
@@ -24,7 +25,7 @@ use lunu_core::repo::{
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
 	MediaService, MetadataService, MonitorService, NotificationInboxService, NotificationService,
-	ReleaseService, RequestService, SettingsService, UserService,
+	ReleaseService, RequestService, SettingsService, UserService, WorkService,
 };
 use lunu_core::traits::{
 	AuthProvider, DownloadClient, EventPublisher, ExternalIdentity, Importer, Indexer, Mailer,
@@ -54,6 +55,7 @@ mod reset;
 mod scheduler;
 mod stubs;
 mod verification;
+mod works;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 

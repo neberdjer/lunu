@@ -3,9 +3,9 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::consts::reasons;
-use crate::models::{Media, MediaSource};
+use crate::models::{ExternalId, Format, LibraryItem, Media, MediaSource};
 use crate::repo::MediaRepo;
-use crate::services::{MetadataService, new_id};
+use crate::services::{MetadataService, WorkService, new_id};
 use crate::traits::LibrarySource;
 use crate::{Error, Result};
 
@@ -20,6 +20,7 @@ pub struct LibraryService {
 	source: Arc<dyn LibrarySource>,
 	media: Arc<dyn MediaRepo>,
 	metadata: Arc<MetadataService>,
+	works: Arc<WorkService>,
 }
 
 impl LibraryService {
@@ -27,12 +28,29 @@ impl LibraryService {
 		source: Arc<dyn LibrarySource>,
 		media: Arc<dyn MediaRepo>,
 		metadata: Arc<MetadataService>,
+		works: Arc<WorkService>,
 	) -> Self {
 		Self {
 			source,
 			media,
 			metadata,
+			works,
 		}
+	}
+
+	async fn work_for_item(&self, item: &LibraryItem) -> Result<Option<String>> {
+		let Some(asin) = item.asin.as_deref() else {
+			return Ok(None);
+		};
+		self.works
+			.for_external_id(
+				&ExternalId::asin(asin),
+				&item.title,
+				item.author.as_deref(),
+				item.cover_url.as_deref(),
+			)
+			.await
+			.map(Some)
 	}
 
 	pub async fn sync(&self) -> Result<SyncSummary> {
@@ -51,7 +69,14 @@ impl LibraryService {
 			match existing {
 				Some(media) if media.overridden => summary.skipped += 1,
 				Some(media) => {
+					let work_id = match &media.work_id {
+						Some(known) if media.asin.as_deref() == item.asin.as_deref() => {
+							Some(known.clone())
+						}
+						_ => self.work_for_item(&item).await?,
+					};
 					let updated = Media {
+						work_id,
 						asin: item.asin,
 						abs_item_id: Some(item.abs_item_id),
 						title: item.title,
@@ -70,9 +95,12 @@ impl LibraryService {
 					summary.updated += 1;
 				}
 				None => {
+					let work_id = self.work_for_item(&item).await?;
 					self.media
 						.insert(&Media {
 							id: new_id(),
+							work_id,
+							format: Format::Audiobook,
 							asin: item.asin,
 							abs_item_id: Some(item.abs_item_id),
 							title: item.title,
@@ -136,11 +164,12 @@ impl LibraryService {
 
 		let book = self
 			.metadata
-			.get_book(asin)
+			.get_book(&ExternalId::asin(asin))
 			.await?
 			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
-		media.asin = Some(book.asin);
+		media.work_id = self.works.for_book(&book).await?;
+		media.asin = book.asin().map(str::to_string);
 		media.title = book.title;
 		media.author = book.authors.into_iter().next();
 		media.cover_url = book.cover_url;

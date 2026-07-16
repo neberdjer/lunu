@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use super::{NewRequest, RequestService};
 use crate::consts::reasons;
-use crate::models::{Book, Request, RequestStatus, User, UserSettings};
+use crate::models::{Book, ExternalId, Format, Request, RequestStatus, User, UserSettings};
 use crate::services::{new_id, nonempty};
 use crate::{Error, Result};
 
@@ -17,10 +17,23 @@ pub struct ManualRequest {
 type Approval = (RequestStatus, Option<(i64, DateTime<Utc>)>);
 
 impl RequestService {
+	async fn reject_duplicate(&self, user_id: &str, work_id: &str) -> Result<()> {
+		match self
+			.requests
+			.find_by_user_and_work(user_id, work_id)
+			.await?
+		{
+			Some(existing) if !existing.status.is_reopenable() => {
+				Err(Error::Conflict(reasons::ALREADY_REQUESTED.to_string()))
+			}
+			_ => Ok(()),
+		}
+	}
+
 	pub async fn create(&self, user: &User, input: NewRequest) -> Result<Request> {
 		let book = self
 			.metadata
-			.get_book(&input.asin)
+			.get_book(&ExternalId::asin(&input.asin))
 			.await?
 			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 		self.create_with_book(user, input, book).await
@@ -33,14 +46,14 @@ impl RequestService {
 		book: Book,
 	) -> Result<Request> {
 		let asin = input.asin.as_str();
+		let (work_id, owned) =
+			tokio::try_join!(self.works.for_book(&book), self.media.find_by_asin(asin))?;
+		let work_id =
+			work_id.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
-		if let Some(existing) = self.requests.find_by_user_and_asin(&user.id, asin).await?
-			&& !existing.status.is_reopenable()
-		{
-			return Err(Error::Conflict(reasons::ALREADY_REQUESTED.to_string()));
-		}
+		self.reject_duplicate(&user.id, &work_id).await?;
 
-		let (status, quota_guard) = if self.media.find_by_asin(asin).await?.is_some() {
+		let (status, quota_guard) = if owned.is_some() {
 			(RequestStatus::Available, None)
 		} else {
 			self.approval(user).await?
@@ -50,6 +63,8 @@ impl RequestService {
 		let request = Request {
 			id: new_id(),
 			user_id: user.id.clone(),
+			work_id,
+			format: Format::Audiobook,
 			asin: Some(asin.to_string()),
 			title: book.title,
 			author: book.authors.into_iter().next(),
@@ -69,15 +84,23 @@ impl RequestService {
 		let title = nonempty(Some(input.title))
 			.ok_or_else(|| Error::Validation(reasons::REQUEST_TITLE_REQUIRED.to_string()))?;
 
+		let author = nonempty(input.author);
+		let work_id = self
+			.works
+			.for_unidentified(&title, author.as_deref())
+			.await?;
+		self.reject_duplicate(&user.id, &work_id).await?;
 		let (status, quota_guard) = self.approval(user).await?;
 
 		let now = Utc::now();
 		let request = Request {
 			id: new_id(),
 			user_id: user.id.clone(),
+			work_id,
+			format: Format::Audiobook,
 			asin: None,
 			title,
-			author: nonempty(input.author),
+			author,
 			cover_url: None,
 			status,
 			approved_by: None,

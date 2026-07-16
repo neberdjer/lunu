@@ -124,6 +124,8 @@ async fn import_service_for(db: &Db) -> ImportService {
 async fn seed_media_for_request(db: &Db, overridden: bool) {
 	SqlxMediaRepo::new(db.clone())
 		.insert(&Media {
+			work_id: Some("work-CURATED".to_string()),
+			format: Format::Audiobook,
 			id: "m1".to_string(),
 			asin: Some("CURATED".to_string()),
 			abs_item_id: None,

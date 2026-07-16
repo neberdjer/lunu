@@ -24,12 +24,16 @@ impl MetadataProvider for BookProvider {
 	fn id(&self) -> &'static str {
 		"book-stub"
 	}
+
+	fn accepts(&self) -> &[IdScheme] {
+		&[IdScheme::Asin]
+	}
 	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
-	async fn get_book(&self, asin: &str, _region: &str) -> CoreResult<Option<Book>> {
+	async fn get_book(&self, id: &ExternalId, _region: &str) -> CoreResult<Option<Book>> {
 		Ok(Some(Book {
-			asin: asin.to_string(),
+			ids: vec![id.clone()],
 			authors: vec!["Isaac Asimov".to_string()],
 			series: vec![SeriesRef {
 				name: "Foundation".to_string(),
@@ -40,13 +44,13 @@ impl MetadataProvider for BookProvider {
 			..book("Foundation")
 		}))
 	}
-	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
+	async fn get_chapters(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Chapters>> {
 		Ok(None)
 	}
-	async fn similar(&self, _asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+	async fn similar(&self, _id: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
-	async fn books_by_author(&self, _author_asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+	async fn books_by_author(&self, _author: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
 	async fn search_series(&self, _query: &str, _region: &str) -> CoreResult<Vec<SeriesSummary>> {
@@ -55,7 +59,7 @@ impl MetadataProvider for BookProvider {
 	async fn series_books(
 		&self,
 		_name: &str,
-		_asin: Option<&str>,
+		_id: Option<&ExternalId>,
 		_region: &str,
 	) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
@@ -82,7 +86,12 @@ fn library_service(db: &Db, items: Vec<LibraryItem>) -> LibraryService {
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
 		settings_service(db),
 	));
-	LibraryService::new(Arc::new(StubSource(items)), media_repo, metadata)
+	LibraryService::new(
+		Arc::new(StubSource(items)),
+		media_repo,
+		metadata,
+		super::builders::work_service(db),
+	)
 }
 
 #[tokio::test]
@@ -173,6 +182,8 @@ async fn sync_merges_duplicate_request_and_abs_rows_without_crashing() {
 	let media_repo = SqlxMediaRepo::new(db.clone());
 	media_repo
 		.upsert_request(&lunu_core::models::Media {
+			work_id: Some("work-B01".to_string()),
+			format: Format::Audiobook,
 			id: "req-row".to_string(),
 			asin: Some("B01".to_string()),
 			abs_item_id: None,
