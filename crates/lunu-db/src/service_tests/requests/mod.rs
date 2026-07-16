@@ -208,7 +208,7 @@ async fn download_create_and_set_state() {
 		release_title: "The Hobbit [M4B]".to_string(),
 		indexer: "MyTracker".to_string(),
 		download_url: "magnet:?xt=urn:btih:abc".to_string(),
-		info_hash: Some("abc".to_string()),
+		client_ref: Some("abc".to_string()),
 		state: DownloadState::Queued,
 		progress: 0,
 		created_at: now,
@@ -220,7 +220,7 @@ async fn download_create_and_set_state() {
 	assert_eq!(found.id, "d1");
 	assert_eq!(found.state, DownloadState::Queued);
 	assert_eq!(found.release_title, "The Hobbit [M4B]");
-	assert_eq!(found.info_hash.as_deref(), Some("abc"));
+	assert_eq!(found.client_ref.as_deref(), Some("abc"));
 
 	repo.update_status("d1", DownloadState::Downloading, 42, Utc::now())
 		.await

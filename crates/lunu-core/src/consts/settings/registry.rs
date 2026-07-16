@@ -3,8 +3,9 @@ use super::{
 	DEFAULT_SMTP_ENCRYPTION, DEFAULT_TOGGLE, DISCORD_WEBHOOK_URL, DOWNLOAD_DIR,
 	NOTIFICATION_WEBHOOK_URL, NTFY_TOPIC_URL, PROWLARR_API_KEY, PROWLARR_URL, QBITTORRENT_API_KEY,
 	QBITTORRENT_PASSWORD, QBITTORRENT_URL, QBITTORRENT_USERNAME, REQUIRE_EMAIL_VERIFICATION,
-	SLACK_WEBHOOK_URL, SMTP_ENCRYPTION, SMTP_ENCRYPTION_MODES, SMTP_FROM, SMTP_HOST, SMTP_PASSWORD,
-	SMTP_PORT, SMTP_USERNAME, SettingKind, SettingSpec, TOGGLE_MODES,
+	SABNZBD_API_KEY, SABNZBD_URL, SLACK_WEBHOOK_URL, SMTP_ENCRYPTION, SMTP_ENCRYPTION_MODES,
+	SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME, SettingKind, SettingSpec,
+	TOGGLE_MODES,
 };
 use crate::consts::library::SETTING_LIBRARY_DIR;
 use crate::consts::metadata::{
@@ -65,6 +66,18 @@ pub const REGISTRY: &[SettingSpec] = &[
 	},
 	SettingSpec {
 		key: QBITTORRENT_API_KEY,
+		kind: SettingKind::Text,
+		secret: true,
+		default: None,
+	},
+	SettingSpec {
+		key: SABNZBD_URL,
+		kind: SettingKind::Url,
+		secret: false,
+		default: None,
+	},
+	SettingSpec {
+		key: SABNZBD_API_KEY,
 		kind: SettingKind::Text,
 		secret: true,
 		default: None,

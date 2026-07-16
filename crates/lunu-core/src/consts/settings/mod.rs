@@ -2,11 +2,14 @@ use crate::consts::reasons;
 
 pub const PROWLARR: &str = "prowlarr";
 pub const QBITTORRENT: &str = "qbittorrent";
+pub const SABNZBD: &str = "sabnzbd";
 
 pub const PROWLARR_URL: &str = "prowlarr_url";
 pub const PROWLARR_API_KEY: &str = "prowlarr_api_key";
 pub const QBITTORRENT_URL: &str = "qbittorrent_url";
 pub const QBITTORRENT_API_KEY: &str = "qbittorrent_api_key";
+pub const SABNZBD_URL: &str = "sabnzbd_url";
+pub const SABNZBD_API_KEY: &str = "sabnzbd_api_key";
 pub const QBITTORRENT_USERNAME: &str = "qbittorrent_username";
 pub const QBITTORRENT_PASSWORD: &str = "qbittorrent_password";
 pub const DOWNLOAD_DIR: &str = "download_dir";

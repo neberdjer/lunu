@@ -9,10 +9,10 @@ use lunu_core::consts::auth::{
 use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
-	IssueService, JobService, LibraryService, MediaService, MetadataService, MonitorService,
-	NotificationInboxService, NotificationService, QualityProfileService, ReleaseService,
-	RequestService, SchedulerService, SettingsService, UserService, WorkService,
+	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
+	InviteService, IssueService, JobService, LibraryService, MediaService, MetadataService,
+	MonitorService, NotificationInboxService, NotificationService, QualityProfileService,
+	ReleaseService, RequestService, SchedulerService, SettingsService, UserService, WorkService,
 };
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
@@ -27,7 +27,7 @@ use lunu_db::repos::{
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
 use lunu_integrations::auth::AudiobookshelfProvider;
-use lunu_integrations::download::QbittorrentClient;
+use lunu_integrations::download::{QbittorrentClient, SabnzbdClient};
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
 use lunu_integrations::metadata::{AudnexusProvider, OpenLibraryProvider};
@@ -160,10 +160,13 @@ impl AppState {
 		));
 		let quality_profiles = Arc::new(QualityProfileService::new(quality_profiles_repo));
 
-		let download_client = Arc::new(QbittorrentClient::new(settings.clone()));
+		let download_clients = ClientRoster::new(vec![
+			Arc::new(QbittorrentClient::new(settings.clone())),
+			Arc::new(SabnzbdClient::new(settings.clone())),
+		]);
 		let monitor = Arc::new(MonitorService::new(
 			downloads_repo.clone(),
-			download_client.clone(),
+			download_clients.clone(),
 			requests.clone(),
 			jobs.clone(),
 			hub.clone(),
@@ -172,7 +175,7 @@ impl AppState {
 			downloads_repo.clone(),
 			requests.clone(),
 			releases.clone(),
-			download_client,
+			download_clients,
 			jobs.clone(),
 		));
 		let issues = Arc::new(IssueService::new(

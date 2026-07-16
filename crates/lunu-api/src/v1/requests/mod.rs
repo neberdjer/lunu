@@ -1,7 +1,9 @@
 use std::str::FromStr;
 
 use actix_web::{HttpResponse, delete, get, post, web};
-use lunu_core::models::RequestStatus;
+use lunu_core::Error;
+use lunu_core::consts::reasons;
+use lunu_core::models::{Protocol, RequestStatus};
 use lunu_core::services::{NewRequest, ReleaseSelection};
 use serde::Deserialize;
 
@@ -43,6 +45,9 @@ pub struct GrabBody {
 	indexer: String,
 	#[serde(default)]
 	info_hash: Option<String>,
+	#[serde(default)]
+	#[schema(value_type = Option<String>)]
+	protocol: Option<Protocol>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -264,12 +269,21 @@ pub async fn grab(
 	body: web::Json<GrabBody>,
 ) -> Result<HttpResponse, ApiError> {
 	let body = body.into_inner();
-	let selection = body.download_url.map(|download_url| ReleaseSelection {
-		download_url,
-		title: body.title,
-		indexer: body.indexer,
-		info_hash: body.info_hash,
-	});
+	let selection = body
+		.download_url
+		.map(|download_url| {
+			let protocol = body
+				.protocol
+				.ok_or_else(|| Error::Validation(reasons::PROTOCOL_REQUIRED.to_string()))?;
+			Ok::<_, ApiError>(ReleaseSelection {
+				download_url,
+				title: body.title,
+				indexer: body.indexer,
+				info_hash: body.info_hash,
+				protocol,
+			})
+		})
+		.transpose()?;
 
 	let download = state.grabs.grab(&id, selection).await?;
 	Ok(HttpResponse::Created().json(DownloadResponse::from(&download)))

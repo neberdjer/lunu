@@ -1,3 +1,5 @@
+use lunu_core::services::ClientRoster;
+
 use super::builders::*;
 use super::*;
 
@@ -23,10 +25,13 @@ impl FakeClient {
 #[async_trait]
 impl DownloadClient for FakeClient {
 	fn id(&self) -> &'static str {
-		"fake"
+		"qbittorrent"
 	}
-	async fn add(&self, _download_url: &str, _category: &str) -> CoreResult<()> {
-		Ok(())
+	fn protocol(&self) -> Protocol {
+		Protocol::Torrent
+	}
+	async fn add(&self, _download_url: &str, _category: &str) -> CoreResult<Option<String>> {
+		Ok(None)
 	}
 	async fn status(&self, _info_hash: &str) -> CoreResult<Option<DownloadStatus>> {
 		Ok(self.response.clone())
@@ -57,7 +62,7 @@ async fn monitor_marks_request_importing_on_completion() {
 	})));
 	let monitor = MonitorService::new(
 		downloads.clone(),
-		client,
+		ClientRoster::new(vec![client]),
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
@@ -100,7 +105,7 @@ async fn monitor_reschedules_while_downloading() {
 	})));
 	let monitor = MonitorService::new(
 		downloads.clone(),
-		client,
+		ClientRoster::new(vec![client]),
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
@@ -134,7 +139,7 @@ async fn monitor_fails_after_max_misses() {
 	let client = Arc::new(FakeClient::responding(None));
 	let monitor = MonitorService::new(
 		downloads.clone(),
-		client.clone(),
+		ClientRoster::new(vec![client.clone()]),
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
@@ -181,7 +186,7 @@ pub(super) fn monitor_with(
 ) -> MonitorService {
 	MonitorService::new(
 		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		client,
+		ClientRoster::new(vec![client]),
 		request_service(db, jobs.clone()),
 		jobs,
 		Arc::new(NoopPublisher),
@@ -202,7 +207,7 @@ async fn monitor_removes_the_torrent_when_the_client_reports_failure() {
 	})));
 	let monitor = MonitorService::new(
 		downloads.clone(),
-		client.clone(),
+		ClientRoster::new(vec![client.clone()]),
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),

@@ -27,7 +27,7 @@ CREATE TABLE downloads (
 	state TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	info_hash TEXT,
+	client_ref TEXT,
 	progress BIGINT NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_downloads_request_id ON downloads (request_id);

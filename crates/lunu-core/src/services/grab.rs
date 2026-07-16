@@ -5,10 +5,9 @@ use chrono::{Duration, Utc};
 use crate::consts::download::{GRAB_CATEGORY, MONITOR_POLL_SECS};
 use crate::consts::reasons;
 use crate::helpers::magnet;
-use crate::models::{Download, DownloadState, JobType, MonitorPayload};
+use crate::models::{Download, DownloadState, JobType, MonitorPayload, Protocol};
 use crate::repo::DownloadRepo;
-use crate::services::{JobService, ReleaseService, RequestService, new_id};
-use crate::traits::DownloadClient;
+use crate::services::{ClientRoster, JobService, ReleaseService, RequestService, new_id};
 use crate::{Error, Result};
 
 pub struct ReleaseSelection {
@@ -16,10 +15,11 @@ pub struct ReleaseSelection {
 	pub indexer: String,
 	pub download_url: String,
 	pub info_hash: Option<String>,
+	pub protocol: Protocol,
 }
 
 impl ReleaseSelection {
-	fn resolved_info_hash(&self) -> Option<String> {
+	fn fallback_client_ref(&self) -> Option<String> {
 		self.info_hash
 			.clone()
 			.or_else(|| magnet::info_hash(&self.download_url))
@@ -30,7 +30,7 @@ pub struct GrabService {
 	downloads: Arc<dyn DownloadRepo>,
 	requests: Arc<RequestService>,
 	releases: Arc<ReleaseService>,
-	client: Arc<dyn DownloadClient>,
+	clients: ClientRoster,
 	jobs: Arc<JobService>,
 }
 
@@ -39,20 +39,20 @@ impl GrabService {
 		downloads: Arc<dyn DownloadRepo>,
 		requests: Arc<RequestService>,
 		releases: Arc<ReleaseService>,
-		client: Arc<dyn DownloadClient>,
+		clients: ClientRoster,
 		jobs: Arc<JobService>,
 	) -> Self {
 		Self {
 			downloads,
 			requests,
 			releases,
-			client,
+			clients,
 			jobs,
 		}
 	}
 
-	pub async fn test_download(&self) -> Result<()> {
-		self.client.test_connection().await
+	pub async fn test_download(&self, client_id: &str) -> Result<()> {
+		self.clients.by_id(client_id)?.test_connection().await
 	}
 
 	pub async fn grab(
@@ -82,21 +82,20 @@ impl GrabService {
 			None => self.best_release(request_id).await?,
 		};
 
-		self.client
-			.add(&selection.download_url, GRAB_CATEGORY)
-			.await?;
+		let client = self.clients.by_protocol(selection.protocol)?;
+		let assigned = client.add(&selection.download_url, GRAB_CATEGORY).await?;
 
 		let now = Utc::now();
-		let info_hash = selection.resolved_info_hash();
+		let client_ref = assigned.or_else(|| selection.fallback_client_ref());
 		let download = Download {
 			id: new_id(),
 			request_id: request_id.to_string(),
-			client: self.client.id().to_string(),
+			client: client.id().to_string(),
 			category: GRAB_CATEGORY.to_string(),
 			release_title: selection.title,
 			indexer: selection.indexer,
 			download_url: selection.download_url,
-			info_hash,
+			client_ref,
 			state: DownloadState::Queued,
 			progress: 0,
 			created_at: now,
@@ -109,12 +108,12 @@ impl GrabService {
 
 	async fn finalize(&self, request_id: &str, download: Download) -> Result<Download> {
 		let now = Utc::now();
-		if download.info_hash.is_none() {
+		if download.client_ref.is_none() {
 			self.downloads
 				.update_status(&download.id, DownloadState::Failed, download.progress, now)
 				.await?;
 			self.requests
-				.mark_failed(request_id, Some("download has no trackable info hash"))
+				.mark_failed(request_id, Some("download has no trackable reference"))
 				.await?;
 			return Ok(download);
 		}
@@ -149,8 +148,10 @@ impl GrabService {
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("download for request {request_id}")))?;
 
-		if let Some(info_hash) = download.info_hash.as_deref() {
-			let _ = self.client.remove(info_hash, true).await;
+		if let Some(client_ref) = download.client_ref.as_deref()
+			&& let Ok(client) = self.clients.by_id(&download.client)
+		{
+			let _ = client.remove(client_ref, true).await;
 		}
 
 		self.downloads
@@ -189,6 +190,7 @@ impl GrabService {
 			indexer: best.release.indexer,
 			download_url: best.release.download_url,
 			info_hash: best.release.info_hash,
+			protocol: best.release.protocol,
 		})
 	}
 }

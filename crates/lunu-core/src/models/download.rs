@@ -56,7 +56,7 @@ pub struct Download {
 	pub release_title: String,
 	pub indexer: String,
 	pub download_url: String,
-	pub info_hash: Option<String>,
+	pub client_ref: Option<String>,
 	pub state: DownloadState,
 	pub progress: i64,
 	pub created_at: DateTime<Utc>,

@@ -15,10 +15,14 @@ pub const PROWLARR_NOT_CONFIGURED: &str = "prowlarr-not-configured";
 pub const PROWLARR_UNAUTHORIZED: &str = "prowlarr-unauthorized";
 pub const QBITTORRENT_NOT_CONFIGURED: &str = "qbittorrent-not-configured";
 pub const QBITTORRENT_AUTH_FAILED: &str = "qbittorrent-auth-failed";
+pub const SABNZBD_NOT_CONFIGURED: &str = "sabnzbd-not-configured";
+pub const NO_CLIENT_FOR_PROTOCOL: &str = "no-client-for-protocol";
 pub const INVALID_REGION: &str = "invalid-region";
 pub const ALREADY_EXISTS: &str = "already-exists";
 pub const NO_RELEASES: &str = "no-releases";
 pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
+pub const PROTOCOL_UNKNOWN: &str = "protocol-unknown";
+pub const PROTOCOL_REQUIRED: &str = "protocol-required";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const ID_SCHEME_UNKNOWN: &str = "id-scheme-unknown";
 pub const FORMAT_UNKNOWN: &str = "format-unknown";
@@ -78,10 +82,14 @@ pub const ALL: &[&str] = &[
 	PROWLARR_UNAUTHORIZED,
 	QBITTORRENT_NOT_CONFIGURED,
 	QBITTORRENT_AUTH_FAILED,
+	SABNZBD_NOT_CONFIGURED,
+	NO_CLIENT_FOR_PROTOCOL,
 	INVALID_REGION,
 	ALREADY_EXISTS,
 	NO_RELEASES,
 	DOWNLOAD_STATE_UNKNOWN,
+	PROTOCOL_UNKNOWN,
+	PROTOCOL_REQUIRED,
 	JOB_TYPE_UNKNOWN,
 	ID_SCHEME_UNKNOWN,
 	FORMAT_UNKNOWN,

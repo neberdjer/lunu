@@ -9,12 +9,12 @@ use crate::models::{
 	RequestStatus,
 };
 use crate::repo::DownloadRepo;
-use crate::services::{JobService, RequestService};
-use crate::traits::{DownloadClient, EventPublisher};
+use crate::services::{ClientRoster, JobService, RequestService};
+use crate::traits::EventPublisher;
 
 pub struct MonitorService {
 	downloads: Arc<dyn DownloadRepo>,
-	client: Arc<dyn DownloadClient>,
+	clients: ClientRoster,
 	requests: Arc<RequestService>,
 	jobs: Arc<JobService>,
 	events: Arc<dyn EventPublisher>,
@@ -23,14 +23,14 @@ pub struct MonitorService {
 impl MonitorService {
 	pub fn new(
 		downloads: Arc<dyn DownloadRepo>,
-		client: Arc<dyn DownloadClient>,
+		clients: ClientRoster,
 		requests: Arc<RequestService>,
 		jobs: Arc<JobService>,
 		events: Arc<dyn EventPublisher>,
 	) -> Self {
 		Self {
 			downloads,
-			client,
+			clients,
 			requests,
 			jobs,
 			events,
@@ -41,12 +41,15 @@ impl MonitorService {
 		let Some(download) = self.downloads.find_by_id(&payload.download_id).await? else {
 			return Ok(());
 		};
-		let Some(info_hash) = download.info_hash.as_deref() else {
+		let Some(client_ref) = download.client_ref.as_deref() else {
+			return Ok(());
+		};
+		let Ok(client) = self.clients.by_id(&download.client) else {
 			return Ok(());
 		};
 
 		let now = Utc::now();
-		match self.client.status(info_hash).await? {
+		match client.status(client_ref).await? {
 			None => self.handle_missing(&download, payload, now).await,
 			Some(status) => self.handle_status(&download, payload, status, now).await,
 		}
@@ -78,8 +81,11 @@ impl MonitorService {
 		self.downloads
 			.update_status(&download.id, DownloadState::Failed, download.progress, now)
 			.await?;
-		if remove_from_client && let Some(info_hash) = download.info_hash.as_deref() {
-			let _ = self.client.remove(info_hash, true).await;
+		if remove_from_client
+			&& let Some(client_ref) = download.client_ref.as_deref()
+			&& let Ok(client) = self.clients.by_id(&download.client)
+		{
+			let _ = client.remove(client_ref, true).await;
 		}
 		self.requests
 			.mark_failed(&download.request_id, Some(reason))

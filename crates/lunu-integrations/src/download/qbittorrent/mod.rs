@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use lunu_core::consts::reasons;
-use lunu_core::models::{DownloadState, DownloadStatus};
+use lunu_core::models::{DownloadState, DownloadStatus, Protocol};
 use lunu_core::services::SettingsService;
 use lunu_core::traits::DownloadClient;
 use lunu_core::{Error, Result};
@@ -182,7 +182,11 @@ impl DownloadClient for QbittorrentClient {
 		PROVIDER_ID
 	}
 
-	async fn add(&self, download_url: &str, category: &str) -> Result<()> {
+	fn protocol(&self) -> Protocol {
+		Protocol::Torrent
+	}
+
+	async fn add(&self, download_url: &str, category: &str) -> Result<Option<String>> {
 		let (base_url, api_key) = self.prepare().await?;
 		let _ = self.ensure_category(&base_url, &api_key, category).await;
 
@@ -215,12 +219,12 @@ impl DownloadClient for QbittorrentClient {
 			)));
 		}
 
-		Ok(())
+		Ok(None)
 	}
 
-	async fn status(&self, info_hash: &str) -> Result<Option<DownloadStatus>> {
+	async fn status(&self, client_ref: &str) -> Result<Option<DownloadStatus>> {
 		let (base_url, api_key) = self.prepare().await?;
-		let hashes = info_hash.to_ascii_lowercase();
+		let hashes = client_ref.to_ascii_lowercase();
 
 		let response = send_with_retry(|| {
 			authorize(
@@ -238,9 +242,9 @@ impl DownloadClient for QbittorrentClient {
 		Ok(select_torrent(torrents, &hashes))
 	}
 
-	async fn remove(&self, info_hash: &str, delete_files: bool) -> Result<()> {
+	async fn remove(&self, client_ref: &str, delete_files: bool) -> Result<()> {
 		let (base_url, api_key) = self.prepare().await?;
-		let hashes = info_hash.to_ascii_lowercase();
+		let hashes = client_ref.to_ascii_lowercase();
 		let delete_files = if delete_files { "true" } else { "false" };
 
 		let request = self

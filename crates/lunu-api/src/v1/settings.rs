@@ -82,7 +82,7 @@ pub async fn test(
 	let integration = integration.into_inner();
 	match integration.as_str() {
 		settings::PROWLARR => state.releases.test_indexer().await,
-		settings::QBITTORRENT => state.grabs.test_download().await,
+		settings::QBITTORRENT | settings::SABNZBD => state.grabs.test_download(&integration).await,
 		_ => return Err(Error::NotFound(format!("integration {integration}")).into()),
 	}?;
 	Ok(HttpResponse::Ok().json(json!({ "ok": true })))

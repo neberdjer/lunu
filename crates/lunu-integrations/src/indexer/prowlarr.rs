@@ -109,14 +109,15 @@ struct ProwlarrRelease {
 
 impl ProwlarrRelease {
 	fn into_release(self) -> Option<Release> {
-		if self.protocol.as_deref() != Some(Protocol::Torrent.as_str()) {
-			return None;
-		}
+		let protocol: Protocol = self
+			.protocol
+			.as_deref()
+			.and_then(|value| value.parse().ok())?;
 
 		Some(Release {
 			title: self.title,
 			indexer: self.indexer.unwrap_or_default(),
-			protocol: Protocol::Torrent,
+			protocol,
 			size: self.size.unwrap_or(0),
 			seeders: self.seeders.unwrap_or(1),
 			leechers: self.leechers.unwrap_or(0),
@@ -159,17 +160,22 @@ mod tests {
 	]"#;
 
 	#[test]
-	fn parses_and_filters_torrent_only() {
+	fn parses_both_protocols_and_drops_undownloadable_rows() {
 		let results: Vec<ProwlarrRelease> = serde_json::from_str(PROWLARR_SEARCH).unwrap();
 		let releases: Vec<Release> = results
 			.into_iter()
 			.filter_map(ProwlarrRelease::into_release)
 			.collect();
 
-		assert_eq!(releases.len(), 1);
+		assert_eq!(releases.len(), 2);
 		assert_eq!(releases[0].title, "Author - The Hobbit [M4B]");
 		assert_eq!(releases[0].protocol, Protocol::Torrent);
 		assert_eq!(releases[0].seeders, 42);
 		assert_eq!(releases[0].download_url, "magnet:?xt=urn:btih:abc");
+		assert_eq!(releases[1].protocol, Protocol::Usenet);
+		assert_eq!(
+			releases[1].seeders, 1,
+			"usenet has no seeders, so it must clear the default floor"
+		);
 	}
 }

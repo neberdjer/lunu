@@ -1,7 +1,9 @@
-use lunu_core::services::{GrabService, ReleaseSelection};
+use lunu_core::services::{ClientRoster, GrabService, ReleaseSelection};
 
 use super::builders::*;
 use super::*;
+
+mod routing;
 
 struct NoopIndexer;
 
@@ -18,30 +20,53 @@ impl Indexer for NoopIndexer {
 	}
 }
 
-#[derive(Default)]
-struct OkClient {
+struct StubClient {
+	id: &'static str,
+	protocol: Protocol,
+	assigned: Option<&'static str>,
 	adds: std::sync::Mutex<Vec<String>>,
 }
 
-impl OkClient {
+impl StubClient {
+	fn torrent() -> Self {
+		Self {
+			id: "ok",
+			protocol: Protocol::Torrent,
+			assigned: None,
+			adds: std::sync::Mutex::new(Vec::new()),
+		}
+	}
+
+	fn usenet() -> Self {
+		Self {
+			id: "sabnzbd",
+			protocol: Protocol::Usenet,
+			assigned: Some("nzo-1"),
+			adds: std::sync::Mutex::new(Vec::new()),
+		}
+	}
+
 	fn adds(&self) -> Vec<String> {
 		self.adds.lock().unwrap().clone()
 	}
 }
 
 #[async_trait]
-impl DownloadClient for OkClient {
+impl DownloadClient for StubClient {
 	fn id(&self) -> &'static str {
-		"ok"
+		self.id
 	}
-	async fn add(&self, url: &str, _category: &str) -> CoreResult<()> {
+	fn protocol(&self) -> Protocol {
+		self.protocol
+	}
+	async fn add(&self, url: &str, _category: &str) -> CoreResult<Option<String>> {
 		self.adds.lock().unwrap().push(url.to_string());
-		Ok(())
+		Ok(self.assigned.map(str::to_string))
 	}
-	async fn status(&self, _info_hash: &str) -> CoreResult<Option<DownloadStatus>> {
+	async fn status(&self, _client_ref: &str) -> CoreResult<Option<DownloadStatus>> {
 		Ok(None)
 	}
-	async fn remove(&self, _info_hash: &str, _delete_files: bool) -> CoreResult<()> {
+	async fn remove(&self, _client_ref: &str, _delete_files: bool) -> CoreResult<()> {
 		Ok(())
 	}
 	async fn test_connection(&self) -> CoreResult<()> {
@@ -49,7 +74,15 @@ impl DownloadClient for OkClient {
 	}
 }
 
-fn grab_service(db: &Db, jobs: Arc<JobService>, client: Arc<OkClient>) -> GrabService {
+fn grab_service(db: &Db, jobs: Arc<JobService>, client: Arc<StubClient>) -> GrabService {
+	grab_service_with(db, jobs, vec![client])
+}
+
+fn grab_service_with(
+	db: &Db,
+	jobs: Arc<JobService>,
+	clients: Vec<Arc<dyn DownloadClient>>,
+) -> GrabService {
 	let releases = Arc::new(ReleaseService::new(
 		Arc::new(NoopIndexer),
 		Arc::new(SqlxQualityProfileRepo::new(db.clone())),
@@ -60,7 +93,7 @@ fn grab_service(db: &Db, jobs: Arc<JobService>, client: Arc<OkClient>) -> GrabSe
 		Arc::new(SqlxDownloadRepo::new(db.clone())),
 		request_service(db, jobs.clone()),
 		releases,
-		client,
+		ClientRoster::new(clients),
 		jobs,
 	)
 }
@@ -71,6 +104,7 @@ fn selection(info_hash: Option<&str>) -> ReleaseSelection {
 		indexer: "MAM".to_string(),
 		download_url: "https://tracker/file.torrent".to_string(),
 		info_hash: info_hash.map(str::to_string),
+		protocol: Protocol::Torrent,
 	}
 }
 
@@ -83,9 +117,7 @@ async fn monitor_jobs(jobs: &JobService) -> Vec<Job> {
 		.collect()
 }
 
-#[tokio::test]
-async fn grab_without_info_hash_fails_request_instead_of_stranding() {
-	let db = memory_db().await;
+async fn seed_approved_request(db: &Db) {
 	let now = Utc::now();
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
@@ -106,21 +138,15 @@ async fn grab_without_info_hash_fails_request_instead_of_stranding() {
 		})
 		.await
 		.unwrap();
+}
+
+#[tokio::test]
+async fn grab_without_info_hash_fails_request_instead_of_stranding() {
+	let db = memory_db().await;
+	seed_approved_request(&db).await;
 
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let releases = Arc::new(ReleaseService::new(
-		Arc::new(NoopIndexer),
-		Arc::new(SqlxQualityProfileRepo::new(db.clone())),
-		Arc::new(SqlxRequestRepo::new(db.clone())),
-		Arc::new(SqlxBlocklistRepo::new(db.clone())),
-	));
-	let grabs = lunu_core::services::GrabService::new(
-		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		request_service(&db, jobs.clone()),
-		releases,
-		Arc::new(OkClient::default()),
-		jobs.clone(),
-	);
+	let grabs = grab_service(&db, jobs.clone(), Arc::new(StubClient::torrent()));
 
 	grabs.grab("r1", Some(selection(None))).await.unwrap();
 
@@ -155,7 +181,7 @@ async fn grab_resumes_when_the_monitor_job_was_never_enqueued() {
 		.unwrap();
 
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let client = Arc::new(OkClient::default());
+	let client = Arc::new(StubClient::torrent());
 	let grabs = grab_service(&db, jobs.clone(), client.clone());
 
 	assert_eq!(
@@ -201,7 +227,7 @@ async fn grab_refuses_a_manual_selection_while_a_download_is_active() {
 	seed_download(&db, Utc::now()).await;
 
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let client = Arc::new(OkClient::default());
+	let client = Arc::new(StubClient::torrent());
 	let grabs = grab_service(&db, jobs.clone(), client.clone());
 
 	let result = grabs.grab("r1", Some(selection(Some("deadbeef")))).await;
@@ -226,7 +252,7 @@ async fn grab_allows_a_new_release_after_the_previous_download_failed() {
 		.unwrap();
 
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let client = Arc::new(OkClient::default());
+	let client = Arc::new(StubClient::torrent());
 	let grabs = grab_service(&db, jobs.clone(), client.clone());
 
 	grabs

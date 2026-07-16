@@ -1,4 +1,9 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
+
+use crate::consts::reasons;
+use crate::{Error, Result};
 
 pub const BYTES_PER_MB: i64 = 1024 * 1024;
 
@@ -14,6 +19,18 @@ impl Protocol {
 		match self {
 			Protocol::Torrent => "torrent",
 			Protocol::Usenet => "usenet",
+		}
+	}
+}
+
+impl FromStr for Protocol {
+	type Err = Error;
+
+	fn from_str(value: &str) -> Result<Self> {
+		match value {
+			"torrent" => Ok(Protocol::Torrent),
+			"usenet" => Ok(Protocol::Usenet),
+			_ => Err(Error::Validation(reasons::PROTOCOL_UNKNOWN.to_string())),
 		}
 	}
 }

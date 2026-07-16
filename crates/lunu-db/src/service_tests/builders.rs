@@ -241,7 +241,7 @@ pub(super) async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
 			release_title: "The Hobbit [M4B]".to_string(),
 			indexer: "MyTracker".to_string(),
 			download_url: "magnet:?xt=urn:btih:abc".to_string(),
-			info_hash: Some("abc".to_string()),
+			client_ref: Some("abc".to_string()),
 			state: DownloadState::Downloading,
 			progress: 10,
 			created_at: at,
