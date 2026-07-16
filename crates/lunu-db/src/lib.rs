@@ -1,7 +1,9 @@
 use std::path::Path;
 
+use lunu_core::models::normalize;
 use lunu_core::{Error, Result};
 use sqlx::AnyPool;
+use sqlx::Row;
 use sqlx::any::{AnyPoolOptions, install_default_drivers};
 
 mod convert;
@@ -73,7 +75,31 @@ pub async fn run_migrations(db: &Db) -> Result<()> {
 	sqlx::migrate!("./migrations")
 		.run(db)
 		.await
-		.map_err(db_error)
+		.map_err(db_error)?;
+	normalize_works(db).await
+}
+
+async fn normalize_works(db: &Db) -> Result<()> {
+	let rows = sqlx::query("SELECT id, title, author FROM works WHERE normalized_title IS NULL")
+		.fetch_all(db)
+		.await
+		.map_err(db_error)?;
+
+	for row in &rows {
+		let id: String = row.try_get("id").map_err(db_error)?;
+		let title: String = row.try_get("title").map_err(db_error)?;
+		let author: Option<String> = row.try_get("author").map_err(db_error)?;
+
+		sqlx::query("UPDATE works SET normalized_title = $1, normalized_author = $2 WHERE id = $3")
+			.bind(normalize(&title))
+			.bind(normalize(author.as_deref().unwrap_or_default()))
+			.bind(&id)
+			.execute(db)
+			.await
+			.map_err(db_error)?;
+	}
+
+	Ok(())
 }
 
 pub async fn ping(db: &Db) -> Result<()> {

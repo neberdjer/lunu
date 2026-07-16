@@ -17,6 +17,7 @@ mod settings;
 mod user;
 mod user_notification;
 mod user_settings;
+mod work;
 
 pub use activity::SqlxActivityRepo;
 pub use api_key::SqlxApiKeyRepo;
@@ -37,6 +38,7 @@ pub use settings::SqlxSettingsRepo;
 pub use user::SqlxUserRepo;
 pub use user_notification::SqlxUserNotificationRepo;
 pub use user_settings::SqlxUserSettingsRepo;
+pub use work::SqlxWorkRepo;
 
 use lunu_core::Result;
 use sqlx::Row;

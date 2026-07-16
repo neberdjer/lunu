@@ -18,6 +18,7 @@ mod request;
 mod scheduler;
 mod settings;
 mod user;
+mod work;
 
 pub use activity::ActivityService;
 pub use api_key::{ApiKeyService, IssuedApiKey};
@@ -39,6 +40,7 @@ pub use request::{ManualRequest, NewRequest, RequestService};
 pub use scheduler::SchedulerService;
 pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
+pub use work::WorkService;
 
 use chrono::Utc;
 
