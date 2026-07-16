@@ -1,2 +1,0 @@
-ALTER TABLE downloads ADD COLUMN info_hash TEXT;
-ALTER TABLE downloads ADD COLUMN progress BIGINT NOT NULL DEFAULT 0;

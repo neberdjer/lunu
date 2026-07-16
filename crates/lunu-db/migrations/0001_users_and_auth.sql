@@ -7,7 +7,10 @@ CREATE TABLE users (
 	auth_source TEXT NOT NULL,
 	enabled BIGINT NOT NULL DEFAULT 1,
 	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
+	updated_at TEXT NOT NULL,
+	display_name TEXT,
+	locale TEXT,
+	email_verified BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE sessions (
@@ -19,6 +22,7 @@ CREATE TABLE sessions (
 	last_seen_at TEXT,
 	user_agent TEXT
 );
+CREATE INDEX idx_sessions_user_id ON sessions (user_id);
 
 CREATE TABLE api_keys (
 	id TEXT PRIMARY KEY,
@@ -32,6 +36,7 @@ CREATE TABLE api_keys (
 	expires_at TEXT,
 	revoked BIGINT NOT NULL DEFAULT 0
 );
+CREATE INDEX idx_api_keys_user_id ON api_keys (user_id);
 
 CREATE TABLE invites (
 	id TEXT PRIMARY KEY,
@@ -44,14 +49,30 @@ CREATE TABLE invites (
 	created_at TEXT NOT NULL,
 	expires_at TEXT
 );
+CREATE INDEX idx_invites_created_by ON invites (created_by);
 
-CREATE TABLE settings (
-	key TEXT PRIMARY KEY,
-	value TEXT NOT NULL,
-	encrypted BIGINT NOT NULL DEFAULT 0,
-	updated_at TEXT NOT NULL
+CREATE TABLE password_reset_tokens (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL UNIQUE,
+	code_hash TEXT NOT NULL,
+	attempts BIGINT NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL,
+	expires_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_sessions_user_id ON sessions (user_id);
-CREATE INDEX idx_api_keys_user_id ON api_keys (user_id);
-CREATE INDEX idx_invites_created_by ON invites (created_by);
+CREATE TABLE email_verification_tokens (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL UNIQUE,
+	code_hash TEXT NOT NULL,
+	attempts BIGINT NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL,
+	expires_at TEXT NOT NULL
+);
+
+CREATE TABLE user_settings (
+	user_id TEXT PRIMARY KEY,
+	auto_approve BIGINT NOT NULL DEFAULT 0,
+	request_quota BIGINT,
+	quota_days BIGINT,
+	updated_at TEXT NOT NULL
+);

@@ -1,5 +1,7 @@
-CREATE TABLE media_new (
+CREATE TABLE media (
 	id TEXT PRIMARY KEY,
+	work_id TEXT,
+	format TEXT NOT NULL DEFAULT 'audiobook',
 	asin TEXT UNIQUE,
 	abs_item_id TEXT UNIQUE,
 	title TEXT NOT NULL,
@@ -13,12 +15,3 @@ CREATE TABLE media_new (
 	request_id TEXT,
 	created_at TEXT NOT NULL
 );
-
-INSERT INTO media_new
-	(id, asin, title, author, cover_url, library_path, source, request_id, created_at)
-	SELECT asin, asin, title, author, cover_url, library_path, 'request', request_id, created_at
-	FROM media;
-
-DROP TABLE media;
-
-ALTER TABLE media_new RENAME TO media;
