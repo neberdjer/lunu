@@ -95,7 +95,7 @@ impl MetadataProvider for AudnexusProvider {
 }
 
 fn asin_of(id: &ExternalId) -> Option<&str> {
-	id.is(IdScheme::Asin).then_some(id.value.as_str())
+	id.value_for(IdScheme::Asin)
 }
 
 #[derive(Deserialize, Clone)]

@@ -60,10 +60,7 @@ pub struct Book {
 
 impl Book {
 	pub fn id(&self, scheme: IdScheme) -> Option<&str> {
-		self.ids
-			.iter()
-			.find(|id| id.is(scheme))
-			.map(|id| id.value.as_str())
+		self.ids.iter().find_map(|id| id.value_for(scheme))
 	}
 
 	pub fn asin(&self) -> Option<&str> {

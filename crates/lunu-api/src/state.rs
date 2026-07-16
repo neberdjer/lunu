@@ -30,7 +30,7 @@ use lunu_integrations::auth::AudiobookshelfProvider;
 use lunu_integrations::download::QbittorrentClient;
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
-use lunu_integrations::metadata::AudnexusProvider;
+use lunu_integrations::metadata::{AudnexusProvider, OpenLibraryProvider};
 use lunu_integrations::notify::{EmailNotifier, SmtpMailer, WebhookChannel};
 
 pub struct AppState {
@@ -101,8 +101,10 @@ impl AppState {
 		let api_keys = Arc::new(ApiKeyService::new(api_keys_repo));
 		let invites = Arc::new(InviteService::new(invites_repo));
 
-		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> =
-			vec![Arc::new(AudnexusProvider::new())];
+		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> = vec![
+			Arc::new(AudnexusProvider::new()),
+			Arc::new(OpenLibraryProvider::new()),
+		];
 		let metadata = Arc::new(MetadataService::new(
 			providers,
 			metadata_cache_repo,

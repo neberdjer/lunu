@@ -65,6 +65,10 @@ impl ExternalId {
 	pub fn is(&self, scheme: IdScheme) -> bool {
 		self.scheme == scheme
 	}
+
+	pub fn value_for(&self, scheme: IdScheme) -> Option<&str> {
+		self.is(scheme).then_some(self.value.as_str())
+	}
 }
 
 impl fmt::Display for ExternalId {

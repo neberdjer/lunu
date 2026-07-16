@@ -8,6 +8,7 @@ use crate::consts::metadata::{
 	VALID_METADATA_REGIONS, provider_settings,
 };
 use crate::consts::reasons;
+use crate::consts::settings::TOGGLE_ON;
 use crate::models::{Book, Chapters, ExternalId, IdScheme, SeriesSummary};
 use crate::repo::MetadataCacheRepo;
 use crate::services::SettingsService;
@@ -43,40 +44,48 @@ impl MetadataService {
 		}
 	}
 
-	async fn providers_for(&self, scheme: IdScheme) -> Result<Vec<&Arc<dyn MetadataProvider>>> {
-		let speaking: Vec<_> = self
-			.enabled_providers()
-			.await?
-			.into_iter()
-			.filter(|provider| provider.accepts().contains(&scheme))
+	async fn enabled_providers(
+		&self,
+		scheme: Option<IdScheme>,
+	) -> Result<Vec<&Arc<dyn MetadataProvider>>> {
+		let candidates: Vec<_> = self
+			.providers
+			.iter()
+			.enumerate()
+			.filter(|(_, provider)| {
+				scheme.is_none_or(|scheme| provider.accepts().contains(&scheme))
+			})
 			.collect();
 
-		if speaking.is_empty() {
-			return Err(Error::Validation(reasons::NO_PROVIDER_FOR_ID.to_string()));
-		}
-		Ok(speaking)
-	}
+		let keys: Vec<&str> = candidates
+			.iter()
+			.filter_map(|(_, provider)| provider_settings(provider.id()))
+			.flat_map(|settings| [settings.enabled, settings.priority])
+			.collect();
+		let resolved = self.settings.resolve_many(&keys).await?;
 
-	async fn enabled_providers(&self) -> Result<Vec<&Arc<dyn MetadataProvider>>> {
 		let mut ranked = Vec::new();
-		for (registered, provider) in self.providers.iter().enumerate() {
+		for (registered, provider) in candidates {
 			let Some(settings) = provider_settings(provider.id()) else {
 				ranked.push((DEFAULT_PROVIDER_PRIORITY, registered, provider));
 				continue;
 			};
-			if !self.settings.toggle(settings.enabled).await? {
+			if resolved.get(settings.enabled).map(String::as_str) != Some(TOGGLE_ON) {
 				continue;
 			}
-			let priority = self
-				.settings
-				.number(settings.priority)
-				.await?
+			let priority = resolved
+				.get(settings.priority)
+				.and_then(|value| value.trim().parse().ok())
 				.unwrap_or(DEFAULT_PROVIDER_PRIORITY);
 			ranked.push((priority, registered, provider));
 		}
 
 		if ranked.is_empty() {
-			return Err(Error::Validation(reasons::NO_METADATA_PROVIDER.to_string()));
+			let reason = match scheme {
+				Some(_) => reasons::NO_PROVIDER_FOR_ID,
+				None => reasons::NO_METADATA_PROVIDER,
+			};
+			return Err(Error::Validation(reason.to_string()));
 		}
 
 		ranked.sort_by_key(|(priority, registered, _)| (*priority, *registered));
@@ -96,18 +105,13 @@ impl MetadataService {
 	where
 		T: Serialize + DeserializeOwned,
 	{
-		let providers = match scheme {
-			Some(scheme) => self.providers_for(scheme).await?,
-			None => self.enabled_providers().await?,
-		};
-		for provider in &providers {
-			if let Some(hit) = self.read_cache::<T>(provider.id(), kind, key).await? {
-				return Ok(Some(hit));
-			}
-		}
+		let providers = self.enabled_providers(scheme).await?;
 
 		let mut last_error = None;
 		for provider in providers {
+			if let Some(hit) = self.read_cache::<T>(provider.id(), kind, key).await? {
+				return Ok(Some(hit));
+			}
 			match call(provider.as_ref()).await {
 				Ok(Some(value)) => {
 					self.write_cache(provider.id(), kind, key, &value).await?;

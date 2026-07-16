@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -37,6 +38,31 @@ impl SettingsService {
 		};
 
 		Ok(Some(value))
+	}
+
+	pub async fn resolve_many(&self, keys: &[&str]) -> Result<HashMap<String, String>> {
+		let stored: HashMap<String, Setting> = self
+			.repo
+			.get_all()
+			.await?
+			.into_iter()
+			.map(|setting| (setting.key.clone(), setting))
+			.collect();
+
+		let mut resolved = HashMap::new();
+		for key in keys {
+			let value = match stored.get(*key) {
+				Some(setting) if setting.encrypted => Some(self.encryptor.decrypt(&setting.value)?),
+				Some(setting) => Some(setting.value.clone()),
+				None => settings::lookup(key)
+					.and_then(|spec| spec.default)
+					.map(str::to_string),
+			};
+			if let Some(value) = value {
+				resolved.insert((*key).to_string(), value);
+			}
+		}
+		Ok(resolved)
 	}
 
 	pub async fn get_or_default(&self, key: &str) -> Result<Option<String>> {

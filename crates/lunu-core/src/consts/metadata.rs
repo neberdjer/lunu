@@ -1,9 +1,12 @@
 pub const METADATA_CACHE_TTL_DAYS: i64 = 14;
 
 pub const AUDNEXUS_PROVIDER: &str = "audnexus";
+pub const OPENLIBRARY_PROVIDER: &str = "openlibrary";
 
 pub const METADATA_AUDNEXUS_ENABLED: &str = "metadata_audnexus_enabled";
 pub const METADATA_AUDNEXUS_PRIORITY: &str = "metadata_audnexus_priority";
+pub const METADATA_OPENLIBRARY_ENABLED: &str = "metadata_openlibrary_enabled";
+pub const METADATA_OPENLIBRARY_PRIORITY: &str = "metadata_openlibrary_priority";
 
 pub const MIN_PROVIDER_PRIORITY: i64 = 1;
 pub const MAX_PROVIDER_PRIORITY: i64 = 100;
@@ -16,11 +19,18 @@ pub struct ProviderSettings {
 	pub priority: &'static str,
 }
 
-pub const METADATA_PROVIDER_SETTINGS: &[ProviderSettings] = &[ProviderSettings {
-	provider: AUDNEXUS_PROVIDER,
-	enabled: METADATA_AUDNEXUS_ENABLED,
-	priority: METADATA_AUDNEXUS_PRIORITY,
-}];
+pub const METADATA_PROVIDER_SETTINGS: &[ProviderSettings] = &[
+	ProviderSettings {
+		provider: AUDNEXUS_PROVIDER,
+		enabled: METADATA_AUDNEXUS_ENABLED,
+		priority: METADATA_AUDNEXUS_PRIORITY,
+	},
+	ProviderSettings {
+		provider: OPENLIBRARY_PROVIDER,
+		enabled: METADATA_OPENLIBRARY_ENABLED,
+		priority: METADATA_OPENLIBRARY_PRIORITY,
+	},
+];
 
 pub fn provider_settings(provider_id: &str) -> Option<&'static ProviderSettings> {
 	METADATA_PROVIDER_SETTINGS

@@ -55,3 +55,17 @@ fn retry_after(response: &reqwest::Response) -> Option<Duration> {
 		.ok()?;
 	Some(Duration::from_secs(seconds.min(RETRY_MAX_WAIT_SECS)))
 }
+
+pub(crate) async fn get_json<T, F>(build: F) -> Result<T>
+where
+	T: serde::de::DeserializeOwned,
+	F: Fn() -> reqwest::RequestBuilder,
+{
+	send_with_retry(build)
+		.await?
+		.error_for_status()
+		.map_err(crate::integration_error)?
+		.json()
+		.await
+		.map_err(crate::integration_error)
+}

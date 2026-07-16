@@ -58,3 +58,34 @@ async fn a_provider_speaking_both_schemes_answers_either() {
 	);
 	assert_eq!(both.calls(), 2);
 }
+
+#[tokio::test]
+async fn a_fallback_cache_entry_does_not_outrank_the_preferred_source() {
+	let db = memory_db().await;
+
+	let outage = service(
+		&db,
+		vec![
+			Arc::new(CountingProvider::failing("primary")),
+			Arc::new(CountingProvider::returning("backup", &["From Backup"])),
+		],
+	);
+	assert_eq!(
+		outage.search("dune", 1).await.unwrap()[0].title,
+		"From Backup"
+	);
+
+	let recovered = service(
+		&db,
+		vec![
+			Arc::new(CountingProvider::returning("primary", &["From Primary"])),
+			Arc::new(CountingProvider::returning("backup", &["From Backup"])),
+		],
+	);
+	let books = recovered.search("dune", 1).await.unwrap();
+
+	assert_eq!(
+		books[0].title, "From Primary",
+		"one outage must not pin queries to the fallback's cache until it expires"
+	);
+}

@@ -25,16 +25,6 @@ pub struct NewRequest {
 	pub quality_profile_id: Option<String>,
 }
 
-impl NewRequest {
-	pub fn new(id: ExternalId) -> Self {
-		Self {
-			id,
-			notes: None,
-			quality_profile_id: None,
-		}
-	}
-}
-
 pub struct RequestService {
 	requests: Arc<dyn RequestRepo>,
 	user_settings: Arc<dyn UserSettingsRepo>,

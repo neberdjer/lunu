@@ -2,8 +2,7 @@ use lunu_core::Result;
 use lunu_core::models::Book;
 use serde::Deserialize;
 
-use crate::http::send_with_retry;
-use crate::integration_error;
+use crate::http::get_json;
 
 mod product;
 mod relationships;
@@ -41,12 +40,7 @@ async fn catalog_search(
 	params: &[(&str, &str)],
 ) -> Result<Vec<Book>> {
 	let url = format!("https://{}/1.0/catalog/products", audible_host(region));
-	let response = send_with_retry(|| client.get(&url).query(params))
-		.await?
-		.error_for_status()
-		.map_err(integration_error)?;
-
-	let body: AudibleSearchResponse = response.json().await.map_err(integration_error)?;
+	let body: AudibleSearchResponse = get_json(|| client.get(&url).query(params)).await?;
 	Ok(body
 		.products
 		.into_iter()
@@ -120,16 +114,12 @@ pub(super) async fn similar(
 		"https://{}/1.0/catalog/products/{asin}/sims",
 		audible_host(region)
 	);
-	let response = send_with_retry(|| {
+	let body: AudibleSimilarResponse = get_json(|| {
 		client
 			.get(&url)
 			.query(&catalog_params(&[("similarity_type", "ByTheSameAuthor")]))
 	})
-	.await?
-	.error_for_status()
-	.map_err(integration_error)?;
-
-	let body: AudibleSimilarResponse = response.json().await.map_err(integration_error)?;
+	.await?;
 	Ok(body
 		.similar_products
 		.into_iter()

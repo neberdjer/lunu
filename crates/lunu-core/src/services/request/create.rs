@@ -30,6 +30,13 @@ impl RequestService {
 		}
 	}
 
+	async fn owned_media(&self, asin: Option<&str>) -> Result<Option<crate::models::Media>> {
+		match asin {
+			Some(asin) => self.media.find_by_asin(asin).await,
+			None => Ok(None),
+		}
+	}
+
 	pub async fn create(&self, user: &User, input: NewRequest) -> Result<Request> {
 		let book = self
 			.metadata
@@ -46,12 +53,10 @@ impl RequestService {
 		book: Book,
 	) -> Result<Request> {
 		let asin = book.asin().map(str::to_string);
-		let (work_id, owned) = tokio::try_join!(self.works.for_book(&book), async {
-			match asin.as_deref() {
-				Some(value) => self.media.find_by_asin(value).await,
-				None => Ok(None),
-			}
-		})?;
+		let (work_id, owned) = tokio::try_join!(
+			self.works.for_book(&book),
+			self.owned_media(asin.as_deref())
+		)?;
 		let work_id =
 			work_id.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
