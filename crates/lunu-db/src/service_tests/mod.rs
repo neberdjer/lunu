@@ -44,6 +44,7 @@ mod data;
 mod grab;
 mod import;
 mod library;
+mod metadata;
 mod monitor;
 mod monitor_complete;
 mod pipeline;
@@ -51,6 +52,7 @@ mod repos;
 mod requests;
 mod reset;
 mod scheduler;
+mod stubs;
 mod verification;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

@@ -101,9 +101,10 @@ impl AppState {
 		let api_keys = Arc::new(ApiKeyService::new(api_keys_repo));
 		let invites = Arc::new(InviteService::new(invites_repo));
 
-		let provider = Arc::new(AudnexusProvider::new());
+		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> =
+			vec![Arc::new(AudnexusProvider::new())];
 		let metadata = Arc::new(MetadataService::new(
-			provider,
+			providers,
 			metadata_cache_repo,
 			settings.clone(),
 		));
