@@ -81,8 +81,9 @@ async fn main() -> ExitCode {
 	SchedulerPool::new(state.scheduler.clone()).start();
 
 	let state = web::Data::new(state);
+	let hsts = state.config.secure_cookies;
 
-	tracing::info!(%bind, workers, "starting lunu");
+	tracing::info!(%bind, workers, hsts, "starting lunu");
 
 	let server = HttpServer::new(move || {
 		let (app, api) = App::new()
@@ -90,6 +91,9 @@ async fn main() -> ExitCode {
 			.openapi(lunu_api::ApiDoc::openapi())
 			.map(|app| {
 				app.wrap(actix_web::middleware::from_fn(lunu_api::normalize_errors))
+					.wrap(actix_web::middleware::from_fn(move |req, next| {
+						lunu_api::security_headers(req, next, hsts)
+					}))
 					.app_data(state.clone())
 			})
 			.service(scope(lunu_api::API_PREFIX).configure(lunu_api::configure))

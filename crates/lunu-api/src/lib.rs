@@ -13,7 +13,7 @@ mod state;
 mod v1;
 
 pub use lunu_core::consts::api::API_PREFIX;
-pub use middleware::normalize_errors;
+pub use middleware::{normalize_errors, security_headers};
 pub use openapi::ApiDoc;
 pub use state::AppState;
 pub use v1::configure;
