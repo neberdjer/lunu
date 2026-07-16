@@ -7,19 +7,23 @@ impl MetadataProvider for StubProvider {
 	fn id(&self) -> &'static str {
 		"stub"
 	}
+
+	fn accepts(&self) -> &[IdScheme] {
+		&[IdScheme::Asin]
+	}
 	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
-	async fn get_book(&self, _asin: &str, _region: &str) -> CoreResult<Option<Book>> {
+	async fn get_book(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Book>> {
 		Ok(None)
 	}
-	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
+	async fn get_chapters(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Chapters>> {
 		Ok(None)
 	}
-	async fn similar(&self, _asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+	async fn similar(&self, _id: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
-	async fn books_by_author(&self, _author_asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
+	async fn books_by_author(&self, _author: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())
 	}
 	async fn search_series(&self, _query: &str, _region: &str) -> CoreResult<Vec<SeriesSummary>> {
@@ -28,7 +32,7 @@ impl MetadataProvider for StubProvider {
 	async fn series_books(
 		&self,
 		_name: &str,
-		_asin: Option<&str>,
+		_id: Option<&ExternalId>,
 		_region: &str,
 	) -> CoreResult<Vec<Book>> {
 		Ok(Vec::new())

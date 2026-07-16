@@ -42,7 +42,7 @@ async fn from_relationships(
 	let mut hydrated: HashMap<String, Book> = books_by_asins(client, region, &asins)
 		.await?
 		.into_iter()
-		.map(|book| (book.asin.clone(), book))
+		.filter_map(|book| Some((book.asin()?.to_string(), book)))
 		.collect();
 
 	let mut slots: Vec<(u32, Book)> = Vec::new();
@@ -76,7 +76,7 @@ fn edition_rank(book: &Book) -> (bool, i64) {
 #[cfg(test)]
 pub(super) mod tests {
 	use super::*;
-	use lunu_core::models::SeriesRef;
+	use lunu_core::models::{ExternalId, SeriesRef};
 
 	pub(crate) fn book_in_series(asin: &str, series: &str, position: Option<&str>) -> Book {
 		book_with(asin, series, position, Some("S1"))
@@ -89,7 +89,7 @@ pub(super) mod tests {
 		series_asin: Option<&str>,
 	) -> Book {
 		Book {
-			asin: asin.to_string(),
+			ids: vec![ExternalId::asin(asin)],
 			title: asin.to_string(),
 			subtitle: None,
 			authors: vec!["Isaac Asimov".to_string()],
@@ -108,7 +108,6 @@ pub(super) mod tests {
 			publisher: None,
 			genres: Vec::new(),
 			tags: Vec::new(),
-			isbn: None,
 			format_type: None,
 			rating: None,
 			is_adult: None,

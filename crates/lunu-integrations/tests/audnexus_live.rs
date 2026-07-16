@@ -1,3 +1,4 @@
+use lunu_core::models::ExternalId;
 use lunu_core::traits::MetadataProvider;
 use lunu_integrations::metadata::AudnexusProvider;
 
@@ -33,7 +34,7 @@ async fn search_pages_do_not_overlap() {
 
 	let overlap = first
 		.iter()
-		.filter(|book| second.iter().any(|other| other.asin == book.asin))
+		.filter(|book| second.iter().any(|other| other.asin() == book.asin()))
 		.count();
 	assert_eq!(overlap, 0, "consecutive pages must not repeat results");
 }
@@ -42,7 +43,7 @@ async fn search_pages_do_not_overlap() {
 #[ignore]
 async fn books_by_author_resolves_the_asin_to_a_name() {
 	let books = provider()
-		.books_by_author(TOLKIEN, REGION)
+		.books_by_author(&ExternalId::asin(TOLKIEN), REGION)
 		.await
 		.expect("author lookup succeeds");
 
@@ -62,7 +63,11 @@ async fn books_by_author_resolves_the_asin_to_a_name() {
 #[ignore]
 async fn series_books_enumerates_the_whole_series_in_order() {
 	let books = provider()
-		.series_books("The Lord of the Rings", Some(LOTR_SERIES), REGION)
+		.series_books(
+			"The Lord of the Rings",
+			Some(&ExternalId::asin(LOTR_SERIES)),
+			REGION,
+		)
 		.await
 		.expect("series lookup succeeds");
 
@@ -72,7 +77,10 @@ async fn series_books_enumerates_the_whole_series_in_order() {
 		books.len()
 	);
 
-	let mut asins = books.iter().map(|book| &book.asin).collect::<Vec<_>>();
+	let mut asins = books
+		.iter()
+		.filter_map(|book| book.asin())
+		.collect::<Vec<_>>();
 	asins.sort();
 	let before = asins.len();
 	asins.dedup();
@@ -98,7 +106,11 @@ async fn series_books_enumerates_the_whole_series_in_order() {
 #[ignore]
 async fn a_series_only_returns_its_own_members() {
 	let books = provider()
-		.series_books("The Lord of the Rings", Some(LOTR_SERIES), REGION)
+		.series_books(
+			"The Lord of the Rings",
+			Some(&ExternalId::asin(LOTR_SERIES)),
+			REGION,
+		)
 		.await
 		.unwrap();
 
@@ -117,19 +129,19 @@ async fn a_series_only_returns_its_own_members() {
 #[ignore]
 async fn get_book_captures_every_field_we_map() {
 	let book = provider()
-		.get_book(HOBBIT, REGION)
+		.get_book(&ExternalId::asin(HOBBIT), REGION)
 		.await
 		.expect("lookup succeeds")
 		.expect("the hobbit exists");
 
-	assert_eq!(book.asin, HOBBIT);
+	assert_eq!(book.asin(), Some(HOBBIT));
 	assert!(!book.authors.is_empty(), "authors must be populated");
 	assert!(!book.narrators.is_empty(), "narrators must be populated");
 	assert!(!book.genres.is_empty(), "genres must be populated");
 	assert!(book.description.is_some(), "description must be populated");
 	assert!(book.cover_url.is_some(), "cover must be populated");
 	assert!(book.runtime_minutes.is_some(), "runtime must be populated");
-	assert!(book.isbn.is_some(), "isbn must be captured");
+	assert!(book.isbn().is_some(), "isbn must be captured");
 	assert!(book.format_type.is_some(), "format must be captured");
 	assert!(book.rating.is_some(), "rating must be captured");
 }
@@ -158,9 +170,13 @@ async fn a_searched_book_and_a_fetched_book_agree() {
 		.await
 		.unwrap()
 		.into_iter()
-		.find(|book| book.asin == HOBBIT)
+		.find(|book| book.asin() == Some(HOBBIT))
 		.expect("the hobbit is on page 1");
-	let fetched = provider().get_book(HOBBIT, REGION).await.unwrap().unwrap();
+	let fetched = provider()
+		.get_book(&ExternalId::asin(HOBBIT), REGION)
+		.await
+		.unwrap()
+		.unwrap();
 
 	assert_eq!(
 		searched.release_date, fetched.release_date,
@@ -176,7 +192,7 @@ async fn a_searched_book_and_a_fetched_book_agree() {
 #[ignore]
 async fn get_chapters_captures_accuracy_and_brand_offsets() {
 	let chapters = provider()
-		.get_chapters(HOBBIT, REGION)
+		.get_chapters(&ExternalId::asin(HOBBIT), REGION)
 		.await
 		.expect("lookup succeeds")
 		.expect("the hobbit has chapters");
@@ -192,6 +208,8 @@ async fn get_chapters_captures_accuracy_and_brand_offsets() {
 #[tokio::test]
 #[ignore]
 async fn an_unknown_asin_is_absent_rather_than_an_error() {
-	let book = provider().get_book("B000000000", REGION).await;
+	let book = provider()
+		.get_book(&ExternalId::asin("B000000000"), REGION)
+		.await;
 	assert!(matches!(book, Ok(None)), "got {book:?}");
 }

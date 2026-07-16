@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+
+use super::identity::{ExternalId, IdScheme};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +26,7 @@ pub struct SeriesSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Book {
-	pub asin: String,
+	pub ids: Vec<ExternalId>,
 	pub title: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub subtitle: Option<String>,
@@ -49,13 +51,28 @@ pub struct Book {
 	#[serde(default)]
 	pub tags: Vec<String>,
 	#[serde(default, skip_serializing_if = "Option::is_none")]
-	pub isbn: Option<String>,
-	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub format_type: Option<String>,
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub rating: Option<String>,
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub is_adult: Option<bool>,
+}
+
+impl Book {
+	pub fn id(&self, scheme: IdScheme) -> Option<&str> {
+		self.ids
+			.iter()
+			.find(|id| id.is(scheme))
+			.map(|id| id.value.as_str())
+	}
+
+	pub fn asin(&self) -> Option<&str> {
+		self.id(IdScheme::Asin)
+	}
+
+	pub fn isbn(&self) -> Option<&str> {
+		self.id(IdScheme::Isbn)
+	}
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

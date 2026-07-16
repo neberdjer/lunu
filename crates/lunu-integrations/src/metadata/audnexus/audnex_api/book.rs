@@ -2,7 +2,7 @@ use lunu_core::models::{Book, SeriesRef};
 use serde::Deserialize;
 
 use super::super::text::normalize_date;
-use super::super::{Named, asins, names};
+use super::super::{Named, asins, ids, names};
 
 const TAG_KIND: &str = "tag";
 
@@ -67,7 +67,7 @@ impl AudnexusBook {
 		let (genres, tags) = split_genres(&self.genres);
 
 		Book {
-			asin: self.asin,
+			ids: ids(self.asin, self.isbn),
 			title: self.title,
 			subtitle: self.subtitle,
 			authors: names(&self.authors),
@@ -82,7 +82,6 @@ impl AudnexusBook {
 			publisher: self.publisher_name,
 			genres,
 			tags,
-			isbn: self.isbn,
 			format_type: self.format_type,
 			rating: self.rating,
 			is_adult: self.is_adult,
@@ -139,7 +138,7 @@ mod tests {
 	#[test]
 	fn parses_audnexus_book() {
 		let book = hobbit();
-		assert_eq!(book.asin, "1705009050");
+		assert_eq!(book.asin(), Some("1705009050"));
 		assert_eq!(book.authors, vec!["J.R.R. Tolkien"]);
 		assert_eq!(book.narrators, vec!["Rob Inglis"]);
 		assert_eq!(book.series.len(), 1);
@@ -164,7 +163,7 @@ mod tests {
 	fn captures_identity_and_edition_fields() {
 		let book = hobbit();
 		assert_eq!(
-			book.isbn.as_deref(),
+			book.isbn(),
 			Some("9780007487295"),
 			"isbn is the only identifier a non-audible provider could match on"
 		);

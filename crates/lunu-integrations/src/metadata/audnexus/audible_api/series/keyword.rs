@@ -43,7 +43,11 @@ pub(super) async fn by_keyword(
 		let books = keyword_page(client, region, name, page, PAGE_SIZE).await?;
 		let count = books.len();
 		for book in books {
-			if in_series(&book, name, asin) && seen.insert(book.asin.clone()) {
+			if in_series(&book, name, asin)
+				&& book
+					.asin()
+					.is_some_and(|asin| seen.insert(asin.to_string()))
+			{
 				collected.push(book);
 			}
 		}
@@ -108,7 +112,7 @@ mod tests {
 		books.sort_by(|a, b| {
 			position(a, "Foundation", None).total_cmp(&position(b, "Foundation", None))
 		});
-		let order: Vec<&str> = books.iter().map(|b| b.asin.as_str()).collect();
+		let order: Vec<&str> = books.iter().filter_map(|b| b.asin()).collect();
 		assert_eq!(order, ["b1", "b2", "b3", "bx"]);
 	}
 

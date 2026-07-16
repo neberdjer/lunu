@@ -8,7 +8,7 @@ use crate::consts::metadata::{
 	VALID_METADATA_REGIONS, provider_settings,
 };
 use crate::consts::reasons;
-use crate::models::{Book, Chapters, SeriesSummary};
+use crate::models::{Book, Chapters, ExternalId, IdScheme, SeriesSummary};
 use crate::repo::MetadataCacheRepo;
 use crate::services::SettingsService;
 use crate::traits::MetadataProvider;
@@ -43,6 +43,20 @@ impl MetadataService {
 		}
 	}
 
+	async fn providers_for(&self, scheme: IdScheme) -> Result<Vec<&Arc<dyn MetadataProvider>>> {
+		let speaking: Vec<_> = self
+			.enabled_providers()
+			.await?
+			.into_iter()
+			.filter(|provider| provider.accepts().contains(&scheme))
+			.collect();
+
+		if speaking.is_empty() {
+			return Err(Error::Validation(reasons::NO_PROVIDER_FOR_ID.to_string()));
+		}
+		Ok(speaking)
+	}
+
 	async fn enabled_providers(&self) -> Result<Vec<&Arc<dyn MetadataProvider>>> {
 		let mut ranked = Vec::new();
 		for (registered, provider) in self.providers.iter().enumerate() {
@@ -74,6 +88,7 @@ impl MetadataService {
 
 	async fn fetch<T>(
 		&self,
+		scheme: Option<IdScheme>,
 		kind: &str,
 		key: &str,
 		call: impl AsyncFn(&dyn MetadataProvider) -> Result<Option<T>>,
@@ -81,7 +96,10 @@ impl MetadataService {
 	where
 		T: Serialize + DeserializeOwned,
 	{
-		let providers = self.enabled_providers().await?;
+		let providers = match scheme {
+			Some(scheme) => self.providers_for(scheme).await?,
+			None => self.enabled_providers().await?,
+		};
 		for provider in &providers {
 			if let Some(hit) = self.read_cache::<T>(provider.id(), kind, key).await? {
 				return Ok(Some(hit));
@@ -108,6 +126,7 @@ impl MetadataService {
 
 	async fn fetch_list<T>(
 		&self,
+		scheme: Option<IdScheme>,
 		kind: &str,
 		key: &str,
 		call: impl AsyncFn(&dyn MetadataProvider) -> Result<Vec<T>>,
@@ -116,7 +135,7 @@ impl MetadataService {
 		T: Serialize + DeserializeOwned,
 	{
 		let found = self
-			.fetch::<Vec<T>>(kind, key, async |provider| {
+			.fetch::<Vec<T>>(scheme, kind, key, async |provider| {
 				let items = call(provider).await?;
 				Ok((!items.is_empty()).then_some(items))
 			})
@@ -134,7 +153,7 @@ impl MetadataService {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{page}:{normalized}");
 
-		self.fetch_list(KIND_SEARCH, &cache_key, async |provider| {
+		self.fetch_list(None, KIND_SEARCH, &cache_key, async |provider| {
 			provider.search(query, &region, page).await
 		})
 		.await
@@ -149,64 +168,77 @@ impl MetadataService {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{normalized}");
 
-		self.fetch_list(KIND_SERIES_SEARCH, &cache_key, async |provider| {
+		self.fetch_list(None, KIND_SERIES_SEARCH, &cache_key, async |provider| {
 			provider.search_series(query, &region).await
 		})
 		.await
 	}
 
-	pub async fn series_books(&self, name: &str, asin: Option<&str>) -> Result<Vec<Book>> {
+	pub async fn series_books(&self, name: &str, id: Option<&ExternalId>) -> Result<Vec<Book>> {
 		let normalized = name.trim().to_lowercase();
-		if normalized.is_empty() && asin.is_none() {
+		if normalized.is_empty() && id.is_none() {
 			return Ok(Vec::new());
 		}
 
 		let region = self.region().await?;
-		let cache_key = format!("{region}:{}:{normalized}", asin.unwrap_or(""));
+		let series = id.map(ExternalId::to_string).unwrap_or_default();
+		let cache_key = format!("{region}:{series}:{normalized}");
 
-		self.fetch_list(KIND_SERIES_BOOKS, &cache_key, async |provider| {
-			provider.series_books(name, asin, &region).await
+		self.fetch_list(
+			id.map(|id| id.scheme),
+			KIND_SERIES_BOOKS,
+			&cache_key,
+			async |provider| provider.series_books(name, id, &region).await,
+		)
+		.await
+	}
+
+	pub async fn similar(&self, id: &ExternalId) -> Result<Vec<Book>> {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{id}");
+
+		self.fetch_list(
+			Some(id.scheme),
+			KIND_SIMILAR,
+			&cache_key,
+			async |provider| provider.similar(id, &region).await,
+		)
+		.await
+	}
+
+	pub async fn books_by_author(&self, author: &ExternalId) -> Result<Vec<Book>> {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{author}");
+
+		self.fetch_list(
+			Some(author.scheme),
+			KIND_AUTHOR,
+			&cache_key,
+			async |provider| provider.books_by_author(author, &region).await,
+		)
+		.await
+	}
+
+	pub async fn get_book(&self, id: &ExternalId) -> Result<Option<Book>> {
+		let region = self.region().await?;
+		let cache_key = format!("{region}:{id}");
+
+		self.fetch(Some(id.scheme), KIND_BOOK, &cache_key, async |provider| {
+			provider.get_book(id, &region).await
 		})
 		.await
 	}
 
-	pub async fn similar(&self, asin: &str) -> Result<Vec<Book>> {
+	pub async fn get_chapters(&self, id: &ExternalId) -> Result<Option<Chapters>> {
 		let region = self.region().await?;
-		let cache_key = format!("{region}:{asin}");
+		let cache_key = format!("{region}:{id}");
 
-		self.fetch_list(KIND_SIMILAR, &cache_key, async |provider| {
-			provider.similar(asin, &region).await
-		})
-		.await
-	}
-
-	pub async fn books_by_author(&self, author_asin: &str) -> Result<Vec<Book>> {
-		let region = self.region().await?;
-		let cache_key = format!("{region}:{author_asin}");
-
-		self.fetch_list(KIND_AUTHOR, &cache_key, async |provider| {
-			provider.books_by_author(author_asin, &region).await
-		})
-		.await
-	}
-
-	pub async fn get_book(&self, asin: &str) -> Result<Option<Book>> {
-		let region = self.region().await?;
-		let cache_key = format!("{region}:{asin}");
-
-		self.fetch(KIND_BOOK, &cache_key, async |provider| {
-			provider.get_book(asin, &region).await
-		})
-		.await
-	}
-
-	pub async fn get_chapters(&self, asin: &str) -> Result<Option<Chapters>> {
-		let region = self.region().await?;
-		let cache_key = format!("{region}:{asin}");
-
-		self.fetch(KIND_CHAPTERS, &cache_key, async |provider| {
-			provider.get_chapters(asin, &region).await
-		})
+		self.fetch(
+			Some(id.scheme),
+			KIND_CHAPTERS,
+			&cache_key,
+			async |provider| provider.get_chapters(id, &region).await,
+		)
 		.await
 	}
 

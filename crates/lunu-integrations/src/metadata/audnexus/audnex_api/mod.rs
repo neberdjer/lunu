@@ -55,11 +55,14 @@ pub(super) async fn get_chapters(
 }
 
 async fn merge_audible_series(client: &reqwest::Client, region: &str, book: &mut Book) {
-	let parents = match audible_api::series_parents(client, region, &book.asin).await {
+	let Some(asin) = book.asin().map(str::to_string) else {
+		return;
+	};
+	let parents = match audible_api::series_parents(client, region, &asin).await {
 		Ok(parents) => parents,
 		Err(error) => {
 			tracing::debug!(
-				asin = %book.asin,
+				%asin,
 				%error,
 				"audible series lookup failed, keeping audnexus series only"
 			);

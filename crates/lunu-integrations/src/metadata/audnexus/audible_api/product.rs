@@ -4,7 +4,7 @@ use lunu_core::models::{Book, SeriesRef};
 use serde::Deserialize;
 
 use super::super::text::{normalize_date, strip_html};
-use super::super::{Named, asins, names};
+use super::super::{Named, asins, ids, names};
 
 const GENRES_ROOT: &str = "Genres";
 
@@ -51,7 +51,7 @@ impl AudibleProduct {
 	pub(super) fn into_book(self) -> Book {
 		let (genres, tags) = split_categories(&self.category_ladders);
 		Book {
-			asin: self.asin,
+			ids: ids(self.asin, self.isbn),
 			title: self.title,
 			subtitle: self.subtitle,
 			authors: names(&self.authors),
@@ -74,7 +74,6 @@ impl AudibleProduct {
 			publisher: self.publisher_name,
 			genres,
 			tags,
-			isbn: self.isbn,
 			format_type: self.format_type,
 			rating: None,
 			is_adult: None,
@@ -191,7 +190,7 @@ mod tests {
 	#[test]
 	fn captures_identity_and_edition_fields() {
 		let book = hobbit();
-		assert_eq!(book.isbn.as_deref(), Some("9780007487295"));
+		assert_eq!(book.isbn(), Some("9780007487295"));
 		assert_eq!(book.format_type.as_deref(), Some("unabridged"));
 		assert_eq!(book.series[0].asin.as_deref(), Some("B009CFOEGK"));
 	}
