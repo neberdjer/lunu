@@ -36,6 +36,17 @@ fn authorize(request: RequestBuilder, api_key: &Option<String>) -> RequestBuilde
 	}
 }
 
+fn select_torrent(torrents: Vec<TorrentInfo>, info_hash: &str) -> Option<DownloadStatus> {
+	torrents
+		.into_iter()
+		.find(|torrent| torrent.hash.eq_ignore_ascii_case(info_hash))
+		.map(|torrent| DownloadStatus {
+			state: map_state(&torrent.state, torrent.progress),
+			progress: torrent.progress,
+			content_path: torrent.content_path,
+		})
+}
+
 fn map_state(state: &str, progress: f64) -> DownloadState {
 	match state {
 		"error" | "missingFiles" => DownloadState::Failed,
@@ -224,14 +235,7 @@ impl DownloadClient for QbittorrentClient {
 		let response = self.check_response(response)?;
 
 		let torrents: Vec<TorrentInfo> = response.json().await.map_err(integration_error)?;
-		Ok(torrents
-			.into_iter()
-			.find(|torrent| torrent.hash.eq_ignore_ascii_case(&hashes))
-			.map(|torrent| DownloadStatus {
-				state: map_state(&torrent.state, torrent.progress),
-				progress: torrent.progress,
-				content_path: torrent.content_path,
-			}))
+		Ok(select_torrent(torrents, &hashes))
 	}
 
 	async fn remove(&self, info_hash: &str, delete_files: bool) -> Result<()> {
@@ -272,25 +276,4 @@ impl DownloadClient for QbittorrentClient {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn maps_error_states_to_failed() {
-		assert_eq!(map_state("error", 0.5), DownloadState::Failed);
-		assert_eq!(map_state("missingFiles", 1.0), DownloadState::Failed);
-	}
-
-	#[test]
-	fn maps_finished_progress_to_completed() {
-		assert_eq!(map_state("uploading", 1.0), DownloadState::Completed);
-		assert_eq!(map_state("stalledUP", 1.0), DownloadState::Completed);
-	}
-
-	#[test]
-	fn maps_in_progress_to_downloading() {
-		assert_eq!(map_state("downloading", 0.4), DownloadState::Downloading);
-		assert_eq!(map_state("metaDL", 0.0), DownloadState::Downloading);
-		assert_eq!(map_state("stalledDL", 0.9), DownloadState::Downloading);
-	}
-}
+mod tests;

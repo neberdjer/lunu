@@ -273,3 +273,16 @@ pub(super) fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {
 		updated_at: at,
 	}
 }
+
+#[derive(Default)]
+pub(super) struct FakeImporter {
+	pub(super) call: std::sync::Mutex<Option<(String, String)>>,
+}
+
+#[async_trait]
+impl Importer for FakeImporter {
+	async fn import(&self, source: &str, destination: &str) -> CoreResult<()> {
+		*self.call.lock().unwrap() = Some((source.to_string(), destination.to_string()));
+		Ok(())
+	}
+}

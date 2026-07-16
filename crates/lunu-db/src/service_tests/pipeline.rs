@@ -117,52 +117,6 @@ async fn notification_service_dispatches_to_every_notifier() {
 	);
 }
 
-#[derive(Default)]
-struct FakeImporter {
-	call: std::sync::Mutex<Option<(String, String)>>,
-}
-
-#[async_trait]
-impl Importer for FakeImporter {
-	async fn import(&self, source: &str, destination: &str) -> CoreResult<()> {
-		*self.call.lock().unwrap() = Some((source.to_string(), destination.to_string()));
-		Ok(())
-	}
-}
-
-#[tokio::test]
-async fn import_places_content_and_marks_available() {
-	let db = memory_db().await;
-	seed_download(&db, Utc::now()).await;
-
-	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let settings = settings_service(&db);
-	settings.set("library_dir", "/library").await.unwrap();
-	let importer = Arc::new(FakeImporter::default());
-	let imports = ImportService::new(
-		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		request_service(&db, jobs),
-		settings,
-		importer.clone(),
-		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
-	);
-
-	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
-
-	let call = importer.call.lock().unwrap().clone().unwrap();
-	assert_eq!(call.0, "/downloads/The Hobbit");
-	assert_eq!(call.1, "/library/Unknown Author/The Hobbit");
-	assert_eq!(
-		SqlxRequestRepo::new(db.clone())
-			.find_by_id("r1")
-			.await
-			.unwrap()
-			.unwrap()
-			.status,
-		RequestStatus::Available
-	);
-}
-
 #[tokio::test]
 async fn request_transitions_record_activity() {
 	let db = memory_db().await;

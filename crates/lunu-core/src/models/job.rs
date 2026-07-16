@@ -173,6 +173,40 @@ mod tests {
 	}
 
 	#[test]
+	fn only_fulfillment_jobs_fail_the_users_request() {
+		for job_type in [JobType::Grab, JobType::MonitorDownload, JobType::Import] {
+			assert!(
+				job_type.propagates_failure_to_request(),
+				"{job_type} is part of fulfilling a request, so exhausting it must fail the request"
+			);
+		}
+		for job_type in [
+			JobType::Notify,
+			JobType::LibrarySync,
+			JobType::SessionCleanup,
+		] {
+			assert!(
+				!job_type.propagates_failure_to_request(),
+				"{job_type} is background work, so failing it must never fail a user's request"
+			);
+		}
+	}
+
+	#[test]
+	fn job_type_round_trips_through_its_wire_name() {
+		for job_type in [
+			JobType::Grab,
+			JobType::MonitorDownload,
+			JobType::Import,
+			JobType::Notify,
+			JobType::LibrarySync,
+			JobType::SessionCleanup,
+		] {
+			assert_eq!(JobType::from_str(job_type.as_str()).unwrap(), job_type);
+		}
+	}
+
+	#[test]
 	fn should_retry_until_max_attempts() {
 		assert!(job(1, 3).should_retry());
 		assert!(job(2, 3).should_retry());

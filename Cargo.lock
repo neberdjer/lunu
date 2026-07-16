@@ -1801,6 +1801,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "lunu-core",
+ "serde_json",
  "sqlx",
  "tokio",
 ]
