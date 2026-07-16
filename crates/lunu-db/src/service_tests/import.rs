@@ -137,6 +137,7 @@ async fn seed_media_for_request(db: &Db, overridden: bool) {
 			library_path: "/library/Tolkien/The Hobbit".to_string(),
 			source: MediaSource::Request,
 			overridden,
+			matched_by: None,
 			request_id: Some("r1".to_string()),
 			created_at: Utc::now(),
 		})

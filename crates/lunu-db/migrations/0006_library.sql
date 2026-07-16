@@ -12,6 +12,7 @@ CREATE TABLE media (
 	library_path TEXT NOT NULL,
 	source TEXT NOT NULL DEFAULT 'request',
 	overridden BIGINT NOT NULL DEFAULT 0,
+	matched_by TEXT,
 	request_id TEXT,
 	created_at TEXT NOT NULL
 );

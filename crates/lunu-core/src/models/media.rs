@@ -45,6 +45,39 @@ pub struct LibraryItem {
 	pub library_path: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchedBy {
+	Asin,
+	Title,
+	Fuzzy,
+	Manual,
+}
+
+impl MatchedBy {
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			MatchedBy::Asin => "asin",
+			MatchedBy::Title => "title",
+			MatchedBy::Fuzzy => "fuzzy",
+			MatchedBy::Manual => "manual",
+		}
+	}
+}
+
+impl FromStr for MatchedBy {
+	type Err = Error;
+
+	fn from_str(value: &str) -> Result<Self> {
+		match value {
+			"asin" => Ok(MatchedBy::Asin),
+			"title" => Ok(MatchedBy::Title),
+			"fuzzy" => Ok(MatchedBy::Fuzzy),
+			"manual" => Ok(MatchedBy::Manual),
+			_ => Err(Error::Validation(reasons::MATCH_KIND_UNKNOWN.to_string())),
+		}
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Media {
 	pub id: String,
@@ -60,6 +93,7 @@ pub struct Media {
 	pub library_path: String,
 	pub source: MediaSource,
 	pub overridden: bool,
+	pub matched_by: Option<MatchedBy>,
 	pub request_id: Option<String>,
 	pub created_at: DateTime<Utc>,
 }

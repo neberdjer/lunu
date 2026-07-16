@@ -98,6 +98,7 @@ impl PipelineHandler {
 			imported = summary.imported,
 			updated = summary.updated,
 			skipped = summary.skipped,
+			matched = summary.matched,
 			"audiobookshelf library sync complete"
 		);
 		Ok(())

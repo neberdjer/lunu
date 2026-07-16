@@ -36,6 +36,7 @@ error-no-releases = No releases were found for this title.
 error-download-state-unknown = That download state is not recognized.
 error-id-scheme-unknown = That identifier type is not recognized.
 error-no-provider-for-id = No enabled metadata source can look up that kind of identifier.
+error-match-kind-unknown = That match kind is not recognized.
 error-format-unknown = That book format is not recognized.
 error-job-type-unknown = That job type is not recognized.
 error-job-status-unknown = That job status is not recognized.

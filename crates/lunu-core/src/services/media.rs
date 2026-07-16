@@ -48,6 +48,7 @@ impl MediaService {
 			library_path: library_path.to_string(),
 			source: MediaSource::Request,
 			overridden: false,
+			matched_by: None,
 			request_id: Some(request.id.clone()),
 			created_at: Utc::now(),
 		};

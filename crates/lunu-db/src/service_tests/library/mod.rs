@@ -8,6 +8,8 @@ use lunu_core::traits::{LibrarySource, MetadataProvider};
 use super::builders::*;
 use super::*;
 
+mod matching;
+
 struct StubSource(Vec<LibraryItem>);
 
 #[async_trait]
@@ -17,31 +19,31 @@ impl LibrarySource for StubSource {
 	}
 }
 
-struct BookProvider;
+struct SearchStub {
+	id: &'static str,
+	books: Option<Vec<Book>>,
+	book: Option<Book>,
+}
 
 #[async_trait]
-impl MetadataProvider for BookProvider {
+impl MetadataProvider for SearchStub {
 	fn id(&self) -> &'static str {
-		"book-stub"
+		self.id
 	}
 
 	fn accepts(&self) -> &[IdScheme] {
 		&[IdScheme::Asin]
 	}
 	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
+		match &self.books {
+			Some(books) => Ok(books.clone()),
+			None => Err(Error::Validation("provider down".to_string())),
+		}
 	}
 	async fn get_book(&self, id: &ExternalId, _region: &str) -> CoreResult<Option<Book>> {
-		Ok(Some(Book {
-			ids: vec![id.clone()],
-			authors: vec!["Isaac Asimov".to_string()],
-			series: vec![SeriesRef {
-				name: "Foundation".to_string(),
-				position: Some("1".to_string()),
-				asin: None,
-			}],
-			cover_url: Some("cover".to_string()),
-			..book("Foundation")
+		Ok(self.book.clone().map(|mut found| {
+			found.ids = vec![id.clone()];
+			found
 		}))
 	}
 	async fn get_chapters(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Chapters>> {
@@ -80,9 +82,35 @@ fn item(abs_id: &str, asin: Option<&str>) -> LibraryItem {
 }
 
 fn library_service(db: &Db, items: Vec<LibraryItem>) -> LibraryService {
+	let foundation = Book {
+		authors: vec!["Isaac Asimov".to_string()],
+		series: vec![SeriesRef {
+			name: "Foundation".to_string(),
+			position: Some("1".to_string()),
+			asin: None,
+		}],
+		cover_url: Some("cover".to_string()),
+		..book("Foundation")
+	};
+	library_service_with(
+		db,
+		items,
+		Arc::new(SearchStub {
+			id: "book-stub",
+			books: Some(Vec::new()),
+			book: Some(foundation),
+		}),
+	)
+}
+
+fn library_service_with(
+	db: &Db,
+	items: Vec<LibraryItem>,
+	provider: Arc<dyn MetadataProvider>,
+) -> LibraryService {
 	let media_repo = Arc::new(SqlxMediaRepo::new(db.clone()));
 	let metadata = Arc::new(MetadataService::new(
-		vec![Arc::new(BookProvider)],
+		vec![provider],
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
 		settings_service(db),
 	));
@@ -90,7 +118,7 @@ fn library_service(db: &Db, items: Vec<LibraryItem>) -> LibraryService {
 		Arc::new(StubSource(items)),
 		media_repo,
 		metadata,
-		super::builders::work_service(db),
+		work_service(db),
 	)
 }
 
@@ -195,6 +223,7 @@ async fn sync_merges_duplicate_request_and_abs_rows_without_crashing() {
 			library_path: "/lib/b".to_string(),
 			source: lunu_core::models::MediaSource::Request,
 			overridden: false,
+			matched_by: None,
 			request_id: Some("r1".to_string()),
 			created_at: chrono::Utc::now(),
 		})

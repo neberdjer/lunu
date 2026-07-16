@@ -1,3 +1,5 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -24,6 +26,8 @@ const KIND_SIMILAR: &str = "similar";
 const KIND_AUTHOR: &str = "author";
 const KIND_SERIES_SEARCH: &str = "series-search";
 const KIND_SERIES_BOOKS: &str = "series-books";
+
+type ProviderCall<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
 pub struct MetadataService {
 	providers: Vec<Arc<dyn MetadataProvider>>,
@@ -95,15 +99,15 @@ impl MetadataService {
 			.collect())
 	}
 
-	async fn fetch<T>(
+	async fn fetch<'c, T>(
 		&self,
 		scheme: Option<IdScheme>,
 		kind: &str,
 		key: &str,
-		call: impl AsyncFn(&dyn MetadataProvider) -> Result<Option<T>>,
+		call: impl Fn(Arc<dyn MetadataProvider>) -> ProviderCall<'c, Option<T>>,
 	) -> Result<Option<T>>
 	where
-		T: Serialize + DeserializeOwned,
+		T: Serialize + DeserializeOwned + 'c,
 	{
 		let providers = self.enabled_providers(scheme).await?;
 
@@ -112,7 +116,7 @@ impl MetadataService {
 			if let Some(hit) = self.read_cache::<T>(provider.id(), kind, key).await? {
 				return Ok(Some(hit));
 			}
-			match call(provider.as_ref()).await {
+			match call(Arc::clone(provider)).await {
 				Ok(Some(value)) => {
 					self.write_cache(provider.id(), kind, key, &value).await?;
 					return Ok(Some(value));
@@ -128,20 +132,23 @@ impl MetadataService {
 		}
 	}
 
-	async fn fetch_list<T>(
+	async fn fetch_list<'c, T>(
 		&self,
 		scheme: Option<IdScheme>,
 		kind: &str,
 		key: &str,
-		call: impl AsyncFn(&dyn MetadataProvider) -> Result<Vec<T>>,
+		call: impl Fn(Arc<dyn MetadataProvider>) -> ProviderCall<'c, Vec<T>>,
 	) -> Result<Vec<T>>
 	where
-		T: Serialize + DeserializeOwned,
+		T: Serialize + DeserializeOwned + 'c,
 	{
 		let found = self
-			.fetch::<Vec<T>>(scheme, kind, key, async |provider| {
-				let items = call(provider).await?;
-				Ok((!items.is_empty()).then_some(items))
+			.fetch::<Vec<T>>(scheme, kind, key, |provider| {
+				let inner = call(provider);
+				Box::pin(async move {
+					let items = inner.await?;
+					Ok((!items.is_empty()).then_some(items))
+				})
 			})
 			.await?;
 		Ok(found.unwrap_or_default())
@@ -156,9 +163,10 @@ impl MetadataService {
 		let page = page.max(1);
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{page}:{normalized}");
+		let region = &region;
 
-		self.fetch_list(None, KIND_SEARCH, &cache_key, async |provider| {
-			provider.search(query, &region, page).await
+		self.fetch_list(None, KIND_SEARCH, &cache_key, |provider| {
+			Box::pin(async move { provider.search(query, region, page).await })
 		})
 		.await
 	}
@@ -171,9 +179,10 @@ impl MetadataService {
 
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{normalized}");
+		let region = &region;
 
-		self.fetch_list(None, KIND_SERIES_SEARCH, &cache_key, async |provider| {
-			provider.search_series(query, &region).await
+		self.fetch_list(None, KIND_SERIES_SEARCH, &cache_key, |provider| {
+			Box::pin(async move { provider.search_series(query, region).await })
 		})
 		.await
 	}
@@ -187,12 +196,13 @@ impl MetadataService {
 		let region = self.region().await?;
 		let series = id.map(ExternalId::to_string).unwrap_or_default();
 		let cache_key = format!("{region}:{series}:{normalized}");
+		let region = &region;
 
 		self.fetch_list(
 			id.map(|id| id.scheme),
 			KIND_SERIES_BOOKS,
 			&cache_key,
-			async |provider| provider.series_books(name, id, &region).await,
+			|provider| Box::pin(async move { provider.series_books(name, id, region).await }),
 		)
 		.await
 	}
@@ -200,26 +210,22 @@ impl MetadataService {
 	pub async fn similar(&self, id: &ExternalId) -> Result<Vec<Book>> {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{id}");
+		let region = &region;
 
-		self.fetch_list(
-			Some(id.scheme),
-			KIND_SIMILAR,
-			&cache_key,
-			async |provider| provider.similar(id, &region).await,
-		)
+		self.fetch_list(Some(id.scheme), KIND_SIMILAR, &cache_key, |provider| {
+			Box::pin(async move { provider.similar(id, region).await })
+		})
 		.await
 	}
 
 	pub async fn books_by_author(&self, author: &ExternalId) -> Result<Vec<Book>> {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{author}");
+		let region = &region;
 
-		self.fetch_list(
-			Some(author.scheme),
-			KIND_AUTHOR,
-			&cache_key,
-			async |provider| provider.books_by_author(author, &region).await,
-		)
+		self.fetch_list(Some(author.scheme), KIND_AUTHOR, &cache_key, |provider| {
+			Box::pin(async move { provider.books_by_author(author, region).await })
+		})
 		.await
 	}
 
@@ -227,8 +233,9 @@ impl MetadataService {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{id}");
 
-		self.fetch(Some(id.scheme), KIND_BOOK, &cache_key, async |provider| {
-			provider.get_book(id, &region).await
+		let region = &region;
+		self.fetch(Some(id.scheme), KIND_BOOK, &cache_key, |provider| {
+			Box::pin(async move { provider.get_book(id, region).await })
 		})
 		.await
 	}
@@ -245,12 +252,10 @@ impl MetadataService {
 		let region = self.region().await?;
 		let cache_key = format!("{region}:{id}");
 
-		self.fetch(
-			Some(id.scheme),
-			KIND_CHAPTERS,
-			&cache_key,
-			async |provider| provider.get_chapters(id, &region).await,
-		)
+		let region = &region;
+		self.fetch(Some(id.scheme), KIND_CHAPTERS, &cache_key, |provider| {
+			Box::pin(async move { provider.get_chapters(id, region).await })
+		})
 		.await
 	}
 

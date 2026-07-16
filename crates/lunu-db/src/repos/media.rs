@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::models::{Format, Media, MediaSource};
+use lunu_core::models::{Format, MatchedBy, Media, MediaSource};
 use lunu_core::repo::MediaRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
@@ -20,12 +20,13 @@ impl SqlxMediaRepo {
 }
 
 const COLUMNS: &str = "id, work_id, format, asin, abs_item_id, title, author, cover_url, \
-	series_name, series_sequence, library_path, source, overridden, request_id, created_at";
-const VALUES: &str = "($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)";
+	series_name, series_sequence, library_path, source, overridden, matched_by, request_id, \
+	created_at";
+const VALUES: &str = "($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)";
 
 fn list_filter(unmatched_only: bool) -> &'static str {
 	if unmatched_only {
-		"WHERE asin IS NULL"
+		"WHERE matched_by IS NULL AND source = 'abs'"
 	} else {
 		""
 	}
@@ -35,6 +36,7 @@ fn map_media(row: &AnyRow) -> Result<Media> {
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let source: String = row.try_get("source").map_err(db_error)?;
 	let format: String = row.try_get("format").map_err(db_error)?;
+	let matched_by: Option<String> = row.try_get("matched_by").map_err(db_error)?;
 	let overridden: i64 = row.try_get("overridden").map_err(db_error)?;
 
 	Ok(Media {
@@ -51,6 +53,10 @@ fn map_media(row: &AnyRow) -> Result<Media> {
 		library_path: row.try_get("library_path").map_err(db_error)?,
 		source: parse_enum::<MediaSource>(&source)?,
 		overridden: int_to_bool(overridden),
+		matched_by: matched_by
+			.as_deref()
+			.map(parse_enum::<MatchedBy>)
+			.transpose()?,
 		request_id: row.try_get("request_id").map_err(db_error)?,
 		created_at: parse_dt(&created_at)?,
 	})
@@ -71,6 +77,7 @@ async fn insert_media(db: &Db, sql: &str, media: &Media) -> Result<()> {
 		.bind(&media.library_path)
 		.bind(media.source.as_str())
 		.bind(bool_to_int(media.overridden))
+		.bind(media.matched_by.map(|m| m.as_str()))
 		.bind(media.request_id.as_deref())
 		.bind(format_dt(media.created_at))
 		.execute(db)
@@ -86,7 +93,7 @@ impl MediaRepo for SqlxMediaRepo {
 			"INSERT INTO media ({COLUMNS}) VALUES {VALUES} \
 			 ON CONFLICT (asin) DO UPDATE SET \
 			 work_id = $2, title = $6, author = $7, cover_url = $8, library_path = $11, \
-			 request_id = $14 \
+			 request_id = $15 \
 			 WHERE media.overridden = 0"
 		);
 		insert_media(&self.db, &sql, media).await
@@ -101,8 +108,9 @@ impl MediaRepo for SqlxMediaRepo {
 		sqlx::query(
 			"UPDATE media SET \
 			 work_id = $1, asin = $2, abs_item_id = $3, title = $4, author = $5, cover_url = $6, \
-			 series_name = $7, series_sequence = $8, library_path = $9, overridden = $10 \
-			 WHERE id = $11",
+			 series_name = $7, series_sequence = $8, library_path = $9, overridden = $10, \
+			 matched_by = $11 \
+			 WHERE id = $12",
 		)
 		.bind(media.work_id.as_deref())
 		.bind(media.asin.as_deref())
@@ -114,6 +122,7 @@ impl MediaRepo for SqlxMediaRepo {
 		.bind(media.series_sequence.as_deref())
 		.bind(&media.library_path)
 		.bind(bool_to_int(media.overridden))
+		.bind(media.matched_by.map(|m| m.as_str()))
 		.bind(&media.id)
 		.execute(&self.db)
 		.await

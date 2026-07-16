@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::models::{ExternalId, IdScheme, Work, normalize};
+use lunu_core::helpers::matching::normalize;
+use lunu_core::models::{ExternalId, IdScheme, Work};
 use lunu_core::repo::WorkRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;

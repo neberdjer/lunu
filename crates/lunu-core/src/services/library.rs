@@ -3,7 +3,8 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::consts::reasons;
-use crate::models::{ExternalId, Format, LibraryItem, Media, MediaSource};
+use crate::helpers::matching::best_match;
+use crate::models::{Book, ExternalId, Format, LibraryItem, MatchedBy, Media, MediaSource};
 use crate::repo::MediaRepo;
 use crate::services::{MetadataService, WorkService, new_id};
 use crate::traits::LibrarySource;
@@ -14,6 +15,14 @@ pub struct SyncSummary {
 	pub imported: usize,
 	pub updated: usize,
 	pub skipped: usize,
+	pub matched: usize,
+}
+
+#[derive(Default)]
+struct Identity {
+	asin: Option<String>,
+	work_id: Option<String>,
+	matched_by: Option<MatchedBy>,
 }
 
 pub struct LibraryService {
@@ -38,19 +47,53 @@ impl LibraryService {
 		}
 	}
 
-	async fn work_for_item(&self, item: &LibraryItem) -> Result<Option<String>> {
-		let Some(asin) = item.asin.as_deref() else {
-			return Ok(None);
+	async fn identify(&self, existing: Option<&Media>, item: &LibraryItem) -> Result<Identity> {
+		if let Some(asin) = item.asin.clone() {
+			let work_id = self
+				.works
+				.for_external_id(
+					&ExternalId::asin(&asin),
+					&item.title,
+					item.author.as_deref(),
+					item.cover_url.as_deref(),
+				)
+				.await?;
+			return Ok(Identity {
+				asin: Some(asin),
+				work_id: Some(work_id),
+				matched_by: Some(MatchedBy::Asin),
+			});
+		}
+
+		if let Some(media) = existing
+			&& media.matched_by.is_some_and(survives_resync)
+		{
+			return Ok(Identity {
+				asin: media.asin.clone(),
+				work_id: media.work_id.clone(),
+				matched_by: media.matched_by,
+			});
+		}
+
+		let Some((book, matched_by)) = self.search_match(item).await else {
+			return Ok(Identity::default());
 		};
-		self.works
-			.for_external_id(
-				&ExternalId::asin(asin),
-				&item.title,
-				item.author.as_deref(),
-				item.cover_url.as_deref(),
-			)
-			.await
-			.map(Some)
+		Ok(Identity {
+			asin: book.asin().map(str::to_string),
+			work_id: self.works.for_book(&book).await?,
+			matched_by: Some(matched_by),
+		})
+	}
+
+	async fn search_match(&self, item: &LibraryItem) -> Option<(Book, MatchedBy)> {
+		let author = item.author.as_deref();
+		let query = match author {
+			Some(author) => format!("{} {author}", item.title),
+			None => item.title.clone(),
+		};
+		let mut books = self.metadata.search(&query, 1).await.ok()?;
+		let (index, matched_by) = best_match(&item.title, author, &books)?;
+		Some((books.swap_remove(index), matched_by))
 	}
 
 	pub async fn sync(&self) -> Result<SyncSummary> {
@@ -60,6 +103,7 @@ impl LibraryService {
 			imported: 0,
 			updated: 0,
 			skipped: 0,
+			matched: 0,
 		};
 
 		for item in items {
@@ -69,15 +113,14 @@ impl LibraryService {
 			match existing {
 				Some(media) if media.overridden => summary.skipped += 1,
 				Some(media) => {
-					let work_id = match &media.work_id {
-						Some(known) if media.asin.as_deref() == item.asin.as_deref() => {
-							Some(known.clone())
-						}
-						_ => self.work_for_item(&item).await?,
-					};
+					let identity = self.identify(Some(&media), &item).await?;
+					if newly_matched(media.matched_by, identity.matched_by) {
+						summary.matched += 1;
+					}
 					let updated = Media {
-						work_id,
-						asin: item.asin,
+						work_id: identity.work_id,
+						asin: identity.asin,
+						matched_by: identity.matched_by,
 						abs_item_id: Some(item.abs_item_id),
 						title: item.title,
 						author: item.author,
@@ -95,13 +138,17 @@ impl LibraryService {
 					summary.updated += 1;
 				}
 				None => {
-					let work_id = self.work_for_item(&item).await?;
+					let identity = self.identify(None, &item).await?;
+					if newly_matched(None, identity.matched_by) {
+						summary.matched += 1;
+					}
 					self.media
 						.insert(&Media {
 							id: new_id(),
-							work_id,
+							work_id: identity.work_id,
 							format: Format::Audiobook,
-							asin: item.asin,
+							asin: identity.asin,
+							matched_by: identity.matched_by,
 							abs_item_id: Some(item.abs_item_id),
 							title: item.title,
 							author: item.author,
@@ -178,8 +225,20 @@ impl LibraryService {
 			media.series_sequence = series.position;
 		}
 		media.overridden = true;
+		media.matched_by = Some(MatchedBy::Manual);
 
 		self.media.update(&media).await?;
 		Ok(media)
 	}
+}
+
+fn survives_resync(matched: MatchedBy) -> bool {
+	matches!(
+		matched,
+		MatchedBy::Title | MatchedBy::Fuzzy | MatchedBy::Manual
+	)
+}
+
+fn newly_matched(prior: Option<MatchedBy>, new: Option<MatchedBy>) -> bool {
+	prior.is_none() && new.is_some_and(survives_resync)
 }

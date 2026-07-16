@@ -12,6 +12,7 @@ pub(crate) struct MediaResponse {
 	pub series_sequence: Option<String>,
 	pub source: String,
 	pub overridden: bool,
+	pub matched_by: Option<String>,
 }
 
 impl From<&Media> for MediaResponse {
@@ -26,6 +27,7 @@ impl From<&Media> for MediaResponse {
 			series_sequence: media.series_sequence.clone(),
 			source: media.source.as_str().to_string(),
 			overridden: media.overridden,
+			matched_by: media.matched_by.map(|matched| matched.as_str().to_string()),
 		}
 	}
 }

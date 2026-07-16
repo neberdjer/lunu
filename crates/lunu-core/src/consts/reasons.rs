@@ -22,6 +22,7 @@ pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const ID_SCHEME_UNKNOWN: &str = "id-scheme-unknown";
 pub const FORMAT_UNKNOWN: &str = "format-unknown";
+pub const MATCH_KIND_UNKNOWN: &str = "match-kind-unknown";
 pub const NO_PROVIDER_FOR_ID: &str = "no-provider-for-id";
 pub const JOB_STATUS_UNKNOWN: &str = "job-status-unknown";
 pub const LIBRARY_NOT_CONFIGURED: &str = "library-not-configured";
@@ -84,6 +85,7 @@ pub const ALL: &[&str] = &[
 	JOB_TYPE_UNKNOWN,
 	ID_SCHEME_UNKNOWN,
 	FORMAT_UNKNOWN,
+	MATCH_KIND_UNKNOWN,
 	NO_PROVIDER_FOR_ID,
 	JOB_STATUS_UNKNOWN,
 	LIBRARY_NOT_CONFIGURED,

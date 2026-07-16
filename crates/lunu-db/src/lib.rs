@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use lunu_core::models::normalize;
+use lunu_core::helpers::matching::normalize;
 use lunu_core::{Error, Result};
 use sqlx::AnyPool;
 use sqlx::Row;
