@@ -46,6 +46,16 @@ pub struct Book {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub publisher: Option<String>,
 	pub genres: Vec<String>,
+	#[serde(default)]
+	pub tags: Vec<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub isbn: Option<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub format_type: Option<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub rating: Option<String>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub is_adult: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +71,12 @@ pub struct Chapters {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub runtime_ms: Option<i64>,
 	pub chapters: Vec<Chapter>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub is_accurate: Option<bool>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub brand_intro_duration_ms: Option<i64>,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub brand_outro_duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone)]

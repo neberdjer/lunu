@@ -34,6 +34,11 @@ pub(crate) struct BookResponse {
 	pub language: Option<String>,
 	pub publisher: Option<String>,
 	pub genres: Vec<String>,
+	pub tags: Vec<String>,
+	pub isbn: Option<String>,
+	pub format_type: Option<String>,
+	pub rating: Option<String>,
+	pub is_adult: Option<bool>,
 }
 
 impl From<&Book> for BookResponse {
@@ -53,6 +58,11 @@ impl From<&Book> for BookResponse {
 			language: book.language.clone(),
 			publisher: book.publisher.clone(),
 			genres: book.genres.clone(),
+			tags: book.tags.clone(),
+			isbn: book.isbn.clone(),
+			format_type: book.format_type.clone(),
+			rating: book.rating.clone(),
+			is_adult: book.is_adult,
 		}
 	}
 }

@@ -133,38 +133,27 @@ pub(super) fn release(download_url: &str) -> Release {
 	}
 }
 
-pub(super) struct StubProvider;
-
-#[async_trait]
-impl MetadataProvider for StubProvider {
-	fn id(&self) -> &'static str {
-		"stub"
-	}
-	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-	async fn get_book(&self, _asin: &str, _region: &str) -> CoreResult<Option<Book>> {
-		Ok(None)
-	}
-	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
-		Ok(None)
-	}
-	async fn similar(&self, _asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-	async fn books_by_author(&self, _author_asin: &str, _region: &str) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-	async fn search_series(&self, _query: &str, _region: &str) -> CoreResult<Vec<SeriesSummary>> {
-		Ok(Vec::new())
-	}
-	async fn series_books(
-		&self,
-		_name: &str,
-		_asin: Option<&str>,
-		_region: &str,
-	) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
+pub(super) fn book(title: &str) -> Book {
+	Book {
+		asin: format!("asin-{title}"),
+		title: title.to_string(),
+		subtitle: None,
+		authors: Vec::new(),
+		author_asins: Vec::new(),
+		narrators: Vec::new(),
+		series: Vec::new(),
+		description: None,
+		cover_url: None,
+		release_date: None,
+		runtime_minutes: None,
+		language: None,
+		publisher: None,
+		genres: Vec::new(),
+		tags: Vec::new(),
+		isbn: None,
+		format_type: None,
+		rating: None,
+		is_adult: None,
 	}
 }
 
@@ -199,7 +188,7 @@ pub(super) fn request_service_with_activity(
 	activity: Arc<ActivityService>,
 ) -> Arc<RequestService> {
 	let metadata = Arc::new(MetadataService::new(
-		Arc::new(StubProvider),
+		vec![Arc::new(StubProvider)],
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
 		settings_service(db),
 	));
@@ -286,3 +275,5 @@ impl Importer for FakeImporter {
 		Ok(())
 	}
 }
+
+pub(super) use super::stubs::StubProvider;

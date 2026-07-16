@@ -8,8 +8,9 @@ use serde::Deserialize;
 
 mod audible_api;
 mod audnex_api;
+mod text;
 
-const PROVIDER_ID: &str = "audnexus";
+const PROVIDER_ID: &str = lunu_core::consts::metadata::AUDNEXUS_PROVIDER;
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
 pub struct AudnexusProvider {
@@ -55,7 +56,11 @@ impl MetadataProvider for AudnexusProvider {
 	}
 
 	async fn books_by_author(&self, author_asin: &str, region: &str) -> Result<Vec<Book>> {
-		audible_api::books_by_author(&self.client, region, author_asin).await
+		let Some(name) = audnex_api::get_author_name(&self.client, region, author_asin).await?
+		else {
+			return Ok(Vec::new());
+		};
+		audible_api::books_by_author(&self.client, region, &name).await
 	}
 
 	async fn search_series(&self, query: &str, region: &str) -> Result<Vec<SeriesSummary>> {

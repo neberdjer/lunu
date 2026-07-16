@@ -30,23 +30,14 @@ impl MetadataProvider for BookProvider {
 	async fn get_book(&self, asin: &str, _region: &str) -> CoreResult<Option<Book>> {
 		Ok(Some(Book {
 			asin: asin.to_string(),
-			title: "Foundation".to_string(),
-			subtitle: None,
 			authors: vec!["Isaac Asimov".to_string()],
-			author_asins: Vec::new(),
-			narrators: Vec::new(),
 			series: vec![SeriesRef {
 				name: "Foundation".to_string(),
 				position: Some("1".to_string()),
 				asin: None,
 			}],
-			description: None,
 			cover_url: Some("cover".to_string()),
-			release_date: None,
-			runtime_minutes: None,
-			language: None,
-			publisher: None,
-			genres: Vec::new(),
+			..book("Foundation")
 		}))
 	}
 	async fn get_chapters(&self, _asin: &str, _region: &str) -> CoreResult<Option<Chapters>> {
@@ -87,7 +78,7 @@ fn item(abs_id: &str, asin: Option<&str>) -> LibraryItem {
 fn library_service(db: &Db, items: Vec<LibraryItem>) -> LibraryService {
 	let media_repo = Arc::new(SqlxMediaRepo::new(db.clone()));
 	let metadata = Arc::new(MetadataService::new(
-		Arc::new(BookProvider),
+		vec![Arc::new(BookProvider)],
 		Arc::new(SqlxMetadataCacheRepo::new(db.clone())),
 		settings_service(db),
 	));
