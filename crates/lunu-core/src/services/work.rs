@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -14,6 +15,15 @@ pub struct WorkService {
 impl WorkService {
 	pub fn new(works: Arc<dyn WorkRepo>) -> Self {
 		Self { works }
+	}
+
+	pub async fn resolve_ids(&self, ids: &[ExternalId]) -> Result<HashMap<ExternalId, String>> {
+		Ok(self
+			.works
+			.find_by_external_ids(ids)
+			.await?
+			.into_iter()
+			.collect())
 	}
 
 	pub async fn for_book(&self, book: &Book) -> Result<Option<String>> {

@@ -1,16 +1,17 @@
-use std::collections::{HashMap, HashSet};
-
 use actix_web::{HttpResponse, get, post, web};
 use lunu_core::Error;
-use lunu_core::models::{Book, ExternalId, RequestStatus};
+use lunu_core::models::{Book, ExternalId};
 use lunu_core::services::NewRequest;
 use serde::{Deserialize, Serialize};
 
-use crate::dto::BookResponse;
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::pagination::{Page, Pagination};
 use crate::state::AppState;
+
+mod annotate;
+
+use annotate::{SearchResult, annotate};
 
 const OPAQUE_BOOK_ID: &str = "Opaque book identifier, taken from a search result. Treat it as \
 	meaningless text: do not parse it, construct it, or assume it stays an ASIN.";
@@ -72,14 +73,6 @@ struct SeriesRequestResult {
 	failed: Vec<FailedRequest>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
-struct SearchResult {
-	#[serde(flatten)]
-	book: BookResponse,
-	request_status: Option<String>,
-	available: bool,
-}
-
 #[utoipa::path(tag = "metadata", params(SearchQuery), responses((status = 200, description = "Search results, each with the caller request status", body = Vec<SearchResult>)))]
 #[get("/search")]
 pub async fn search(
@@ -94,40 +87,6 @@ pub async fn search(
 		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
-}
-
-async fn presence(
-	state: &AppState,
-	user_id: &str,
-	asins: &[String],
-) -> Result<(HashMap<String, RequestStatus>, HashSet<String>), ApiError> {
-	Ok(tokio::try_join!(
-		state.requests.status_by_asin(user_id, asins),
-		state.media.available_among(asins),
-	)?)
-}
-
-async fn annotate(
-	state: &AppState,
-	user_id: &str,
-	books: Vec<Book>,
-) -> Result<Vec<SearchResult>, ApiError> {
-	let asins: Vec<String> = books
-		.iter()
-		.filter_map(|book| book.asin().map(str::to_string))
-		.collect();
-	let (statuses, available) = presence(state, user_id, &asins).await?;
-	Ok(books
-		.into_iter()
-		.map(|book| SearchResult {
-			request_status: book
-				.asin()
-				.and_then(|asin| statuses.get(asin))
-				.map(|status| status.as_str().to_string()),
-			available: book.asin().is_some_and(|asin| available.contains(asin)),
-			book: BookResponse::from(&book),
-		})
-		.collect())
 }
 
 #[utoipa::path(tag = "metadata", params(SeriesSearchQuery), responses((status = 200, description = "Matching series (name and asin)")))]
@@ -186,11 +145,17 @@ pub async fn series_request(
 		.metadata
 		.series_books(&body.name, series.as_ref())
 		.await?;
+	let ids: Vec<ExternalId> = books.iter().flat_map(|book| book.ids.clone()).collect();
 	let asins: Vec<String> = books
 		.iter()
 		.filter_map(|book| book.asin().map(str::to_string))
 		.collect();
-	let (statuses, available) = presence(&state, &user.0.id, &asins).await?;
+	let works = state.works.resolve_ids(&ids).await?;
+	let work_ids: Vec<String> = works.values().cloned().collect();
+	let (statuses, available) = tokio::try_join!(
+		state.requests.status_by_works(&user.0.id, &work_ids),
+		state.media.available_among(&asins),
+	)?;
 
 	let mut requested = Vec::new();
 	let mut already_present = 0;
@@ -199,7 +164,12 @@ pub async fn series_request(
 		let Some(asin) = book.asin().map(str::to_string) else {
 			continue;
 		};
-		if statuses.contains_key(&asin) || available.contains(&asin) {
+		let requested_already = book
+			.ids
+			.iter()
+			.find_map(|id| works.get(id))
+			.is_some_and(|work_id| statuses.contains_key(work_id));
+		if requested_already || available.contains(&asin) {
 			already_present += 1;
 			continue;
 		}
@@ -232,10 +202,7 @@ pub async fn similar(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let books = state
-		.metadata
-		.similar(&ExternalId::asin(id.into_inner()))
-		.await?;
+	let books = state.metadata.similar(&id.parse::<ExternalId>()?).await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
 }
@@ -250,7 +217,7 @@ pub async fn author_books(
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
 	let books = state
 		.metadata
-		.books_by_author(&ExternalId::asin(id.into_inner()))
+		.books_by_author(&id.parse::<ExternalId>()?)
 		.await?;
 	let results = annotate(&state, &user.0.id, books).await?;
 	Ok(HttpResponse::Ok().json(results))
@@ -264,21 +231,19 @@ pub async fn book_detail(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let asin = id.into_inner();
+	let wire = id.into_inner();
+	let external = wire.parse::<ExternalId>()?;
 	let book = state
 		.metadata
-		.get_book(&ExternalId::asin(&asin))
+		.get_book(&external)
 		.await?
-		.ok_or_else(|| Error::NotFound(format!("book {asin}")))?;
-	let (status, media) = tokio::try_join!(
-		state.requests.status_for_asin(&user.0.id, &asin),
-		state.media.find(&asin),
-	)?;
-	Ok(HttpResponse::Ok().json(SearchResult {
-		book: BookResponse::from(&book),
-		request_status: status.map(|status| status.as_str().to_string()),
-		available: media.is_some(),
-	}))
+		.ok_or_else(|| Error::NotFound(format!("book {wire}")))?;
+	let results = annotate(&state, &user.0.id, vec![book]).await?;
+	let result = results
+		.into_iter()
+		.next()
+		.ok_or_else(|| Error::NotFound(format!("book {wire}")))?;
+	Ok(HttpResponse::Ok().json(result))
 }
 
 #[utoipa::path(tag = "metadata", params(("id" = String, Path, description = OPAQUE_BOOK_ID)), responses((status = 200, description = "Chapter list"), (status = 404, description = "No chapters")))]
@@ -289,11 +254,11 @@ pub async fn chapters(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_metadata_rate_limit(&state, &user.0.id)?;
-	let asin = id.into_inner();
+	let wire = id.into_inner();
 	let chapters = state
 		.metadata
-		.get_chapters(&ExternalId::asin(&asin))
+		.get_chapters(&wire.parse::<ExternalId>()?)
 		.await?
-		.ok_or_else(|| Error::NotFound(format!("chapters {asin}")))?;
+		.ok_or_else(|| Error::NotFound(format!("chapters {wire}")))?;
 	Ok(HttpResponse::Ok().json(chapters))
 }

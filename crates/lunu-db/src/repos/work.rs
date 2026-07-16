@@ -79,6 +79,33 @@ impl WorkRepo for SqlxWorkRepo {
 			.map_err(db_error)
 	}
 
+	async fn find_by_external_ids(&self, ids: &[ExternalId]) -> Result<Vec<(ExternalId, String)>> {
+		if ids.is_empty() {
+			return Ok(Vec::new());
+		}
+		let pairs: Vec<String> = (0..ids.len())
+			.map(|index| format!("(${}, ${})", index * 2 + 1, index * 2 + 2))
+			.collect();
+		let sql = format!(
+			"SELECT scheme, value, work_id FROM work_external_ids \
+			 WHERE (scheme, value) IN ({})",
+			pairs.join(", ")
+		);
+		let mut query = sqlx::query(&sql);
+		for id in ids {
+			query = query.bind(id.scheme.as_str()).bind(&id.value);
+		}
+		let rows = query.fetch_all(&self.db).await.map_err(db_error)?;
+
+		let mut found = Vec::with_capacity(rows.len());
+		for row in &rows {
+			let id = map_external_id(row)?;
+			let work_id: String = row.try_get("work_id").map_err(db_error)?;
+			found.push((id, work_id));
+		}
+		Ok(found)
+	}
+
 	async fn find_unidentified_by_title(
 		&self,
 		title: &str,

@@ -159,3 +159,38 @@ async fn a_book_known_only_by_isbn_can_be_requested() {
 		"dedup keys on the work, so an asin-less book still cannot be asked for twice"
 	);
 }
+
+#[tokio::test]
+async fn an_isbn_requested_book_shows_as_requested_by_its_work() {
+	let db = memory_db().await;
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let requests = request_service(&db, jobs.clone());
+	let works = work_service(&db);
+	let admin = caller("admin", Role::Admin);
+
+	let mut ebook = book("Some Ebook");
+	ebook.ids = vec![ExternalId::isbn("9780007487295")];
+	let input = NewRequest {
+		id: ExternalId::isbn("9780007487295"),
+		notes: None,
+		quality_profile_id: None,
+	};
+	requests
+		.create_with_book(&admin, input, ebook.clone())
+		.await
+		.unwrap();
+
+	let resolved = works.resolve_ids(&ebook.ids).await.unwrap();
+	let work_id = resolved
+		.get(&ExternalId::isbn("9780007487295"))
+		.expect("the isbn resolves to the work the request created");
+
+	let statuses = requests
+		.status_by_works(&admin.id, std::slice::from_ref(work_id))
+		.await
+		.unwrap();
+	assert!(
+		statuses.contains_key(work_id),
+		"presence keyed by work is what lets search annotate a book that has no asin"
+	);
+}

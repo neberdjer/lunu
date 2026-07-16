@@ -76,8 +76,15 @@ pub async fn bulk_create(
 	}
 	let mut outcomes = Vec::with_capacity(body.ids.len());
 	for id in body.ids {
+		let parsed = match id.parse::<ExternalId>() {
+			Ok(parsed) => parsed,
+			Err(error) => {
+				outcomes.push(BulkOutcome::from_result::<()>(id, Err(error)));
+				continue;
+			}
+		};
 		let input = NewRequest {
-			id: ExternalId::asin(&id),
+			id: parsed,
 			notes: body.notes.clone(),
 			quality_profile_id: body.quality_profile_id.clone(),
 		};

@@ -3,14 +3,17 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use lunu_core::Result;
-use lunu_core::models::{Format, Request, RequestStatus};
+use lunu_core::models::{Request, RequestStatus};
 use lunu_core::repo::RequestRepo;
 use sqlx::Row;
-use sqlx::any::AnyRow;
 
 use super::{fetch_count, map_row_opt, map_rows};
-use crate::convert::{format_dt, parse_dt, parse_enum};
+use crate::convert::format_dt;
 use crate::{Db, db_error, map_write_error};
+
+mod row;
+
+use row::{map_request, request_filter};
 
 pub struct SqlxRequestRepo {
 	db: Db,
@@ -19,48 +22,6 @@ pub struct SqlxRequestRepo {
 impl SqlxRequestRepo {
 	pub fn new(db: Db) -> Self {
 		Self { db }
-	}
-}
-
-fn map_request(row: &AnyRow) -> Result<Request> {
-	let status: String = row.try_get("status").map_err(db_error)?;
-	let format: String = row.try_get("format").map_err(db_error)?;
-	let created_at: String = row.try_get("created_at").map_err(db_error)?;
-	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
-
-	Ok(Request {
-		id: row.try_get("id").map_err(db_error)?,
-		user_id: row.try_get("user_id").map_err(db_error)?,
-		work_id: row.try_get("work_id").map_err(db_error)?,
-		format: parse_enum::<Format>(&format)?,
-		asin: row.try_get("asin").map_err(db_error)?,
-		title: row.try_get("title").map_err(db_error)?,
-		author: row.try_get("author").map_err(db_error)?,
-		cover_url: row.try_get("cover_url").map_err(db_error)?,
-		status: parse_enum::<RequestStatus>(&status)?,
-		approved_by: row.try_get("approved_by").map_err(db_error)?,
-		notes: row.try_get("notes").map_err(db_error)?,
-		quality_profile_id: row.try_get("quality_profile_id").map_err(db_error)?,
-		created_at: parse_dt(&created_at)?,
-		updated_at: parse_dt(&updated_at)?,
-	})
-}
-
-fn request_filter(user_id: Option<&str>, status: Option<&str>) -> (String, i64) {
-	let mut clauses = Vec::new();
-	let mut next = 1;
-	if user_id.is_some() {
-		clauses.push(format!("user_id = ${next}"));
-		next += 1;
-	}
-	if status.is_some() {
-		clauses.push(format!("status = ${next}"));
-		next += 1;
-	}
-	if clauses.is_empty() {
-		(String::new(), next)
-	} else {
-		(format!(" WHERE {}", clauses.join(" AND ")), next)
 	}
 }
 
@@ -193,6 +154,35 @@ impl RequestRepo for SqlxRequestRepo {
 		.await
 		.map_err(db_error)?;
 		map_row_opt(row, map_request)
+	}
+
+	async fn status_by_works(
+		&self,
+		user_id: &str,
+		work_ids: &[String],
+	) -> Result<Vec<(String, RequestStatus)>> {
+		if work_ids.is_empty() {
+			return Ok(Vec::new());
+		}
+		let placeholders: Vec<String> = (2..=work_ids.len() + 1).map(|n| format!("${n}")).collect();
+		let sql = format!(
+			"SELECT work_id, status FROM requests WHERE user_id = $1 AND work_id IN ({}) \
+			 ORDER BY created_at DESC",
+			placeholders.join(", ")
+		);
+		let mut query = sqlx::query(&sql).bind(user_id);
+		for work_id in work_ids {
+			query = query.bind(work_id);
+		}
+		let rows = query.fetch_all(&self.db).await.map_err(db_error)?;
+
+		let mut statuses = Vec::with_capacity(rows.len());
+		for row in rows {
+			let work_id: String = row.try_get("work_id").map_err(db_error)?;
+			let status: String = row.try_get("status").map_err(db_error)?;
+			statuses.push((work_id, RequestStatus::from_str(&status)?));
+		}
+		Ok(statuses)
 	}
 
 	async fn status_by_asins(

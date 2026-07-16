@@ -137,6 +137,18 @@ impl RequestService {
 			.await;
 	}
 
+	pub async fn status_by_works(
+		&self,
+		user_id: &str,
+		work_ids: &[String],
+	) -> Result<HashMap<String, RequestStatus>> {
+		let mut statuses = HashMap::new();
+		for (work_id, status) in self.requests.status_by_works(user_id, work_ids).await? {
+			statuses.entry(work_id).or_insert(status);
+		}
+		Ok(statuses)
+	}
+
 	pub async fn status_by_asin(
 		&self,
 		user_id: &str,

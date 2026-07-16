@@ -156,7 +156,7 @@ pub async fn create(
 		state.quality_profiles.require(profile_id).await?;
 	}
 	let input = NewRequest {
-		id: ExternalId::asin(body.id),
+		id: body.id.parse::<ExternalId>()?,
 		notes: body.notes,
 		quality_profile_id: body.quality_profile_id,
 	};

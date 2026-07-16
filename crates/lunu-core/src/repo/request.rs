@@ -25,6 +25,11 @@ pub trait RequestRepo: Send + Sync {
 	async fn find_by_user_and_asin(&self, user_id: &str, asin: &str) -> Result<Option<Request>>;
 	async fn find_by_user_and_work(&self, user_id: &str, work_id: &str) -> Result<Option<Request>>;
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>>;
+	async fn status_by_works(
+		&self,
+		user_id: &str,
+		work_ids: &[String],
+	) -> Result<Vec<(String, RequestStatus)>>;
 	async fn status_by_asins(
 		&self,
 		user_id: &str,

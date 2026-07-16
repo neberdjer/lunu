@@ -77,6 +77,17 @@ impl fmt::Display for ExternalId {
 	}
 }
 
+impl FromStr for ExternalId {
+	type Err = Error;
+
+	fn from_str(value: &str) -> Result<Self> {
+		match value.split_once(':') {
+			Some((scheme, rest)) => Ok(Self::new(IdScheme::from_str(scheme)?, rest)),
+			None => Ok(Self::asin(value)),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -109,5 +120,29 @@ mod tests {
 			ExternalId::isbn("9780007487295"),
 			"the same digits under two schemes are two different books"
 		);
+	}
+
+	#[test]
+	fn a_wire_id_round_trips_through_display() {
+		for id in [ExternalId::asin("B123"), ExternalId::isbn("978")] {
+			assert_eq!(ExternalId::from_str(&id.to_string()).unwrap(), id);
+		}
+	}
+
+	#[test]
+	fn a_bare_wire_id_reads_as_an_asin() {
+		assert_eq!(
+			ExternalId::from_str("1705009050").unwrap(),
+			ExternalId::asin("1705009050"),
+			"every id a client held before schemes existed was an asin"
+		);
+	}
+
+	#[test]
+	fn an_unknown_wire_scheme_is_rejected_not_guessed() {
+		assert!(matches!(
+			ExternalId::from_str("olid:OL123M"),
+			Err(Error::Validation(_))
+		));
 	}
 }

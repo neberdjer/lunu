@@ -8,6 +8,7 @@ pub trait WorkRepo: Send + Sync {
 	async fn insert(&self, work: &Work) -> Result<()>;
 	async fn find_by_id(&self, id: &str) -> Result<Option<Work>>;
 	async fn find_by_external_id(&self, id: &ExternalId) -> Result<Option<String>>;
+	async fn find_by_external_ids(&self, ids: &[ExternalId]) -> Result<Vec<(ExternalId, String)>>;
 	async fn find_unidentified_by_title(
 		&self,
 		title: &str,

@@ -1,4 +1,4 @@
-use lunu_core::models::{Book, SeriesRef};
+use lunu_core::models::{Book, ExternalId, SeriesRef};
 use serde::Serialize;
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -20,6 +20,7 @@ impl From<&SeriesRef> for SeriesRefResponse {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct BookResponse {
+	pub id: Option<String>,
 	pub asin: Option<String>,
 	pub title: String,
 	pub subtitle: Option<String>,
@@ -44,6 +45,7 @@ pub(crate) struct BookResponse {
 impl From<&Book> for BookResponse {
 	fn from(book: &Book) -> Self {
 		Self {
+			id: book.ids.first().map(ExternalId::to_string),
 			asin: book.asin().map(str::to_string),
 			title: book.title.clone(),
 			subtitle: book.subtitle.clone(),
