@@ -30,14 +30,15 @@ impl SettingsService {
 		let Some(setting) = self.repo.get(key).await? else {
 			return Ok(None);
 		};
+		Ok(Some(self.plain_value(&setting)?))
+	}
 
-		let value = if setting.encrypted {
-			self.encryptor.decrypt(&setting.value)?
+	fn plain_value(&self, setting: &Setting) -> Result<String> {
+		if setting.encrypted {
+			self.encryptor.decrypt(&setting.value)
 		} else {
-			setting.value
-		};
-
-		Ok(Some(value))
+			Ok(setting.value.clone())
+		}
 	}
 
 	pub async fn resolve_many(&self, keys: &[&str]) -> Result<HashMap<String, String>> {
@@ -52,11 +53,8 @@ impl SettingsService {
 		let mut resolved = HashMap::new();
 		for key in keys {
 			let value = match stored.get(*key) {
-				Some(setting) if setting.encrypted => Some(self.encryptor.decrypt(&setting.value)?),
-				Some(setting) => Some(setting.value.clone()),
-				None => settings::lookup(key)
-					.and_then(|spec| spec.default)
-					.map(str::to_string),
+				Some(setting) => Some(self.plain_value(setting)?),
+				None => registry_default(key),
 			};
 			if let Some(value) = value {
 				resolved.insert((*key).to_string(), value);
@@ -69,9 +67,7 @@ impl SettingsService {
 		if let Some(value) = self.get(key).await? {
 			return Ok(Some(value));
 		}
-		Ok(settings::lookup(key)
-			.and_then(|spec| spec.default)
-			.map(str::to_string))
+		Ok(registry_default(key))
 	}
 
 	pub async fn toggle(&self, key: &str) -> Result<bool> {
@@ -137,4 +133,10 @@ impl SettingsService {
 			.map(|setting| setting.key)
 			.collect())
 	}
+}
+
+fn registry_default(key: &str) -> Option<String> {
+	settings::lookup(key)
+		.and_then(|spec| spec.default)
+		.map(str::to_string)
 }
