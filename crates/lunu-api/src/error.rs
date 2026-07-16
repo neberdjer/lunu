@@ -182,10 +182,9 @@ mod tests {
 		let locale = lunu_i18n::default_locale();
 		for error in all_variants() {
 			let code = error.code();
-			let key = format!("error-{}", code.replace('_', "-"));
 			assert!(
-				lunu_i18n::has_key(&locale, &key),
-				"no catalog message for error code '{code}', expected key '{key}'"
+				lunu_i18n::has_error_message(&locale, code),
+				"no catalog message for error code '{code}'"
 			);
 		}
 	}
@@ -207,10 +206,9 @@ mod tests {
 		];
 		for status in statuses {
 			let code = status_slug(status);
-			let key = format!("error-{}", code.replace('_', "-"));
 			assert!(
-				lunu_i18n::has_key(&locale, &key),
-				"no catalog message for status slug '{code}', expected key '{key}'"
+				lunu_i18n::has_error_message(&locale, code),
+				"no catalog message for status slug '{code}'"
 			);
 		}
 	}
@@ -219,9 +217,8 @@ mod tests {
 	fn every_reason_key_has_a_catalog_message() {
 		let locale = lunu_i18n::default_locale();
 		for reason in lunu_core::consts::reasons::ALL {
-			let key = format!("error-{reason}");
 			assert!(
-				lunu_i18n::has_key(&locale, &key),
+				lunu_i18n::has_error_message(&locale, reason),
 				"no catalog message for reason key '{reason}'"
 			);
 		}

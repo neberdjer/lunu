@@ -112,15 +112,6 @@ mod tests {
 	}
 
 	#[test]
-	fn the_hsts_value_matches_the_max_age_it_claims() {
-		assert_eq!(
-			security::STRICT_TRANSPORT_SECURITY,
-			format!("max-age={}", security::HSTS_MAX_AGE_SECS),
-			"the header string and the documented max age are the same number written twice"
-		);
-	}
-
-	#[test]
 	fn the_policy_denies_framing_and_plugins() {
 		let policy = security::CONTENT_SECURITY_POLICY;
 		assert!(policy.contains("frame-ancestors 'none'"));

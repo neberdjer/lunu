@@ -44,14 +44,22 @@ pub fn t_vars(lang: &LanguageIdentifier, key: &str, vars: &[(&str, &str)]) -> St
 	LOCALES.lookup_with_args(lang, key, &args)
 }
 
+fn error_key(code: &str) -> String {
+	format!("error-{}", code.replace('_', "-"))
+}
+
+pub fn has_error_message(lang: &LanguageIdentifier, code: &str) -> bool {
+	has_key(lang, &error_key(code))
+}
+
 pub fn error_message(lang: &LanguageIdentifier, code: &str, detail: Option<&str>) -> String {
 	if let Some(reason) = detail
-		&& let Some(message) = LOCALES.try_lookup(lang, &format!("error-{reason}"))
+		&& let Some(message) = LOCALES.try_lookup(lang, &error_key(reason))
 	{
 		return message;
 	}
 
-	t(lang, &format!("error-{}", code.replace('_', "-")))
+	t(lang, &error_key(code))
 }
 
 fn find_available(want: &LanguageIdentifier) -> Option<LanguageIdentifier> {
