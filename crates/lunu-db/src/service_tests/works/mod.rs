@@ -254,4 +254,5 @@ async fn a_backfilled_work_is_normalized_by_rust_not_by_sql() {
 	);
 }
 
+mod merging;
 mod resolving;

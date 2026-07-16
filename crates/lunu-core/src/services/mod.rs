@@ -90,7 +90,7 @@ pub(crate) fn normalize_email(email: Option<String>) -> Result<Option<String>> {
 	Ok(Some(trimmed.to_string()))
 }
 
-pub(crate) fn new_id() -> String {
+pub fn new_id() -> String {
 	uuid::Uuid::new_v4().to_string()
 }
 

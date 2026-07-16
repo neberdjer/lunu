@@ -14,6 +14,7 @@ pub trait WorkRepo: Send + Sync {
 		title: &str,
 		author: Option<&str>,
 	) -> Result<Option<String>>;
+	async fn find_identified_by_title(&self, title: &str, author: &str) -> Result<Option<String>>;
 	async fn link_external_id(&self, work_id: &str, id: &ExternalId) -> Result<()>;
 	async fn link_external_id_if_absent(&self, work_id: &str, id: &ExternalId) -> Result<()>;
 	async fn external_ids(&self, work_id: &str) -> Result<Vec<ExternalId>>;

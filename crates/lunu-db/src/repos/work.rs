@@ -8,7 +8,7 @@ use lunu_core::repo::WorkRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
-use super::{map_row_opt, map_rows};
+use super::{WORK_IS_IDENTIFIED, map_row_opt, map_rows};
 use crate::convert::{format_dt, parse_dt};
 use crate::{Db, db_error, map_write_error};
 
@@ -19,6 +19,15 @@ pub struct SqlxWorkRepo {
 impl SqlxWorkRepo {
 	pub fn new(db: Db) -> Self {
 		Self { db }
+	}
+
+	async fn find_by_title(&self, sql: &str, title: &str, author: &str) -> Result<Option<String>> {
+		sqlx::query_scalar(sql)
+			.bind(normalize(title))
+			.bind(normalize(author))
+			.fetch_optional(&self.db)
+			.await
+			.map_err(db_error)
 	}
 }
 
@@ -112,17 +121,21 @@ impl WorkRepo for SqlxWorkRepo {
 		title: &str,
 		author: Option<&str>,
 	) -> Result<Option<String>> {
-		sqlx::query_scalar(
-			"SELECT id FROM works \
+		let sql = "SELECT id FROM works \
 			 WHERE normalized_title = $1 AND normalized_author = $2 \
 			 AND NOT EXISTS (SELECT 1 FROM work_external_ids e WHERE e.work_id = works.id) \
-			 ORDER BY created_at LIMIT 1",
-		)
-		.bind(normalize(title))
-		.bind(normalize(author.unwrap_or_default()))
-		.fetch_optional(&self.db)
-		.await
-		.map_err(db_error)
+			 ORDER BY created_at, id LIMIT 1";
+		self.find_by_title(sql, title, author.unwrap_or_default())
+			.await
+	}
+
+	async fn find_identified_by_title(&self, title: &str, author: &str) -> Result<Option<String>> {
+		let sql = format!(
+			"SELECT id FROM works \
+			 WHERE normalized_title = $1 AND normalized_author = $2 AND {WORK_IS_IDENTIFIED} \
+			 ORDER BY created_at, id LIMIT 1"
+		);
+		self.find_by_title(&sql, title, author).await
 	}
 
 	async fn link_external_id_if_absent(&self, work_id: &str, id: &ExternalId) -> Result<()> {

@@ -31,18 +31,18 @@ impl WorkService {
 			return Ok(None);
 		}
 
-		let mut known = None;
-		for id in &book.ids {
-			known = self.works.find_by_external_id(id).await?;
-			if known.is_some() {
-				break;
-			}
-		}
+		let found: HashMap<ExternalId, String> = self
+			.works
+			.find_by_external_ids(&book.ids)
+			.await?
+			.into_iter()
+			.collect();
+		let known = book.ids.iter().find_map(|id| found.get(id).cloned());
 
 		let work_id = match known {
 			Some(existing) => existing,
 			None => {
-				self.create(
+				self.adopt_or_create(
 					&book.title,
 					book.authors.first().map(String::as_str),
 					book.cover_url.as_deref(),
@@ -69,7 +69,7 @@ impl WorkService {
 			return Ok(existing);
 		}
 
-		let work_id = self.create(title, author, cover_url).await?;
+		let work_id = self.adopt_or_create(title, author, cover_url).await?;
 		self.works.link_external_id(&work_id, id).await?;
 		Ok(work_id)
 	}
@@ -79,6 +79,20 @@ impl WorkService {
 			return Ok(existing);
 		}
 		self.create(title, author, None).await
+	}
+
+	async fn adopt_or_create(
+		&self,
+		title: &str,
+		author: Option<&str>,
+		cover_url: Option<&str>,
+	) -> Result<String> {
+		if let Some(author) = author
+			&& let Some(existing) = self.works.find_identified_by_title(title, author).await?
+		{
+			return Ok(existing);
+		}
+		self.create(title, author, cover_url).await
 	}
 
 	async fn create(

@@ -100,3 +100,45 @@ async fn two_sources_sharing_one_id_converge_whatever_order_they_report_it() {
 		"the newly seen asin joins the work the isbn already named"
 	);
 }
+
+#[tokio::test]
+async fn a_new_edition_joins_the_existing_work_by_title_and_author() {
+	let db = memory_db().await;
+	let works = work_service(&db);
+
+	let mut serkis = book("The Hobbit");
+	serkis.ids = vec![ExternalId::asin("B-SERKIS")];
+	serkis.authors = vec!["J.R.R. Tolkien".to_string()];
+	let first = works.for_book(&serkis).await.unwrap().unwrap();
+
+	let mut inglis = book("The Hobbit");
+	inglis.ids = vec![ExternalId::asin("B-INGLIS")];
+	inglis.authors = vec!["J.R.R. Tolkien".to_string()];
+	let second = works.for_book(&inglis).await.unwrap().unwrap();
+
+	assert_eq!(
+		first, second,
+		"a different edition of the same title and author is the same work"
+	);
+}
+
+#[tokio::test]
+async fn a_hand_typed_work_is_not_adopted_by_an_identified_edition() {
+	let db = memory_db().await;
+	let works = work_service(&db);
+
+	let manual = works
+		.for_unidentified("The Hobbit", Some("J.R.R. Tolkien"))
+		.await
+		.unwrap();
+
+	let mut identified = book("The Hobbit");
+	identified.ids = vec![ExternalId::asin("B-SERKIS")];
+	identified.authors = vec!["J.R.R. Tolkien".to_string()];
+	let backed = works.for_book(&identified).await.unwrap().unwrap();
+
+	assert_ne!(
+		manual, backed,
+		"nothing proves the hand-typed title is the identified book"
+	);
+}

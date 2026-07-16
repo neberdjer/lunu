@@ -54,6 +54,9 @@ pub(crate) fn map_row_opt<T>(
 	row.as_ref().map(map).transpose()
 }
 
+pub(crate) const WORK_IS_IDENTIFIED: &str = "normalized_author <> '' \
+	 AND EXISTS (SELECT 1 FROM work_external_ids e WHERE e.work_id = works.id)";
+
 pub(crate) fn map_rows<T>(rows: Vec<AnyRow>, map: fn(&AnyRow) -> Result<T>) -> Result<Vec<T>> {
 	rows.iter().map(map).collect()
 }
