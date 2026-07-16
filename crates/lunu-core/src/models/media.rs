@@ -44,7 +44,7 @@ pub struct LibraryItem {
 	pub library_path: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Media {
 	pub id: String,
 	pub asin: Option<String>,

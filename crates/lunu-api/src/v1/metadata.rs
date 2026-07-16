@@ -97,7 +97,7 @@ async fn presence(
 	asins: &[String],
 ) -> Result<(HashMap<String, RequestStatus>, HashSet<String>), ApiError> {
 	Ok(tokio::try_join!(
-		state.requests.status_by_asin(user_id),
+		state.requests.status_by_asin(user_id, asins),
 		state.media.available_among(asins),
 	)?)
 }
@@ -181,7 +181,8 @@ pub async fn series_request(
 	let mut requested = Vec::new();
 	let mut already_present = 0;
 	let mut failed = Vec::new();
-	for asin in asins {
+	for book in books {
+		let asin = book.asin.clone();
 		if statuses.contains_key(&asin) || available.contains(&asin) {
 			already_present += 1;
 			continue;
@@ -191,7 +192,7 @@ pub async fn series_request(
 			notes: body.notes.clone(),
 			quality_profile_id: body.quality_profile_id.clone(),
 		};
-		match state.requests.create(&user.0, input).await {
+		match state.requests.create_with_book(&user.0, input, book).await {
 			Ok(_) => requested.push(asin),
 			Err(error) => failed.push(FailedRequest {
 				asin,

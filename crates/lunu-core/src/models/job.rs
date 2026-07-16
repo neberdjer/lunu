@@ -74,6 +74,7 @@ pub enum JobType {
 	Notify,
 	LibrarySync,
 	SessionCleanup,
+	JobCleanup,
 }
 
 impl JobType {
@@ -85,13 +86,17 @@ impl JobType {
 			JobType::Notify => "notify",
 			JobType::LibrarySync => "library-sync",
 			JobType::SessionCleanup => "session-cleanup",
+			JobType::JobCleanup => "job-cleanup",
 		}
 	}
 
 	pub fn propagates_failure_to_request(&self) -> bool {
 		match self {
 			JobType::Grab | JobType::MonitorDownload | JobType::Import => true,
-			JobType::Notify | JobType::LibrarySync | JobType::SessionCleanup => false,
+			JobType::Notify
+			| JobType::LibrarySync
+			| JobType::SessionCleanup
+			| JobType::JobCleanup => false,
 		}
 	}
 }
@@ -113,6 +118,7 @@ impl FromStr for JobType {
 			"notify" => Ok(JobType::Notify),
 			"library-sync" => Ok(JobType::LibrarySync),
 			"session-cleanup" => Ok(JobType::SessionCleanup),
+			"job-cleanup" => Ok(JobType::JobCleanup),
 			_ => Err(Error::Validation(reasons::JOB_TYPE_UNKNOWN.to_string())),
 		}
 	}
@@ -184,6 +190,7 @@ mod tests {
 			JobType::Notify,
 			JobType::LibrarySync,
 			JobType::SessionCleanup,
+			JobType::JobCleanup,
 		] {
 			assert!(
 				!job_type.propagates_failure_to_request(),
@@ -201,6 +208,7 @@ mod tests {
 			JobType::Notify,
 			JobType::LibrarySync,
 			JobType::SessionCleanup,
+			JobType::JobCleanup,
 		] {
 			assert_eq!(JobType::from_str(job_type.as_str()).unwrap(), job_type);
 		}

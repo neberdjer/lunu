@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use lunu_core::Result;
@@ -171,6 +173,35 @@ impl RequestRepo for SqlxRequestRepo {
 		.await
 		.map_err(db_error)?;
 		map_row_opt(row, map_request)
+	}
+
+	async fn status_by_asins(
+		&self,
+		user_id: &str,
+		asins: &[String],
+	) -> Result<Vec<(String, RequestStatus)>> {
+		if asins.is_empty() {
+			return Ok(Vec::new());
+		}
+		let placeholders: Vec<String> = (2..=asins.len() + 1).map(|n| format!("${n}")).collect();
+		let sql = format!(
+			"SELECT asin, status FROM requests WHERE user_id = $1 AND asin IN ({}) \
+			 ORDER BY created_at DESC",
+			placeholders.join(", ")
+		);
+		let mut query = sqlx::query(&sql).bind(user_id);
+		for asin in asins {
+			query = query.bind(asin);
+		}
+		let rows = query.fetch_all(&self.db).await.map_err(db_error)?;
+
+		let mut statuses = Vec::with_capacity(rows.len());
+		for row in rows {
+			let asin: String = row.try_get("asin").map_err(db_error)?;
+			let status: String = row.try_get("status").map_err(db_error)?;
+			statuses.push((asin, RequestStatus::from_str(&status)?));
+		}
+		Ok(statuses)
 	}
 
 	async fn list_for_user(&self, user_id: &str) -> Result<Vec<Request>> {

@@ -50,16 +50,23 @@ impl LibraryService {
 				.await?;
 			match existing {
 				Some(media) if media.overridden => summary.skipped += 1,
-				Some(mut media) => {
-					media.asin = item.asin;
-					media.abs_item_id = Some(item.abs_item_id);
-					media.title = item.title;
-					media.author = item.author;
-					media.cover_url = item.cover_url;
-					media.series_name = item.series_name;
-					media.series_sequence = item.series_sequence;
-					media.library_path = item.library_path;
-					self.media.update(&media).await?;
+				Some(media) => {
+					let updated = Media {
+						asin: item.asin,
+						abs_item_id: Some(item.abs_item_id),
+						title: item.title,
+						author: item.author,
+						cover_url: item.cover_url,
+						series_name: item.series_name,
+						series_sequence: item.series_sequence,
+						library_path: item.library_path,
+						..media.clone()
+					};
+					if updated == media {
+						summary.skipped += 1;
+						continue;
+					}
+					self.media.update(&updated).await?;
 					summary.updated += 1;
 				}
 				None => {

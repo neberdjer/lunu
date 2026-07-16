@@ -32,11 +32,41 @@ pub async fn connect(database_url: &str) -> Result<Db> {
 	install_default_drivers();
 	ensure_sqlite_parent(database_url)?;
 
+	let is_sqlite = database_url.starts_with("sqlite:");
 	AnyPoolOptions::new()
 		.max_connections(DEFAULT_MAX_CONNECTIONS)
+		.after_connect(move |conn, _meta| {
+			Box::pin(async move {
+				if is_sqlite {
+					apply_sqlite_pragmas(conn).await?;
+				}
+				Ok(())
+			})
+		})
 		.connect(database_url)
 		.await
 		.map_err(db_error)
+}
+
+async fn apply_sqlite_pragmas(conn: &mut sqlx::AnyConnection) -> sqlx::Result<()> {
+	let mode: Option<String> = sqlx::query_scalar("PRAGMA journal_mode = WAL")
+		.fetch_optional(&mut *conn)
+		.await?;
+
+	if !mode
+		.as_deref()
+		.is_some_and(|mode| mode.eq_ignore_ascii_case("wal"))
+	{
+		tracing::warn!(
+			?mode,
+			"sqlite is not in WAL mode, so writers will block readers; WAL needs a local filesystem and does not work over NFS or SMB"
+		);
+	}
+
+	sqlx::query("PRAGMA synchronous = NORMAL")
+		.execute(&mut *conn)
+		.await?;
+	Ok(())
 }
 
 pub async fn run_migrations(db: &Db) -> Result<()> {

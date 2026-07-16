@@ -235,3 +235,32 @@ async fn migrations_apply_and_every_table_is_queryable() {
 			.unwrap_or_else(|error| panic!("table {table} is not queryable: {error}"));
 	}
 }
+
+#[tokio::test]
+async fn sqlite_connections_enable_wal_so_writers_do_not_block_readers() {
+	let path = std::env::temp_dir().join(format!("lunu_wal_{}.db", std::process::id()));
+	let _ = std::fs::remove_file(&path);
+	let url = format!("sqlite://{}?mode=rwc", path.display());
+
+	let db = crate::connect(&url).await.unwrap();
+	let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+		.fetch_one(&db)
+		.await
+		.unwrap();
+	let synchronous: i64 = sqlx::query_scalar("PRAGMA synchronous")
+		.fetch_one(&db)
+		.await
+		.unwrap();
+	db.close().await;
+
+	let _ = std::fs::remove_file(&path);
+	let _ = std::fs::remove_file(path.with_extension("db-wal"));
+	let _ = std::fs::remove_file(path.with_extension("db-shm"));
+
+	assert_eq!(
+		mode.to_ascii_lowercase(),
+		"wal",
+		"sqlite must run in WAL mode"
+	);
+	assert_eq!(synchronous, 1, "WAL pairs with synchronous=NORMAL (1)");
+}

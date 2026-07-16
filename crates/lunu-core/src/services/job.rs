@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 
-use crate::consts::jobs::DEFAULT_MAX_ATTEMPTS;
+use crate::consts::jobs::{DEFAULT_MAX_ATTEMPTS, JOB_RETENTION_DAYS};
 use crate::consts::reasons;
 use crate::models::{Job, JobStatus, JobType};
 use crate::repo::JobRepo;
@@ -25,6 +25,11 @@ impl JobService {
 
 	pub async fn has_active(&self, job_type: JobType, request_id: &str) -> Result<bool> {
 		self.jobs.has_active(job_type.as_str(), request_id).await
+	}
+
+	pub async fn prune_finished(&self) -> Result<u64> {
+		let cutoff = Utc::now() - Duration::days(JOB_RETENTION_DAYS);
+		self.jobs.delete_finished_before(cutoff).await
 	}
 
 	pub async fn enqueue_for<T: Serialize + ?Sized>(

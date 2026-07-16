@@ -37,6 +37,46 @@ fn session_row(id: &str, user_id: &str, created_at: chrono::DateTime<Utc>) -> Se
 }
 
 #[tokio::test]
+async fn pruning_removes_only_old_finished_jobs() {
+	let db = memory_db().await;
+	let repo = SqlxJobRepo::new(db.clone());
+	let now = Utc::now();
+	let old = now - Duration::days(30);
+
+	for (id, status) in [
+		("old-done", JobStatus::Completed),
+		("old-failed", JobStatus::Failed),
+		("old-pending", JobStatus::Pending),
+	] {
+		let mut job = job_row(id);
+		job.status = status;
+		job.updated_at = old;
+		repo.create(&job).await.unwrap();
+	}
+	let mut fresh = job_row("fresh-done");
+	fresh.status = JobStatus::Completed;
+	fresh.updated_at = now;
+	repo.create(&fresh).await.unwrap();
+
+	let pruned = repo
+		.delete_finished_before(now - Duration::days(14))
+		.await
+		.unwrap();
+	assert_eq!(pruned, 2, "only the old terminal jobs are pruned");
+
+	assert!(repo.find_by_id("old-done").await.unwrap().is_none());
+	assert!(repo.find_by_id("old-failed").await.unwrap().is_none());
+	assert!(
+		repo.find_by_id("old-pending").await.unwrap().is_some(),
+		"pending work must never be pruned no matter how old"
+	);
+	assert!(
+		repo.find_by_id("fresh-done").await.unwrap().is_some(),
+		"recent history stays inside the retention window"
+	);
+}
+
+#[tokio::test]
 async fn renew_lease_only_for_the_holding_worker() {
 	let db = memory_db().await;
 	let repo = SqlxJobRepo::new(db.clone());

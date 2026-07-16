@@ -143,12 +143,14 @@ impl RequestService {
 			.await;
 	}
 
-	pub async fn status_by_asin(&self, user_id: &str) -> Result<HashMap<String, RequestStatus>> {
+	pub async fn status_by_asin(
+		&self,
+		user_id: &str,
+		asins: &[String],
+	) -> Result<HashMap<String, RequestStatus>> {
 		let mut statuses = HashMap::new();
-		for request in self.requests.list_for_user(user_id).await? {
-			if let Some(asin) = request.asin {
-				statuses.entry(asin).or_insert(request.status);
-			}
+		for (asin, status) in self.requests.status_by_asins(user_id, asins).await? {
+			statuses.entry(asin).or_insert(status);
 		}
 		Ok(statuses)
 	}

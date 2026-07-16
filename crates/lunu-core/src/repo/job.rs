@@ -28,5 +28,6 @@ pub trait JobRepo: Send + Sync {
 		max_attempts: i64,
 	) -> Result<()>;
 	async fn fail(&self, id: &str, locked_by: &str, error: &str, at: DateTime<Utc>) -> Result<()>;
+	async fn delete_finished_before(&self, cutoff: DateTime<Utc>) -> Result<u64>;
 	async fn reap_stale(&self, older_than: DateTime<Utc>, at: DateTime<Utc>) -> Result<u64>;
 }

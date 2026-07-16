@@ -6,8 +6,8 @@ use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MonitorPayload, NotificationEvent,
 };
 use lunu_core::services::{
-	AuthService, GrabService, ImportService, LibraryService, MonitorService, NotificationService,
-	RequestService,
+	AuthService, GrabService, ImportService, JobService, LibraryService, MonitorService,
+	NotificationService, RequestService,
 };
 use lunu_core::traits::JobHandler;
 
@@ -19,6 +19,7 @@ pub struct PipelineHandler {
 	requests: Arc<RequestService>,
 	library: Arc<LibraryService>,
 	auth: Arc<AuthService>,
+	jobs: Arc<JobService>,
 }
 
 impl PipelineHandler {
@@ -31,6 +32,7 @@ impl PipelineHandler {
 		requests: Arc<RequestService>,
 		library: Arc<LibraryService>,
 		auth: Arc<AuthService>,
+		jobs: Arc<JobService>,
 	) -> Self {
 		Self {
 			grabs,
@@ -40,6 +42,7 @@ impl PipelineHandler {
 			requests,
 			library,
 			auth,
+			jobs,
 		}
 	}
 
@@ -80,6 +83,14 @@ impl PipelineHandler {
 			.await
 	}
 
+	async fn job_cleanup(&self) -> Result<()> {
+		let pruned = self.jobs.prune_finished().await?;
+		if pruned > 0 {
+			tracing::info!(pruned, "pruned finished jobs past the retention window");
+		}
+		Ok(())
+	}
+
 	async fn library_sync(&self) -> Result<()> {
 		let summary = self.library.sync().await?;
 		tracing::info!(
@@ -103,6 +114,7 @@ impl JobHandler for PipelineHandler {
 			JobType::Notify => self.notify(&job.payload).await,
 			JobType::LibrarySync => self.library_sync().await,
 			JobType::SessionCleanup => self.auth.cleanup_expired_sessions().await,
+			JobType::JobCleanup => self.job_cleanup().await,
 		}
 	}
 

@@ -94,6 +94,9 @@ impl JobRepo for RecordingRepo {
 		*self.action.lock().unwrap() = Some("fail".to_string());
 		Ok(())
 	}
+	async fn delete_finished_before(&self, _cutoff: DateTime<Utc>) -> Result<u64> {
+		Ok(0)
+	}
 	async fn reap_stale(&self, _older_than: DateTime<Utc>, _at: DateTime<Utc>) -> Result<u64> {
 		Ok(0)
 	}

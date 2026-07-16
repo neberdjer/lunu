@@ -134,11 +134,32 @@ async fn status_by_asin_scopes_to_user_and_keeps_newest() {
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
 	let service = request_service(&db, jobs);
 
-	let map = service.status_by_asin("u1").await.unwrap();
+	let page = [
+		"asinX".to_string(),
+		"asinY".to_string(),
+		"asinZ".to_string(),
+	];
+	let map = service.status_by_asin("u1", &page).await.unwrap();
 	assert_eq!(map.len(), 2);
 	assert_eq!(map.get("asinX"), Some(&RequestStatus::Available));
 	assert_eq!(map.get("asinY"), Some(&RequestStatus::Pending));
-	assert!(!map.contains_key("asinZ"));
+	assert!(
+		!map.contains_key("asinZ"),
+		"another user's request must not leak into this user's statuses"
+	);
+
+	assert!(
+		service.status_by_asin("u1", &[]).await.unwrap().is_empty(),
+		"an empty page must not query at all"
+	);
+	assert!(
+		!service
+			.status_by_asin("u1", &["asinY".to_string()])
+			.await
+			.unwrap()
+			.contains_key("asinX"),
+		"only the requested page's asins are returned"
+	);
 
 	assert_eq!(
 		service.status_for_asin("u1", "asinX").await.unwrap(),

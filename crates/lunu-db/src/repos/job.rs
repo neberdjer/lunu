@@ -253,6 +253,17 @@ impl JobRepo for SqlxJobRepo {
 		Ok(())
 	}
 
+	async fn delete_finished_before(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+		let deleted = sqlx::query(
+			"DELETE FROM jobs WHERE status IN ('completed', 'failed') AND updated_at < $1",
+		)
+		.bind(format_dt(cutoff))
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(deleted.rows_affected())
+	}
+
 	async fn reap_stale(&self, older_than: DateTime<Utc>, at: DateTime<Utc>) -> Result<u64> {
 		let reaped = sqlx::query(
 			"UPDATE jobs SET status = 'pending', locked_by = NULL, locked_at = NULL, \

@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use super::{NewRequest, RequestService};
 use crate::consts::reasons;
-use crate::models::{Request, RequestStatus, User, UserSettings};
+use crate::models::{Book, Request, RequestStatus, User, UserSettings};
 use crate::services::{new_id, nonempty};
 use crate::{Error, Result};
 
@@ -18,12 +18,21 @@ type Approval = (RequestStatus, Option<(i64, DateTime<Utc>)>);
 
 impl RequestService {
 	pub async fn create(&self, user: &User, input: NewRequest) -> Result<Request> {
-		let asin = input.asin.as_str();
 		let book = self
 			.metadata
-			.get_book(asin)
+			.get_book(&input.asin)
 			.await?
 			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
+		self.create_with_book(user, input, book).await
+	}
+
+	pub async fn create_with_book(
+		&self,
+		user: &User,
+		input: NewRequest,
+		book: Book,
+	) -> Result<Request> {
+		let asin = input.asin.as_str();
 
 		if let Some(existing) = self.requests.find_by_user_and_asin(&user.id, asin).await?
 			&& !existing.status.is_reopenable()
