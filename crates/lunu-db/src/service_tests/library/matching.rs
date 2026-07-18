@@ -10,6 +10,24 @@ fn found(title: &str, asin: &str, author: &str) -> Book {
 	}
 }
 
+fn in_series(title: &str, asin: &str, author: &str, series: &str, position: &str) -> Book {
+	Book {
+		series: vec![SeriesRef {
+			name: series.to_string(),
+			position: Some(position.to_string()),
+			asin: None,
+		}],
+		..found(title, asin, author)
+	}
+}
+
+fn shelved_at(abs_id: &str, position: &str) -> LibraryItem {
+	LibraryItem {
+		series_sequence: Some(position.to_string()),
+		..item(abs_id, None)
+	}
+}
+
 fn stub(id: &'static str, books: Option<Vec<Book>>) -> Arc<SearchStub> {
 	Arc::new(SearchStub {
 		id,
@@ -121,6 +139,32 @@ async fn resync_preserves_an_earlier_search_match() {
 	let media = media_for(&db, "b").await;
 	assert_eq!(media.asin.as_deref(), Some("B-FOUND"));
 	assert_eq!(media.matched_by, Some(MatchedBy::Title));
+}
+
+#[tokio::test]
+async fn a_series_position_matches_an_item_the_shelf_titled_differently() {
+	let db = memory_db().await;
+	let books = vec![in_series(
+		"Foundation",
+		"B-SERIES",
+		"Isaac Asimov",
+		"Foundation",
+		"1",
+	)];
+	let service =
+		library_service_with(&db, vec![shelved_at("b", "1")], stub("finder", Some(books)));
+
+	let summary = service.sync().await.unwrap();
+	assert_eq!(summary.matched, 1);
+
+	let media = media_for(&db, "b").await;
+	assert_eq!(
+		media.matched_by,
+		Some(MatchedBy::Series),
+		"a shelf title no search result resembles still matches on series position"
+	);
+	assert_eq!(media.asin.as_deref(), Some("B-SERIES"));
+	assert!(media.work_id.is_some());
 }
 
 async fn work_known_by_isbn(db: &Db, isbn: &str) -> String {

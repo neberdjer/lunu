@@ -51,6 +51,7 @@ pub enum MatchedBy {
 	Asin,
 	Isbn,
 	Title,
+	Series,
 	Fuzzy,
 	Manual,
 }
@@ -61,6 +62,7 @@ impl MatchedBy {
 			MatchedBy::Asin => "asin",
 			MatchedBy::Isbn => "isbn",
 			MatchedBy::Title => "title",
+			MatchedBy::Series => "series",
 			MatchedBy::Fuzzy => "fuzzy",
 			MatchedBy::Manual => "manual",
 		}
@@ -75,6 +77,7 @@ impl FromStr for MatchedBy {
 			"asin" => Ok(MatchedBy::Asin),
 			"isbn" => Ok(MatchedBy::Isbn),
 			"title" => Ok(MatchedBy::Title),
+			"series" => Ok(MatchedBy::Series),
 			"fuzzy" => Ok(MatchedBy::Fuzzy),
 			"manual" => Ok(MatchedBy::Manual),
 			_ => Err(Error::Validation(reasons::MATCH_KIND_UNKNOWN.to_string())),
