@@ -4,6 +4,7 @@ pub const METADATA_GENRE_LIMIT: usize = 10;
 pub const AUDNEXUS_PROVIDER: &str = "audnexus";
 pub const OPENLIBRARY_PROVIDER: &str = "openlibrary";
 pub const GOOGLE_BOOKS_PROVIDER: &str = "google_books";
+pub const HARDCOVER_PROVIDER: &str = "hardcover";
 
 pub const METADATA_AUDNEXUS_ENABLED: &str = "metadata_audnexus_enabled";
 pub const METADATA_AUDNEXUS_PRIORITY: &str = "metadata_audnexus_priority";
@@ -12,6 +13,9 @@ pub const METADATA_OPENLIBRARY_PRIORITY: &str = "metadata_openlibrary_priority";
 pub const METADATA_GOOGLE_BOOKS_ENABLED: &str = "metadata_google_books_enabled";
 pub const METADATA_GOOGLE_BOOKS_PRIORITY: &str = "metadata_google_books_priority";
 pub const METADATA_GOOGLE_BOOKS_API_KEY: &str = "metadata_google_books_api_key";
+pub const METADATA_HARDCOVER_ENABLED: &str = "metadata_hardcover_enabled";
+pub const METADATA_HARDCOVER_PRIORITY: &str = "metadata_hardcover_priority";
+pub const METADATA_HARDCOVER_API_KEY: &str = "metadata_hardcover_api_key";
 
 pub const MIN_PROVIDER_PRIORITY: i64 = 1;
 pub const MAX_PROVIDER_PRIORITY: i64 = 100;
@@ -39,6 +43,11 @@ pub const METADATA_PROVIDER_SETTINGS: &[ProviderSettings] = &[
 		provider: GOOGLE_BOOKS_PROVIDER,
 		enabled: METADATA_GOOGLE_BOOKS_ENABLED,
 		priority: METADATA_GOOGLE_BOOKS_PRIORITY,
+	},
+	ProviderSettings {
+		provider: HARDCOVER_PROVIDER,
+		enabled: METADATA_HARDCOVER_ENABLED,
+		priority: METADATA_HARDCOVER_PRIORITY,
 	},
 ];
 

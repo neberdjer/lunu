@@ -28,6 +28,10 @@ pub(crate) fn nonempty(value: Option<String>) -> Option<String> {
 		.filter(|value| !value.is_empty())
 }
 
+pub(crate) fn to_https(url: String) -> String {
+	url.replacen("http://", "https://", 1)
+}
+
 pub(crate) async fn optional_setting(
 	settings: &Arc<SettingsService>,
 	key: &str,

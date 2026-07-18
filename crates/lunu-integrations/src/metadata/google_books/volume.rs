@@ -63,7 +63,7 @@ impl Volume {
 		let cover_url = info
 			.image_links
 			.and_then(|links| links.thumbnail.or(links.small_thumbnail))
-			.map(|url| url.replacen("http://", "https://", 1));
+			.map(crate::to_https);
 
 		Some(Book {
 			ids,

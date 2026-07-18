@@ -22,8 +22,9 @@ optional). The web frontend is in progress;
   with title, author, and fuzzy matching for items that carry no ASIN.
 - Identity: books are deduplicated by work across editions and metadata sources, so one title is
   one request rather than four.
-- Metadata: Audnexus with Audible catalogue search, and OpenLibrary as an ISBN-keyed fallback,
-  behind a pluggable provider trait with per-provider priority and failover.
+- Metadata: Audnexus with Audible catalogue search, plus OpenLibrary, Google Books, and Hardcover
+  as ISBN-keyed fallbacks, behind a pluggable provider trait with per-provider priority and
+  failover.
 - Auth: local accounts, optional Audiobookshelf login, OIDC single sign-on, reverse-proxy
   forward-auth, and TOTP or email two-factor authentication.
 - Notifications: email, Discord, Slack, ntfy, Apprise, and a generic webhook, each activating when
