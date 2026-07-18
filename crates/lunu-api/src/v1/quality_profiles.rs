@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
 use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::scoring::{
-	DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_SEEDER_WEIGHT,
+	DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_PROTOCOL_WEIGHT,
+	DEFAULT_SEEDER_WEIGHT,
 };
+use lunu_core::models::Protocol;
 use lunu_core::services::QualityProfileInput;
 use serde::Deserialize;
 
@@ -28,6 +32,10 @@ fn default_keyword_weight() -> i64 {
 	DEFAULT_KEYWORD_WEIGHT
 }
 
+fn default_protocol_weight() -> i64 {
+	DEFAULT_PROTOCOL_WEIGHT
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct QualityProfileBody {
 	name: String,
@@ -50,12 +58,22 @@ pub struct QualityProfileBody {
 	#[serde(default = "default_keyword_weight")]
 	keyword_weight: i64,
 	#[serde(default)]
+	preferred_protocol: Option<String>,
+	#[serde(default = "default_protocol_weight")]
+	protocol_weight: i64,
+	#[serde(default)]
 	is_default: bool,
 }
 
 impl QualityProfileBody {
-	fn into_input(self) -> QualityProfileInput {
-		QualityProfileInput {
+	fn into_input(self) -> Result<QualityProfileInput, Error> {
+		let preferred_protocol = self
+			.preferred_protocol
+			.as_deref()
+			.map(Protocol::from_str)
+			.transpose()?;
+
+		Ok(QualityProfileInput {
 			name: self.name,
 			allowed_formats: self.allowed_formats,
 			preferred_formats: self.preferred_formats,
@@ -67,8 +85,10 @@ impl QualityProfileBody {
 			preferred_keywords: self.preferred_keywords,
 			avoided_keywords: self.avoided_keywords,
 			keyword_weight: self.keyword_weight,
+			preferred_protocol,
+			protocol_weight: self.protocol_weight,
 			is_default: self.is_default,
-		}
+		})
 	}
 }
 
@@ -115,7 +135,7 @@ pub async fn create(
 ) -> Result<HttpResponse, ApiError> {
 	let profile = state
 		.quality_profiles
-		.create(body.into_inner().into_input())
+		.create(body.into_inner().into_input()?)
 		.await?;
 	Ok(HttpResponse::Created().json(QualityProfileResponse::from(&profile)))
 }
@@ -130,7 +150,7 @@ pub async fn update(
 ) -> Result<HttpResponse, ApiError> {
 	let profile = state
 		.quality_profiles
-		.update(&id, body.into_inner().into_input())
+		.update(&id, body.into_inner().into_input()?)
 		.await?;
 	Ok(HttpResponse::Ok().json(QualityProfileResponse::from(&profile)))
 }

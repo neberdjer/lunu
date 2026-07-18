@@ -2,7 +2,8 @@ use crate::helpers::format::detect_format;
 use crate::models::{QualityProfile, Release, ScoredRelease};
 
 pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64> {
-	if release.seeders < profile.min_seeders {
+	let swarmed = release.protocol.has_swarm();
+	if swarmed && release.seeders < profile.min_seeders {
 		return None;
 	}
 
@@ -31,7 +32,14 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 		}
 	}
 
-	let mut score = release.seeders.saturating_mul(profile.seeder_weight);
+	let mut score = if swarmed {
+		release.seeders.saturating_mul(profile.seeder_weight)
+	} else {
+		0
+	};
+	if profile.preferred_protocol == Some(release.protocol) {
+		score = score.saturating_add(profile.protocol_weight);
+	}
 	if let Some(found) = format
 		&& let Some(position) = profile
 			.preferred_formats
@@ -106,6 +114,8 @@ mod tests {
 			preferred_keywords: Vec::new(),
 			avoided_keywords: Vec::new(),
 			keyword_weight: 40,
+			preferred_protocol: None,
+			protocol_weight: 100,
 			is_default: true,
 			created_at: Utc::now(),
 			updated_at: Utc::now(),
@@ -124,6 +134,13 @@ mod tests {
 			info_hash: None,
 			info_url: None,
 			publish_date: None,
+		}
+	}
+
+	fn usenet(title: &str) -> Release {
+		Release {
+			protocol: Protocol::Usenet,
+			..release(title, 0)
 		}
 	}
 
@@ -193,5 +210,44 @@ mod tests {
 		let mut p = profile();
 		p.avoided_keywords = vec!["".to_string(), "  ".to_string()];
 		assert!(score_release(&release("Title [M4B]", 10), &p).is_some());
+	}
+
+	#[test]
+	fn a_seeder_floor_meant_for_torrents_never_filters_out_usenet() {
+		let mut p = profile();
+		p.min_seeders = 20;
+		assert!(
+			score_release(&release("Title [M4B]", 5), &p).is_none(),
+			"the floor still culls a weak torrent"
+		);
+		assert!(
+			score_release(&usenet("Title [M4B]"), &p).is_some(),
+			"usenet has no swarm, so a seeder floor must not silently kill every nzb"
+		);
+	}
+
+	#[test]
+	fn usenet_scores_without_a_phantom_seeder_bonus() {
+		let p = profile();
+		let nzb = score_release(&usenet("Title [M4B]"), &p).unwrap();
+		let torrent = score_release(&release("Title [M4B]", 10), &p).unwrap();
+		assert_eq!(
+			torrent - nzb,
+			10 * p.seeder_weight,
+			"a torrent's edge over an nzb is exactly its swarm, not an invented one"
+		);
+	}
+
+	#[test]
+	fn a_preferred_protocol_lifts_it_over_a_better_seeded_rival() {
+		let mut p = profile();
+		p.preferred_protocol = Some(Protocol::Usenet);
+		let ranked = rank_releases(vec![release("Title [M4B]", 50), usenet("Title [M4B]")], &p);
+		assert_eq!(
+			ranked[0].release.protocol,
+			Protocol::Usenet,
+			"a stated protocol preference must outweigh raw seeder count"
+		);
+		assert_eq!(ranked[1].score + p.protocol_weight - 50, ranked[0].score);
 	}
 }

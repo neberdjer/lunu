@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::consts::reasons;
-use crate::models::QualityProfile;
+use crate::models::{Protocol, QualityProfile};
 use crate::repo::QualityProfileRepo;
 use crate::services::new_id;
 use crate::{Error, Result};
@@ -20,6 +20,8 @@ pub struct QualityProfileInput {
 	pub preferred_keywords: Vec<String>,
 	pub avoided_keywords: Vec<String>,
 	pub keyword_weight: i64,
+	pub preferred_protocol: Option<Protocol>,
+	pub protocol_weight: i64,
 	pub is_default: bool,
 }
 
@@ -67,6 +69,8 @@ impl QualityProfileService {
 			preferred_keywords: input.preferred_keywords,
 			avoided_keywords: input.avoided_keywords,
 			keyword_weight: input.keyword_weight,
+			preferred_protocol: input.preferred_protocol,
+			protocol_weight: input.protocol_weight,
 			is_default: input.is_default,
 			created_at: now,
 			updated_at: now,
@@ -98,6 +102,8 @@ impl QualityProfileService {
 		profile.preferred_keywords = input.preferred_keywords;
 		profile.avoided_keywords = input.avoided_keywords;
 		profile.keyword_weight = input.keyword_weight;
+		profile.preferred_protocol = input.preferred_protocol;
+		profile.protocol_weight = input.protocol_weight;
 		profile.is_default = input.is_default;
 		profile.updated_at = Utc::now();
 

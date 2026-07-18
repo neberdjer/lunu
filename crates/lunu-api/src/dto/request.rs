@@ -124,6 +124,8 @@ pub(crate) struct QualityProfileResponse {
 	pub preferred_keywords: Vec<String>,
 	pub avoided_keywords: Vec<String>,
 	pub keyword_weight: i64,
+	pub preferred_protocol: Option<String>,
+	pub protocol_weight: i64,
 	pub is_default: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
@@ -144,6 +146,10 @@ impl From<&QualityProfile> for QualityProfileResponse {
 			preferred_keywords: profile.preferred_keywords.clone(),
 			avoided_keywords: profile.avoided_keywords.clone(),
 			keyword_weight: profile.keyword_weight,
+			preferred_protocol: profile
+				.preferred_protocol
+				.map(|protocol| protocol.as_str().to_string()),
+			protocol_weight: profile.protocol_weight,
 			is_default: profile.is_default,
 			created_at: profile.created_at,
 			updated_at: profile.updated_at,

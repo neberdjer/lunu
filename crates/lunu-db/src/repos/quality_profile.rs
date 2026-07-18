@@ -1,12 +1,14 @@
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::models::QualityProfile;
+use lunu_core::models::{Protocol, QualityProfile};
 use lunu_core::repo::QualityProfileRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
 
 use super::{fetch_count, map_row_opt, map_rows};
-use crate::convert::{bool_to_int, format_dt, int_to_bool, join_list, parse_dt, split_list};
+use crate::convert::{
+	bool_to_int, format_dt, int_to_bool, join_list, parse_dt, parse_enum, split_list,
+};
 use crate::{Db, db_error};
 
 pub struct SqlxQualityProfileRepo {
@@ -25,6 +27,7 @@ fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 	let preferred_keywords: String = row.try_get("preferred_keywords").map_err(db_error)?;
 	let avoided_keywords: String = row.try_get("avoided_keywords").map_err(db_error)?;
 	let is_default: i64 = row.try_get("is_default").map_err(db_error)?;
+	let preferred_protocol: Option<String> = row.try_get("preferred_protocol").map_err(db_error)?;
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
 
@@ -41,6 +44,11 @@ fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 		preferred_keywords: split_list(&preferred_keywords),
 		avoided_keywords: split_list(&avoided_keywords),
 		keyword_weight: row.try_get("keyword_weight").map_err(db_error)?,
+		preferred_protocol: preferred_protocol
+			.as_deref()
+			.map(parse_enum::<Protocol>)
+			.transpose()?,
+		protocol_weight: row.try_get("protocol_weight").map_err(db_error)?,
 		is_default: int_to_bool(is_default),
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
@@ -54,8 +62,8 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			"INSERT INTO quality_profiles \
 			 (id, name, allowed_formats, preferred_formats, min_seeders, min_size_mb, max_size_mb, \
 			 seeder_weight, format_weight, preferred_keywords, avoided_keywords, keyword_weight, \
-			 is_default, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+			 preferred_protocol, protocol_weight, is_default, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
 		)
 		.bind(&profile.id)
 		.bind(&profile.name)
@@ -69,6 +77,8 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(join_list(&profile.preferred_keywords))
 		.bind(join_list(&profile.avoided_keywords))
 		.bind(profile.keyword_weight)
+		.bind(profile.preferred_protocol.map(|protocol| protocol.as_str()))
+		.bind(profile.protocol_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.created_at))
 		.bind(format_dt(profile.updated_at))
@@ -84,8 +94,8 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			 name = $1, allowed_formats = $2, preferred_formats = $3, min_seeders = $4, \
 			 min_size_mb = $5, max_size_mb = $6, seeder_weight = $7, format_weight = $8, \
 			 preferred_keywords = $9, avoided_keywords = $10, keyword_weight = $11, \
-			 is_default = $12, updated_at = $13 \
-			 WHERE id = $14",
+			 preferred_protocol = $12, protocol_weight = $13, is_default = $14, updated_at = $15 \
+			 WHERE id = $16",
 		)
 		.bind(&profile.name)
 		.bind(join_list(&profile.allowed_formats))
@@ -98,6 +108,8 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(join_list(&profile.preferred_keywords))
 		.bind(join_list(&profile.avoided_keywords))
 		.bind(profile.keyword_weight)
+		.bind(profile.preferred_protocol.map(|protocol| protocol.as_str()))
+		.bind(profile.protocol_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.updated_at))
 		.bind(&profile.id)

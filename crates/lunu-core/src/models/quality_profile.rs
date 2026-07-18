@@ -2,8 +2,9 @@ use chrono::{DateTime, Utc};
 
 use crate::consts::scoring::{
 	DEFAULT_AVOIDED_KEYWORDS, DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS,
-	DEFAULT_PREFERRED_FORMATS, DEFAULT_SEEDER_WEIGHT,
+	DEFAULT_PREFERRED_FORMATS, DEFAULT_PROTOCOL_WEIGHT, DEFAULT_SEEDER_WEIGHT,
 };
+use crate::models::Protocol;
 
 #[derive(Debug, Clone)]
 pub struct QualityProfile {
@@ -19,6 +20,8 @@ pub struct QualityProfile {
 	pub preferred_keywords: Vec<String>,
 	pub avoided_keywords: Vec<String>,
 	pub keyword_weight: i64,
+	pub preferred_protocol: Option<Protocol>,
+	pub protocol_weight: i64,
 	pub is_default: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
@@ -46,6 +49,8 @@ impl QualityProfile {
 				.map(|keyword| (*keyword).to_string())
 				.collect(),
 			keyword_weight: DEFAULT_KEYWORD_WEIGHT,
+			preferred_protocol: None,
+			protocol_weight: DEFAULT_PROTOCOL_WEIGHT,
 			is_default: true,
 			created_at: now,
 			updated_at: now,

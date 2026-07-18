@@ -21,6 +21,10 @@ impl Protocol {
 			Protocol::Usenet => "usenet",
 		}
 	}
+
+	pub fn has_swarm(&self) -> bool {
+		matches!(self, Protocol::Torrent)
+	}
 }
 
 impl FromStr for Protocol {

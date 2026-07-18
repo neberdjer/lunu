@@ -119,7 +119,7 @@ impl ProwlarrRelease {
 			indexer: self.indexer.unwrap_or_default(),
 			protocol,
 			size: self.size.unwrap_or(0),
-			seeders: self.seeders.unwrap_or(1),
+			seeders: self.seeders.unwrap_or(0),
 			leechers: self.leechers.unwrap_or(0),
 			download_url: self.download_url?,
 			info_hash: self.info_hash,
@@ -174,8 +174,9 @@ mod tests {
 		assert_eq!(releases[0].download_url, "magnet:?xt=urn:btih:abc");
 		assert_eq!(releases[1].protocol, Protocol::Usenet);
 		assert_eq!(
-			releases[1].seeders, 1,
-			"usenet has no seeders, so it must clear the default floor"
+			releases[1].seeders, 0,
+			"usenet genuinely has no swarm, and scoring gates seeders by protocol rather than \
+			 needing an invented floor-clearing count here"
 		);
 	}
 }
