@@ -31,7 +31,7 @@ use lunu_integrations::auth::{AudiobookshelfProvider, OidcClient};
 use lunu_integrations::download::{QbittorrentClient, SabnzbdClient, TransmissionClient};
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
-use lunu_integrations::metadata::{AudnexusProvider, OpenLibraryProvider};
+use lunu_integrations::metadata::{AudnexusProvider, GoogleBooksProvider, OpenLibraryProvider};
 use lunu_integrations::notify::{EmailNotifier, NtfyChannel, SmtpMailer, WebhookChannel};
 
 pub struct LogControl {
@@ -145,6 +145,7 @@ impl AppState {
 		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> = vec![
 			Arc::new(AudnexusProvider::new()),
 			Arc::new(OpenLibraryProvider::new()),
+			Arc::new(GoogleBooksProvider::new(settings.clone())),
 		];
 		let metadata = Arc::new(MetadataService::new(
 			providers,

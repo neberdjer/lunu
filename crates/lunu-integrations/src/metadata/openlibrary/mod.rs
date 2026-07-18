@@ -12,7 +12,7 @@ const PROVIDER_ID: &str = lunu_core::consts::metadata::OPENLIBRARY_PROVIDER;
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 const ACCEPTS: &[IdScheme] = &[IdScheme::Isbn];
 const BASE: &str = "https://openlibrary.org";
-const GENRE_LIMIT: usize = 10;
+pub(super) use lunu_core::consts::metadata::METADATA_GENRE_LIMIT as GENRE_LIMIT;
 
 pub struct OpenLibraryProvider {
 	client: reqwest::Client,
