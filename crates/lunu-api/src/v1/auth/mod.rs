@@ -1,10 +1,13 @@
 use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
+
+pub mod mfa;
+pub mod oidc;
 use lunu_core::Error;
 use lunu_core::consts::auth::SESSION_COOKIE;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use lunu_core::services::Registration;
+use lunu_core::services::{Authenticated, LoginOutcome, Registration};
 
 use crate::cookie::{authenticated_response, clear_session_cookie};
 use crate::dto::{SessionResponse, UserResponse};
@@ -67,17 +70,60 @@ pub async fn login(
 	body: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, ApiError> {
 	enforce_auth_rate_limit(&req, &state)?;
-	let authenticated = state.auth.login(&body.username, &body.password).await?;
+	match state.auth.login(&body.username, &body.password).await? {
+		LoginOutcome::Authenticated(authenticated) => {
+			finish_login(&req, &state, &authenticated).await;
+			Ok(authenticated_response(
+				HttpResponse::Ok(),
+				&authenticated,
+				&state.config,
+			))
+		}
+		LoginOutcome::MfaRequired(challenge) => Ok(HttpResponse::Ok().json(MfaChallengeResponse {
+			mfa_required: true,
+			ticket: challenge.ticket,
+			method: challenge.method.as_str().to_string(),
+		})),
+	}
+}
+
+async fn finish_login(req: &HttpRequest, state: &AppState, authenticated: &Authenticated) {
 	state
 		.auth
 		.record_login_device(
 			&authenticated.user,
 			&authenticated.session_id,
-			user_agent(&req).as_deref(),
-			accept_language(&req).as_deref(),
+			user_agent(req).as_deref(),
+			accept_language(req).as_deref(),
 		)
 		.await
 		.ok();
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct MfaChallengeResponse {
+	mfa_required: bool,
+	ticket: String,
+	method: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct MfaVerifyRequest {
+	ticket: String,
+	code: String,
+}
+
+#[utoipa::path(tag = "auth", security(()), request_body = MfaVerifyRequest, responses((status = 200, description = "Second factor accepted, session cookie set", body = UserResponse)))]
+#[post("/auth/mfa/verify")]
+pub async fn mfa_verify(
+	req: HttpRequest,
+	state: web::Data<AppState>,
+	body: web::Json<MfaVerifyRequest>,
+) -> Result<HttpResponse, ApiError> {
+	enforce_auth_rate_limit(&req, &state)?;
+	let body = body.into_inner();
+	let authenticated = state.auth.mfa_verify(&body.ticket, &body.code).await?;
+	finish_login(&req, &state, &authenticated).await;
 	Ok(authenticated_response(
 		HttpResponse::Ok(),
 		&authenticated,

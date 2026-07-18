@@ -99,7 +99,41 @@ async fn resolve_identity(
 	if let Some((user, scopes)) = user_from_api_key(req, state).await? {
 		return Ok((user, Some(scopes)));
 	}
+	if let Some(user) = user_from_forward_auth(req, state).await? {
+		return Ok((user, None));
+	}
 	Err(Error::Unauthorized.into())
+}
+
+pub(crate) fn forward_auth_username(
+	config: &lunu_config::BootstrapConfig,
+	peer: Option<std::net::IpAddr>,
+	headers: &actix_web::http::header::HeaderMap,
+) -> Option<String> {
+	let header = config.forward_auth_header.as_deref()?;
+	let peer = peer?;
+	if !config.forward_auth_proxies.contains(&peer) {
+		return None;
+	}
+	headers
+		.get(header)?
+		.to_str()
+		.ok()
+		.map(str::trim)
+		.filter(|name| !name.is_empty())
+		.map(str::to_string)
+}
+
+async fn user_from_forward_auth(req: &HttpRequest, state: &AppState) -> Result<Option<User>> {
+	let peer = req.peer_addr().map(|address| address.ip());
+	let Some(username) = forward_auth_username(&state.config, peer, req.headers()) else {
+		return Ok(None);
+	};
+	let user = state.auth.proxy_user(&username).await?;
+	if !user.enabled {
+		return Ok(None);
+	}
+	Ok(Some(user))
 }
 
 async fn user_from_session(req: &HttpRequest, state: &AppState) -> Result<Option<User>> {
@@ -143,4 +177,77 @@ fn api_key_from_headers(req: &HttpRequest) -> Option<String> {
 
 	let header = req.headers().get(AUTHORIZATION)?.to_str().ok()?;
 	header.strip_prefix(BEARER_PREFIX).map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+	use std::net::{IpAddr, Ipv4Addr};
+
+	use actix_web::http::header::HeaderMap;
+	use lunu_config::BootstrapConfig;
+
+	use super::forward_auth_username;
+
+	fn config(header: Option<&str>, proxies: &[IpAddr]) -> BootstrapConfig {
+		BootstrapConfig {
+			bind: "127.0.0.1:8080".to_string(),
+			database_url: "sqlite::memory:".to_string(),
+			master_key: "test-master-key-value".to_string(),
+			workers: 1,
+			trusted_proxy_hops: 0,
+			trusted_client_ip_header: None,
+			secure_cookies: false,
+			url_base: String::new(),
+			forward_auth_header: header.map(str::to_string),
+			forward_auth_proxies: proxies.to_vec(),
+		}
+	}
+
+	fn headers(name: &str, value: &str) -> HeaderMap {
+		let mut map = HeaderMap::new();
+		map.insert(name.parse().unwrap(), value.parse().unwrap());
+		map
+	}
+
+	const PROXY: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+	const STRANGER: IpAddr = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
+
+	#[test]
+	fn the_header_is_trusted_only_from_a_listed_proxy() {
+		let config = config(Some("remote-user"), &[PROXY]);
+		let headers = headers("remote-user", "alice");
+
+		assert_eq!(
+			forward_auth_username(&config, Some(PROXY), &headers).as_deref(),
+			Some("alice")
+		);
+		assert_eq!(
+			forward_auth_username(&config, Some(STRANGER), &headers),
+			None,
+			"a spoofed header from any other address must never authenticate"
+		);
+		assert_eq!(forward_auth_username(&config, None, &headers), None);
+	}
+
+	#[test]
+	fn forward_auth_stays_off_unless_fully_configured() {
+		let headers = headers("remote-user", "alice");
+		assert_eq!(
+			forward_auth_username(&config(None, &[PROXY]), Some(PROXY), &headers),
+			None
+		);
+		assert_eq!(
+			forward_auth_username(&config(Some("remote-user"), &[]), Some(PROXY), &headers),
+			None
+		);
+	}
+
+	#[test]
+	fn a_blank_asserted_username_is_ignored() {
+		let config = config(Some("remote-user"), &[PROXY]);
+		assert_eq!(
+			forward_auth_username(&config, Some(PROXY), &headers("remote-user", "  ")),
+			None
+		);
+	}
 }

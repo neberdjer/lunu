@@ -25,6 +25,16 @@ pub const DOWNLOAD_STATE_UNKNOWN: &str = "download-state-unknown";
 pub const PROTOCOL_UNKNOWN: &str = "protocol-unknown";
 pub const PROTOCOL_REQUIRED: &str = "protocol-required";
 pub const INVALID_LOG_LEVEL: &str = "invalid-log-level";
+pub const OIDC_NOT_CONFIGURED: &str = "oidc-not-configured";
+pub const OIDC_STATE_INVALID: &str = "oidc-state-invalid";
+pub const OIDC_ACCOUNT_CONFLICT: &str = "oidc-account-conflict";
+pub const MFA_METHOD_UNKNOWN: &str = "mfa-method-unknown";
+pub const MFA_REQUIRED: &str = "mfa-required";
+pub const MFA_TICKET_INVALID: &str = "mfa-ticket-invalid";
+pub const MFA_CODE_INVALID: &str = "mfa-code-invalid";
+pub const MFA_ALREADY_ENABLED: &str = "mfa-already-enabled";
+pub const MFA_NOT_ENROLLED: &str = "mfa-not-enrolled";
+pub const MFA_EMAIL_REQUIRED: &str = "mfa-email-required";
 pub const JOB_TYPE_UNKNOWN: &str = "job-type-unknown";
 pub const ID_SCHEME_UNKNOWN: &str = "id-scheme-unknown";
 pub const FORMAT_UNKNOWN: &str = "format-unknown";
@@ -94,6 +104,16 @@ pub const ALL: &[&str] = &[
 	PROTOCOL_UNKNOWN,
 	PROTOCOL_REQUIRED,
 	INVALID_LOG_LEVEL,
+	OIDC_NOT_CONFIGURED,
+	OIDC_STATE_INVALID,
+	OIDC_ACCOUNT_CONFLICT,
+	MFA_METHOD_UNKNOWN,
+	MFA_REQUIRED,
+	MFA_TICKET_INVALID,
+	MFA_CODE_INVALID,
+	MFA_ALREADY_ENABLED,
+	MFA_NOT_ENROLLED,
+	MFA_EMAIL_REQUIRED,
 	JOB_TYPE_UNKNOWN,
 	ID_SCHEME_UNKNOWN,
 	FORMAT_UNKNOWN,

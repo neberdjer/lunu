@@ -154,6 +154,7 @@ async fn sessions_page_and_count_scope_to_the_user() {
 				password_hash: None,
 				role: Role::User,
 				auth_source: AuthSource::Local,
+				oidc_subject: None,
 				enabled: true,
 				email_verified: false,
 				created_at: now,

@@ -1,9 +1,35 @@
+use chrono::Utc;
+
 use super::AuthService;
 use crate::crypto::hash_token;
-use crate::models::Session;
+use crate::models::{Session, User};
 use crate::{Error, Result};
 
 impl AuthService {
+	pub async fn validate_session(&self, token: &str) -> Result<Option<User>> {
+		let Some(session) = self.sessions.find_by_token_hash(&hash_token(token)).await? else {
+			return Ok(None);
+		};
+
+		let now = Utc::now();
+		if session.is_expired(now) {
+			self.sessions.delete(&session.id).await?;
+			return Ok(None);
+		}
+
+		let Some(user) = self.users.find_by_id(&session.user_id).await? else {
+			self.sessions.delete(&session.id).await?;
+			return Ok(None);
+		};
+
+		if !user.enabled {
+			return Ok(None);
+		}
+
+		self.sessions.touch(&session.id, now).await?;
+		Ok(Some(user))
+	}
+
 	pub async fn cleanup_expired_sessions(&self) -> Result<()> {
 		self.sessions.delete_expired(chrono::Utc::now()).await
 	}

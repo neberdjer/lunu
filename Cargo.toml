@@ -17,7 +17,7 @@ edition = "2024"
 rust-version = "1.96"
 license = "AGPL-3.0-or-later"
 authors = ["Lunu contributors"]
-repository = "https://github.com/creations/lunu"
+repository = "https://heliopolis.live/atums/lunu"
 
 [workspace.dependencies]
 lunu-core = { path = "crates/lunu-core", version = "0.1" }

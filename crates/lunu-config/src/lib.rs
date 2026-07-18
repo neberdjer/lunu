@@ -8,6 +8,8 @@ pub const ENV_TRUSTED_PROXY_HOPS: &str = "LUNU_TRUSTED_PROXY_HOPS";
 pub const ENV_TRUSTED_CLIENT_IP_HEADER: &str = "LUNU_TRUSTED_CLIENT_IP_HEADER";
 pub const ENV_SECURE_COOKIES: &str = "LUNU_SECURE_COOKIES";
 pub const ENV_URL_BASE: &str = "LUNU_URL_BASE";
+pub const ENV_FORWARD_AUTH_HEADER: &str = "LUNU_FORWARD_AUTH_HEADER";
+pub const ENV_FORWARD_AUTH_PROXIES: &str = "LUNU_FORWARD_AUTH_PROXIES";
 
 pub const DEFAULT_BIND: &str = "127.0.0.1:8080";
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/lunu.db?mode=rwc";
@@ -24,6 +26,8 @@ pub struct BootstrapConfig {
 	pub trusted_client_ip_header: Option<String>,
 	pub secure_cookies: bool,
 	pub url_base: String,
+	pub forward_auth_header: Option<String>,
+	pub forward_auth_proxies: Vec<std::net::IpAddr>,
 }
 
 impl BootstrapConfig {
@@ -75,6 +79,31 @@ impl BootstrapConfig {
 		};
 
 		let url_base = normalize_url_base(&env_optional(ENV_URL_BASE).unwrap_or_default());
+
+		let forward_auth_header = env_optional(ENV_FORWARD_AUTH_HEADER);
+		let mut forward_auth_proxies = Vec::new();
+		for part in env_optional(ENV_FORWARD_AUTH_PROXIES)
+			.unwrap_or_default()
+			.split(',')
+			.map(str::trim)
+			.filter(|part| !part.is_empty())
+		{
+			match part.parse() {
+				Ok(address) => forward_auth_proxies.push(address),
+				Err(_) => issues.push(Issue {
+					var: ENV_FORWARD_AUTH_PROXIES,
+					problem: format!("'{part}' is not an ip address"),
+					hint: "expected comma-separated proxy ip addresses, for example 10.0.0.5,10.0.0.6",
+				}),
+			}
+		}
+		if forward_auth_header.is_some() && forward_auth_proxies.is_empty() {
+			issues.push(Issue {
+				var: ENV_FORWARD_AUTH_PROXIES,
+				problem: "is not set while LUNU_FORWARD_AUTH_HEADER is".to_string(),
+				hint: "forward auth trusts a header only from listed proxy addresses; set at least one ip",
+			});
+		}
 		if !is_valid_url_base(&url_base) {
 			issues.push(Issue {
 				var: ENV_URL_BASE,
@@ -111,6 +140,8 @@ impl BootstrapConfig {
 				trusted_client_ip_header: env_optional(ENV_TRUSTED_CLIENT_IP_HEADER),
 				secure_cookies: env_flag_or(ENV_SECURE_COOKIES, true),
 				url_base,
+				forward_auth_header,
+				forward_auth_proxies,
 			})
 		} else {
 			Err(ConfigError { issues })

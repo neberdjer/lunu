@@ -43,7 +43,7 @@ async fn abs_login_provisions_and_links_external_user() {
 		Err(Error::Unauthorized)
 	));
 
-	let first = auth.login("absuser", "abspass").await.unwrap();
+	let first = expect_session(auth.login("absuser", "abspass").await.unwrap());
 	assert_eq!(first.user.auth_source, AuthSource::Abs);
 	assert_eq!(first.user.email.as_deref(), Some("abs@example.com"));
 	assert!(first.user.password_hash.is_none());
@@ -54,7 +54,7 @@ async fn abs_login_provisions_and_links_external_user() {
 			.is_some()
 	);
 
-	let second = auth.login("absuser", "abspass").await.unwrap();
+	let second = expect_session(auth.login("absuser", "abspass").await.unwrap());
 	assert_eq!(second.user.id, first.user.id);
 	assert_eq!(SqlxUserRepo::new(db.clone()).count().await.unwrap(), 1);
 }
@@ -104,7 +104,7 @@ async fn auth_setup_login_validate_logout() {
 	assert!(auth.setup_first_admin("x", "y", None).await.is_err());
 
 	assert!(auth.login("admin", "wrong").await.is_err());
-	let authed = auth.login("admin", "password123").await.unwrap();
+	let authed = expect_session(auth.login("admin", "password123").await.unwrap());
 	assert_eq!(authed.user.username, "admin");
 
 	let validated = auth

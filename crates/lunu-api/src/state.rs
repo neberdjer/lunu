@@ -6,7 +6,7 @@ use lunu_core::consts::auth::{
 	AUTH_RATE_LIMIT_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECS, METADATA_RATE_LIMIT_ATTEMPTS,
 	METADATA_RATE_LIMIT_WINDOW_SECS,
 };
-use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
+use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT};
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
@@ -21,13 +21,13 @@ use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
 	SqlxMetadataCacheRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo, SqlxWorkRepo,
+	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo,
+	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
-use lunu_integrations::auth::AudiobookshelfProvider;
+use lunu_integrations::auth::{AudiobookshelfProvider, OidcClient};
 use lunu_integrations::download::{QbittorrentClient, SabnzbdClient, TransmissionClient};
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
@@ -119,16 +119,21 @@ impl AppState {
 		let settings = Arc::new(SettingsService::new(settings_repo, encryptor));
 		let mailer: Arc<dyn Mailer> = Arc::new(SmtpMailer::new(settings.clone()));
 
-		let auth = Arc::new(AuthService::new(
-			users_repo.clone(),
-			sessions_repo.clone(),
-			invites_repo.clone(),
-			Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
-			Arc::new(SqlxPasswordResetRepo::new(db.clone())),
-			Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
-			settings.clone(),
-			mailer.clone(),
-		));
+		let auth = Arc::new(
+			AuthService::new(
+				users_repo.clone(),
+				sessions_repo.clone(),
+				invites_repo.clone(),
+				Some(Arc::new(AudiobookshelfProvider::new(settings.clone()))),
+				Arc::new(SqlxPasswordResetRepo::new(db.clone())),
+				Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
+				Arc::new(SqlxUserMfaRepo::new(db.clone())),
+				Encryptor::new(&config.master_key, MFA_ENCRYPTION_CONTEXT)?,
+				settings.clone(),
+				mailer.clone(),
+			)
+			.with_oidc(Arc::new(OidcClient::new(settings.clone()))),
+		);
 		let users = Arc::new(UserService::new(
 			users_repo.clone(),
 			sessions_repo,

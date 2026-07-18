@@ -59,6 +59,8 @@ mod tests {
 			trusted_client_ip_header: header.map(str::to_string),
 			secure_cookies: false,
 			url_base: String::new(),
+			forward_auth_header: None,
+			forward_auth_proxies: Vec::new(),
 		}
 	}
 

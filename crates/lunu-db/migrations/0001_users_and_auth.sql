@@ -5,6 +5,7 @@ CREATE TABLE users (
 	password_hash TEXT,
 	role TEXT NOT NULL,
 	auth_source TEXT NOT NULL,
+	oidc_subject TEXT UNIQUE,
 	enabled BIGINT NOT NULL DEFAULT 1,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
@@ -67,6 +68,15 @@ CREATE TABLE email_verification_tokens (
 	attempts BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	expires_at TEXT NOT NULL
+);
+
+CREATE TABLE user_mfa (
+	user_id TEXT PRIMARY KEY,
+	method TEXT NOT NULL,
+	secret TEXT,
+	confirmed BIGINT NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
 );
 
 CREATE TABLE user_settings (

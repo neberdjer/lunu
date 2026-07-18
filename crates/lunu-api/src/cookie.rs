@@ -7,12 +7,20 @@ use lunu_core::services::Authenticated;
 
 use crate::dto::UserResponse;
 
-fn base(value: String, config: &BootstrapConfig) -> CookieBuilder<'static> {
-	Cookie::build(SESSION_COOKIE, value)
+pub(crate) fn cookie_base(
+	name: &'static str,
+	value: String,
+	config: &BootstrapConfig,
+) -> CookieBuilder<'static> {
+	Cookie::build(name, value)
 		.http_only(true)
 		.secure(config.secure_cookies)
 		.same_site(SameSite::Lax)
 		.path(config.base_path().to_string())
+}
+
+fn base(value: String, config: &BootstrapConfig) -> CookieBuilder<'static> {
+	cookie_base(SESSION_COOKIE, value, config)
 }
 
 fn session_cookie(token: String, config: &BootstrapConfig) -> Cookie<'static> {
@@ -33,4 +41,14 @@ pub(crate) fn authenticated_response(
 	builder
 		.cookie(session_cookie(authenticated.session_token.clone(), config))
 		.json(UserResponse::from(&authenticated.user))
+}
+
+pub(crate) fn authenticated_response_redirect(
+	authenticated: &Authenticated,
+	config: &BootstrapConfig,
+) -> HttpResponse {
+	HttpResponse::Found()
+		.cookie(session_cookie(authenticated.session_token.clone(), config))
+		.insert_header(("Location", config.base_path().to_string()))
+		.finish()
 }

@@ -22,9 +22,30 @@ pub fn hash_token(token: &str) -> String {
 	hex::encode(Sha256::digest(token.as_bytes()))
 }
 
+pub fn constant_time_eq(a: &str, b: &str) -> bool {
+	let a = a.as_bytes();
+	let b = b.as_bytes();
+	if a.len() != b.len() {
+		return false;
+	}
+	a.iter().zip(b).fold(0, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+pub fn pkce_challenge(verifier: &str) -> String {
+	URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn pkce_challenge_matches_the_rfc_7636_vector() {
+		assert_eq!(
+			pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+			"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+		);
+	}
 
 	#[test]
 	fn tokens_are_unique() {

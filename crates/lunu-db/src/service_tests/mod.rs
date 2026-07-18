@@ -2,13 +2,13 @@ use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
 	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo,
-	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo, SqlxUserRepo,
 	SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
 use chrono::Utc;
-use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
+use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT};
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::{Encryptor, hash_token};
 use lunu_core::models::{
@@ -46,8 +46,10 @@ mod grab;
 mod import;
 mod library;
 mod metadata;
+mod mfa;
 mod monitor;
 mod monitor_complete;
+mod oidc;
 mod pipeline;
 mod repos;
 mod requests;

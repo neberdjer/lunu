@@ -24,7 +24,10 @@ mod work;
 
 pub use activity::ActivityService;
 pub use api_key::{ApiKeyService, IssuedApiKey};
-pub use auth::{AuthService, Authenticated, Registration};
+pub use auth::{
+	AuthService, Authenticated, LoginOutcome, MfaChallenge, MfaEnrollment, MfaStatus, OidcStart,
+	Registration,
+};
 pub use client_roster::ClientRoster;
 pub use grab::{GrabService, ReleaseSelection};
 pub use import::ImportService;
@@ -127,22 +130,44 @@ pub(crate) async fn require_user(users: &dyn UserRepo, id: &str) -> Result<User>
 		.ok_or_else(|| Error::NotFound(format!("user {id}")))
 }
 
-pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> User {
+pub(crate) struct ProvisionedUser {
+	pub username: String,
+	pub email: Option<String>,
+	pub display_name: Option<String>,
+	pub auth_source: AuthSource,
+	pub oidc_subject: Option<String>,
+}
+
+pub(crate) fn build_provisioned_user(user: ProvisionedUser, role: Role) -> User {
 	let now = Utc::now();
 	User {
 		id: new_id(),
-		username: identity.username,
-		email: identity.email,
-		display_name: None,
+		username: user.username,
+		email: user.email,
+		display_name: user.display_name,
 		locale: None,
 		password_hash: None,
 		role,
-		auth_source: AuthSource::Abs,
+		auth_source: user.auth_source,
+		oidc_subject: user.oidc_subject,
 		enabled: true,
 		email_verified: true,
 		created_at: now,
 		updated_at: now,
 	}
+}
+
+pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> User {
+	build_provisioned_user(
+		ProvisionedUser {
+			username: identity.username,
+			email: identity.email,
+			display_name: None,
+			auth_source: AuthSource::Abs,
+			oidc_subject: None,
+		},
+		role,
+	)
 }
 
 pub(crate) fn build_local_user(
@@ -164,6 +189,7 @@ pub(crate) fn build_local_user(
 		password_hash: Some(hash_password(password)?),
 		role,
 		auth_source: AuthSource::Local,
+		oidc_subject: None,
 		enabled: true,
 		email_verified: false,
 		created_at: now,

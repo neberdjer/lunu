@@ -28,3 +28,14 @@ pub const AUTH_RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 pub const METADATA_RATE_LIMIT_ATTEMPTS: u32 = 60;
 pub const METADATA_RATE_LIMIT_WINDOW_SECS: u64 = 60;
+
+pub const OIDC_STATE_TTL_MINS: i64 = 10;
+
+pub const TOTP_SECRET_BYTES: usize = 20;
+pub const TOTP_DIGITS: u32 = 6;
+pub const TOTP_STEP_SECONDS: u64 = 30;
+pub const TOTP_ISSUER: &str = "Lunu";
+
+pub const MFA_CODE_DIGITS: u32 = 6;
+pub const MFA_TICKET_TTL_MINUTES: i64 = 5;
+pub const MFA_MAX_ATTEMPTS: i64 = 5;

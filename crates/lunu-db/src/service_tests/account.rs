@@ -184,6 +184,7 @@ async fn duplicate_username_is_conflict_not_db_error() {
 		password_hash: Some("hash".to_string()),
 		role: Role::User,
 		auth_source: AuthSource::Local,
+		oidc_subject: None,
 		display_name: None,
 		locale: None,
 		enabled: true,

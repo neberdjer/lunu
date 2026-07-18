@@ -8,6 +8,7 @@ pub mod library_source;
 pub mod mailer;
 pub mod metadata_provider;
 pub mod notifier;
+pub mod oidc;
 
 pub use auth_provider::{AuthProvider, ExternalIdentity};
 pub use download_client::DownloadClient;
@@ -19,3 +20,4 @@ pub use library_source::LibrarySource;
 pub use mailer::Mailer;
 pub use metadata_provider::MetadataProvider;
 pub use notifier::Notifier;
+pub use oidc::{OidcClaims, OidcFlow};

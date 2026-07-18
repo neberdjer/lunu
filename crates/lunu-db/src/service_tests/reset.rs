@@ -140,13 +140,13 @@ async fn new_device_login_alerts_only_for_unseen_device() {
 		.unwrap();
 	assert_eq!(mailer.count(), 0);
 
-	let second = auth.login("admin", "password123").await.unwrap();
+	let second = expect_session(auth.login("admin", "password123").await.unwrap());
 	auth.record_login_device(&second.user, &second.session_id, Some("Firefox"), None)
 		.await
 		.unwrap();
 	assert_eq!(mailer.count(), 0);
 
-	let third = auth.login("admin", "password123").await.unwrap();
+	let third = expect_session(auth.login("admin", "password123").await.unwrap());
 	auth.record_login_device(&third.user, &third.session_id, Some("Chrome"), None)
 		.await
 		.unwrap();

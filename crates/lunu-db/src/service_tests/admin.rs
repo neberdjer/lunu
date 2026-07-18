@@ -81,6 +81,7 @@ async fn create_initial_admin_rejects_second_insert() {
 		password_hash: Some("h".to_string()),
 		role: Role::Admin,
 		auth_source: AuthSource::Local,
+		oidc_subject: None,
 		display_name: None,
 		locale: None,
 		enabled: true,

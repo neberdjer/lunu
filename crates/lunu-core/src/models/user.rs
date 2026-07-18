@@ -47,12 +47,16 @@ impl FromStr for Role {
 pub enum AuthSource {
 	Local,
 	Abs,
+	Oidc,
+	Proxy,
 }
 
 impl AuthSource {
 	pub fn as_str(&self) -> &'static str {
 		match self {
 			AuthSource::Local => "local",
+			AuthSource::Oidc => "oidc",
+			AuthSource::Proxy => "proxy",
 			AuthSource::Abs => "abs",
 		}
 	}
@@ -71,6 +75,8 @@ impl FromStr for AuthSource {
 		match value {
 			"local" => Ok(AuthSource::Local),
 			"abs" => Ok(AuthSource::Abs),
+			"oidc" => Ok(AuthSource::Oidc),
+			"proxy" => Ok(AuthSource::Proxy),
 			_ => Err(Error::Validation(reasons::AUTH_SOURCE_UNKNOWN.to_string())),
 		}
 	}
@@ -86,6 +92,7 @@ pub struct User {
 	pub password_hash: Option<String>,
 	pub role: Role,
 	pub auth_source: AuthSource,
+	pub oidc_subject: Option<String>,
 	pub enabled: bool,
 	pub email_verified: bool,
 	pub created_at: DateTime<Utc>,

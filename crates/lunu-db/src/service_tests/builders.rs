@@ -28,6 +28,17 @@ impl Mailer for RecordingMailer {
 	}
 }
 
+pub(super) fn expect_session(
+	outcome: lunu_core::services::LoginOutcome,
+) -> lunu_core::services::Authenticated {
+	match outcome {
+		lunu_core::services::LoginOutcome::Authenticated(authenticated) => *authenticated,
+		lunu_core::services::LoginOutcome::MfaRequired(_) => {
+			panic!("expected a session, got a two-factor challenge")
+		}
+	}
+}
+
 pub(super) fn auth_service(db: &Db) -> AuthService {
 	auth_service_impl(db, None, Arc::new(NoopMailer))
 }
@@ -52,6 +63,8 @@ pub(super) fn auth_service_impl(
 		provider,
 		Arc::new(SqlxPasswordResetRepo::new(db.clone())),
 		Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
+		Arc::new(SqlxUserMfaRepo::new(db.clone())),
+		Encryptor::new("dev-master-key-value", MFA_ENCRYPTION_CONTEXT).unwrap(),
 		settings_service(db),
 		mailer,
 	)
@@ -109,6 +122,7 @@ pub(super) fn caller(id: &str, role: Role) -> User {
 		password_hash: None,
 		role,
 		auth_source: AuthSource::Local,
+		oidc_subject: None,
 		display_name: None,
 		locale: None,
 		enabled: true,

@@ -4,17 +4,23 @@ use chrono::{Duration, Utc};
 
 use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
+use crate::crypto::Encryptor;
 use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
+use crate::repo::UserMfaRepo;
 use crate::repo::{EmailVerificationRepo, InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
 use crate::services::{
 	SettingsService, build_external_user, build_local_user, ensure_username_available, new_id,
 	require_user, validate_password,
 };
-use crate::traits::{AuthProvider, ExternalIdentity, Mailer};
+use crate::traits::{AuthProvider, ExternalIdentity, Mailer, OidcFlow};
 use crate::{Error, Result};
 
 mod device;
+mod mfa;
+mod oidc;
+pub use mfa::{MfaChallenge, MfaEnrollment, MfaStatus};
+pub use oidc::OidcStart;
 mod reset;
 mod session;
 mod verify;
@@ -30,11 +36,21 @@ pub enum Registration {
 	PendingVerification,
 }
 
+pub enum LoginOutcome {
+	Authenticated(Box<Authenticated>),
+	MfaRequired(MfaChallenge),
+}
+
 pub struct AuthService {
 	users: Arc<dyn UserRepo>,
 	sessions: Arc<dyn SessionRepo>,
 	invites: Arc<dyn InviteRepo>,
 	provider: Option<Arc<dyn AuthProvider>>,
+	oidc: Option<Arc<dyn OidcFlow>>,
+	oidc_pending: std::sync::Mutex<std::collections::HashMap<String, oidc::PendingLogin>>,
+	mfa: Arc<dyn UserMfaRepo>,
+	mfa_pending: std::sync::Mutex<std::collections::HashMap<String, mfa::PendingMfa>>,
+	encryptor: Encryptor,
 	reset_tokens: Arc<dyn PasswordResetRepo>,
 	email_verifications: Arc<dyn EmailVerificationRepo>,
 	settings: Arc<SettingsService>,
@@ -50,6 +66,8 @@ impl AuthService {
 		provider: Option<Arc<dyn AuthProvider>>,
 		reset_tokens: Arc<dyn PasswordResetRepo>,
 		email_verifications: Arc<dyn EmailVerificationRepo>,
+		mfa: Arc<dyn UserMfaRepo>,
+		encryptor: Encryptor,
 		settings: Arc<SettingsService>,
 		mailer: Arc<dyn Mailer>,
 	) -> Self {
@@ -58,11 +76,30 @@ impl AuthService {
 			sessions,
 			invites,
 			provider,
+			oidc: None,
+			oidc_pending: std::sync::Mutex::new(std::collections::HashMap::new()),
+			mfa,
+			mfa_pending: std::sync::Mutex::new(std::collections::HashMap::new()),
+			encryptor,
 			reset_tokens,
 			email_verifications,
 			settings,
 			mailer,
 		}
+	}
+
+	pub fn with_oidc(mut self, flow: Arc<dyn OidcFlow>) -> Self {
+		self.oidc = Some(flow);
+		self
+	}
+
+	pub(super) async fn setting(&self, key: &str) -> Result<Option<String>> {
+		Ok(self
+			.settings
+			.get(key)
+			.await?
+			.map(|value| value.trim().to_string())
+			.filter(|value| !value.is_empty()))
 	}
 
 	pub async fn needs_setup(&self) -> Result<bool> {
@@ -88,7 +125,7 @@ impl AuthService {
 		self.issue(user).await
 	}
 
-	pub async fn login(&self, username: &str, password: &str) -> Result<Authenticated> {
+	pub async fn login(&self, username: &str, password: &str) -> Result<LoginOutcome> {
 		if let Some(user) = self.users.find_by_username(username).await? {
 			if user.auth_source == AuthSource::Local {
 				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
@@ -101,7 +138,7 @@ impl AuthService {
 				if self.verification_pending(&user).await? {
 					return Err(Error::Validation(reasons::EMAIL_NOT_VERIFIED.to_string()));
 				}
-				return self.issue(user).await;
+				return self.login_challenge(user).await;
 			}
 			if self
 				.authenticate_external(username, password)
@@ -113,7 +150,7 @@ impl AuthService {
 			if !user.enabled {
 				return Err(Error::Forbidden);
 			}
-			return self.issue(user).await;
+			return self.login_challenge(user).await;
 		}
 
 		let Some(identity) = self.authenticate_external(username, password).await? else {
@@ -124,7 +161,7 @@ impl AuthService {
 		if !user.enabled {
 			return Err(Error::Forbidden);
 		}
-		self.issue(user).await
+		self.login_challenge(user).await
 	}
 
 	async fn authenticate_external(
@@ -169,30 +206,6 @@ impl AuthService {
 			session_token: token,
 			session_id: session.id,
 		})
-	}
-
-	pub async fn validate_session(&self, token: &str) -> Result<Option<User>> {
-		let Some(session) = self.sessions.find_by_token_hash(&hash_token(token)).await? else {
-			return Ok(None);
-		};
-
-		let now = Utc::now();
-		if session.is_expired(now) {
-			self.sessions.delete(&session.id).await?;
-			return Ok(None);
-		}
-
-		let Some(user) = self.users.find_by_id(&session.user_id).await? else {
-			self.sessions.delete(&session.id).await?;
-			return Ok(None);
-		};
-
-		if !user.enabled {
-			return Ok(None);
-		}
-
-		self.sessions.touch(&session.id, now).await?;
-		Ok(Some(user))
 	}
 
 	pub async fn change_password(

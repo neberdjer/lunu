@@ -131,6 +131,26 @@ pub fn verification(locale: &LanguageIdentifier, code: &str, minutes: i64) -> Re
 	}
 }
 
+pub fn mfa_code(locale: &LanguageIdentifier, code: &str, minutes: i64) -> RenderedEmail {
+	let expiry = lunu_i18n::t_vars(
+		locale,
+		"email-mfa-code-expiry",
+		&[("minutes", &minutes.to_string())],
+	);
+	let body = VerificationBody {
+		intro: lunu_i18n::t(locale, "email-mfa-code-intro"),
+		code,
+		expiry,
+	}
+	.render()
+	.expect("mfa code email template renders");
+
+	RenderedEmail {
+		subject: lunu_i18n::t(locale, "email-mfa-code-subject"),
+		html: wrap(locale, &body),
+	}
+}
+
 pub fn notification(
 	locale: &LanguageIdentifier,
 	summary: &str,
