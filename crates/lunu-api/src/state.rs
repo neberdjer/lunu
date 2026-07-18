@@ -20,9 +20,9 @@ use lunu_db::Db;
 use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
-	SqlxMetadataCacheRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo,
-	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
+	SqlxMetadataCacheRepo, SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo,
+	SqlxRequestRepo, SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo,
+	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 
 use crate::hub::EventHub;
@@ -130,6 +130,7 @@ impl AppState {
 				Arc::new(SqlxPasswordResetRepo::new(db.clone())),
 				Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
 				Arc::new(SqlxUserMfaRepo::new(db.clone())),
+				Arc::new(SqlxMfaRecoveryCodeRepo::new(db.clone())),
 				Encryptor::new(&config.master_key, MFA_ENCRYPTION_CONTEXT)?,
 				settings.clone(),
 				mailer.clone(),

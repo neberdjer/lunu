@@ -59,7 +59,7 @@ impl AuthService {
 	}
 
 	pub async fn mfa_verify(&self, ticket: &str, code: &str) -> Result<Authenticated> {
-		let user_id = self.consume_pending(ticket, code)?;
+		let user_id = self.verify_challenge(ticket, code).await?;
 		let user = self
 			.users
 			.find_by_id(&user_id)
@@ -71,7 +71,27 @@ impl AuthService {
 		self.issue(user).await
 	}
 
-	pub(super) fn consume_pending(&self, ticket: &str, code: &str) -> Result<String> {
+	async fn verify_challenge(&self, ticket: &str, code: &str) -> Result<String> {
+		let (user_id, matched) = self.consume_pending(ticket, code)?;
+		if matched {
+			return Ok(user_id);
+		}
+		if self
+			.recovery
+			.consume(&user_id, &hash_token(code.trim()))
+			.await?
+		{
+			self.mfa_pending
+				.lock()
+				.expect("mfa ticket lock")
+				.remove(ticket);
+			Ok(user_id)
+		} else {
+			Err(Error::Validation(reasons::MFA_CODE_INVALID.to_string()))
+		}
+	}
+
+	pub(super) fn consume_pending(&self, ticket: &str, code: &str) -> Result<(String, bool)> {
 		let mut pending = self.mfa_pending.lock().expect("mfa ticket lock");
 		take_verified(&mut pending, ticket, code)
 	}
@@ -83,7 +103,12 @@ impl AuthService {
 			.find(|(_, entry)| entry.user_id == user_id && entry.method == MfaMethod::Email)
 			.map(|(ticket, _)| ticket.clone())
 			.ok_or_else(|| Error::Validation(reasons::MFA_TICKET_INVALID.to_string()))?;
-		take_verified(&mut pending, &ticket, code).map(|_| ())
+		let (_, matched) = take_verified(&mut pending, &ticket, code)?;
+		if matched {
+			Ok(())
+		} else {
+			Err(Error::Validation(reasons::MFA_CODE_INVALID.to_string()))
+		}
 	}
 
 	pub(super) async fn mfa_confirmed(&self, user_id: &str) -> Result<bool> {
@@ -146,7 +171,7 @@ fn take_verified(
 	pending: &mut std::collections::HashMap<String, PendingMfa>,
 	ticket: &str,
 	code: &str,
-) -> Result<String> {
+) -> Result<(String, bool)> {
 	let invalid = || Error::Validation(reasons::MFA_TICKET_INVALID.to_string());
 	let entry = pending.get_mut(ticket).ok_or_else(invalid)?;
 	if entry.created_at < Utc::now() - Duration::minutes(MFA_TICKET_TTL_MINUTES)
@@ -168,10 +193,10 @@ fn take_verified(
 	};
 	if !ok {
 		entry.attempts += 1;
-		return Err(Error::Validation(reasons::MFA_CODE_INVALID.to_string()));
+		return Ok((entry.user_id.clone(), false));
 	}
 
 	let user_id = entry.user_id.clone();
 	pending.remove(ticket);
-	Ok(user_id)
+	Ok((user_id, true))
 }

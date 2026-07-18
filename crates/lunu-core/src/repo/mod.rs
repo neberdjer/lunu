@@ -30,7 +30,7 @@ pub use issue::IssueRepo;
 pub use job::JobRepo;
 pub use media::MediaRepo;
 pub use metadata_cache::MetadataCacheRepo;
-pub use mfa::UserMfaRepo;
+pub use mfa::{MfaRecoveryCodeRepo, UserMfaRepo};
 pub use password_reset::PasswordResetRepo;
 pub use quality_profile::QualityProfileRepo;
 pub use request::RequestRepo;

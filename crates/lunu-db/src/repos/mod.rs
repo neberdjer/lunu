@@ -30,7 +30,7 @@ pub use issue::SqlxIssueRepo;
 pub use job::SqlxJobRepo;
 pub use media::SqlxMediaRepo;
 pub use metadata_cache::SqlxMetadataCacheRepo;
-pub use mfa::SqlxUserMfaRepo;
+pub use mfa::{SqlxMfaRecoveryCodeRepo, SqlxUserMfaRepo};
 pub use password_reset::SqlxPasswordResetRepo;
 pub use quality_profile::SqlxQualityProfileRepo;
 pub use request::SqlxRequestRepo;

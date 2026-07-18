@@ -39,3 +39,4 @@ pub const TOTP_ISSUER: &str = "Lunu";
 pub const MFA_CODE_DIGITS: u32 = 6;
 pub const MFA_TICKET_TTL_MINUTES: i64 = 5;
 pub const MFA_MAX_ATTEMPTS: i64 = 5;
+pub const MFA_RECOVERY_CODE_COUNT: usize = 10;

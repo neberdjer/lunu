@@ -1,9 +1,9 @@
 use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
-	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo,
-	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo, SqlxUserRepo,
-	SqlxUserSettingsRepo, SqlxWorkRepo,
+	SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
+	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo,
+	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;

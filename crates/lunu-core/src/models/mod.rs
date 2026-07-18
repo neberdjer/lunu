@@ -38,7 +38,7 @@ pub use job::{GrabPayload, ImportPayload, Job, JobStatus, JobType, MonitorPayloa
 pub use live_event::LiveEvent;
 pub use media::{LibraryItem, MatchedBy, Media, MediaSource};
 pub use metadata::{Book, Chapter, Chapters, MetadataCacheEntry, SeriesRef, SeriesSummary};
-pub use mfa::{MfaMethod, UserMfa};
+pub use mfa::{MfaMethod, MfaRecoveryCode, UserMfa};
 pub use notification::{NotificationEvent, NotificationKind};
 pub use password_reset::PasswordResetToken;
 pub use quality_profile::QualityProfile;

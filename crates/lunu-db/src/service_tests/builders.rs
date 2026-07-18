@@ -64,6 +64,7 @@ pub(super) fn auth_service_impl(
 		Arc::new(SqlxPasswordResetRepo::new(db.clone())),
 		Arc::new(SqlxEmailVerificationRepo::new(db.clone())),
 		Arc::new(SqlxUserMfaRepo::new(db.clone())),
+		Arc::new(SqlxMfaRecoveryCodeRepo::new(db.clone())),
 		Encryptor::new("dev-master-key-value", MFA_ENCRYPTION_CONTEXT).unwrap(),
 		settings_service(db),
 		mailer,

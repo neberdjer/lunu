@@ -18,6 +18,21 @@ pub fn generate_numeric_code(digits: u32) -> String {
 	format!("{value:0width$}", width = digits as usize)
 }
 
+const RECOVERY_ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const RECOVERY_GROUP: usize = 5;
+
+pub fn generate_recovery_code() -> String {
+	let mut code = String::with_capacity(RECOVERY_GROUP * 2 + 1);
+	for position in 0..RECOVERY_GROUP * 2 {
+		if position == RECOVERY_GROUP {
+			code.push('-');
+		}
+		let index = (OsRng.next_u32() as usize) % RECOVERY_ALPHABET.len();
+		code.push(RECOVERY_ALPHABET[index] as char);
+	}
+	code
+}
+
 pub fn hash_token(token: &str) -> String {
 	hex::encode(Sha256::digest(token.as_bytes()))
 }
@@ -57,5 +72,18 @@ mod tests {
 		let token = generate_token();
 		assert_eq!(hash_token(&token), hash_token(&token));
 		assert_ne!(hash_token(&token), hash_token(&generate_token()));
+	}
+
+	#[test]
+	fn recovery_codes_are_grouped_unambiguous_and_unique() {
+		let code = generate_recovery_code();
+		assert_eq!(code.len(), 11, "two groups of five plus a separator");
+		assert_eq!(code.as_bytes()[5], b'-');
+		assert!(
+			code.chars()
+				.all(|c| c == '-' || RECOVERY_ALPHABET.contains(&(c as u8))),
+			"only the unambiguous alphabet, no 0/O/1/I: {code}"
+		);
+		assert_ne!(generate_recovery_code(), generate_recovery_code());
 	}
 }

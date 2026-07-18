@@ -7,8 +7,8 @@ use crate::consts::reasons;
 use crate::crypto::Encryptor;
 use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
 use crate::models::{AuthSource, Role, Session, User};
-use crate::repo::UserMfaRepo;
 use crate::repo::{EmailVerificationRepo, InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
+use crate::repo::{MfaRecoveryCodeRepo, UserMfaRepo};
 use crate::services::{
 	SettingsService, build_external_user, build_local_user, ensure_username_available, new_id,
 	require_user, validate_password,
@@ -49,6 +49,7 @@ pub struct AuthService {
 	oidc: Option<Arc<dyn OidcFlow>>,
 	oidc_pending: std::sync::Mutex<std::collections::HashMap<String, oidc::PendingLogin>>,
 	mfa: Arc<dyn UserMfaRepo>,
+	recovery: Arc<dyn MfaRecoveryCodeRepo>,
 	mfa_pending: std::sync::Mutex<std::collections::HashMap<String, mfa::PendingMfa>>,
 	encryptor: Encryptor,
 	reset_tokens: Arc<dyn PasswordResetRepo>,
@@ -67,6 +68,7 @@ impl AuthService {
 		reset_tokens: Arc<dyn PasswordResetRepo>,
 		email_verifications: Arc<dyn EmailVerificationRepo>,
 		mfa: Arc<dyn UserMfaRepo>,
+		recovery: Arc<dyn MfaRecoveryCodeRepo>,
 		encryptor: Encryptor,
 		settings: Arc<SettingsService>,
 		mailer: Arc<dyn Mailer>,
@@ -79,6 +81,7 @@ impl AuthService {
 			oidc: None,
 			oidc_pending: std::sync::Mutex::new(std::collections::HashMap::new()),
 			mfa,
+			recovery,
 			mfa_pending: std::sync::Mutex::new(std::collections::HashMap::new()),
 			encryptor,
 			reset_tokens,

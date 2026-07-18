@@ -41,3 +41,12 @@ pub struct UserMfa {
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone)]
+pub struct MfaRecoveryCode {
+	pub id: String,
+	pub user_id: String,
+	pub code_hash: String,
+	pub used_at: Option<DateTime<Utc>>,
+	pub created_at: DateTime<Utc>,
+}
