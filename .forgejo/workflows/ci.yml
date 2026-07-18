@@ -1,0 +1,127 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+    tags: ['[0-9]*']
+
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: docker
+    container:
+      image: rust:1.95
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq nodejs git
+      - uses: actions/checkout@v4
+      - run: rustup component add rustfmt
+      - run: cargo fmt --check --verbose
+
+  clippy:
+    runs-on: docker
+    container:
+      image: rust:1.95
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq nodejs git
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cargo
+            target
+          key: clippy-${{ hashFiles('Cargo.lock') }}
+          restore-keys: clippy-
+      - run: rustup component add clippy
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  test:
+    runs-on: docker
+    container:
+      image: rust:1.95
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq nodejs git
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cargo
+            target
+          key: test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: test-
+      - run: cargo test --workspace --locked
+
+  test-postgres:
+    runs-on: docker
+    container:
+      image: rust:1.95
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lunu
+          POSTGRES_PASSWORD: lunu
+          POSTGRES_DB: lunu
+        options: >-
+          --health-cmd "pg_isready -U lunu"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      LUNU_TEST_DATABASE_URL: postgres://lunu:lunu@postgres:5432/lunu
+    steps:
+      - run: apt-get update -qq && apt-get install -y -qq nodejs git
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cargo
+            target
+          key: test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: test-
+      - run: cargo test -p lunu-db --locked -- --test-threads=4
+
+  docker-build:
+    needs: [fmt, clippy, test, test-postgres]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: privileged
+    container:
+      image: docker:cli
+    steps:
+      - run: apk add --no-cache nodejs git
+      - uses: actions/checkout@v4
+      - name: Validate tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$REF_NAME" in
+            *[!A-Za-z0-9._-]*|"")
+              echo "Refusing tag with unsafe characters: $REF_NAME" >&2
+              exit 1
+              ;;
+          esac
+      - name: Login
+        env:
+          REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          USERNAME: ${{ secrets.DOCKER_REGISTRY_USER }}
+          TOKEN: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login -u "$USERNAME" --password-stdin "$REGISTRY"
+      - name: Build and push
+        env:
+          IMAGE: ${{ vars.DOCKER_IMAGE_NAME }}
+          REF_NAME: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+          DOCKER_BUILDKIT: "1"
+        run: |
+          if [ "$IS_TAG" = "true" ]; then
+            docker build -t "$IMAGE:$REF_NAME" -t "$IMAGE:latest" .
+            docker push "$IMAGE:$REF_NAME"
+            docker push "$IMAGE:latest"
+          else
+            docker build -t "$IMAGE:nightly" .
+            docker push "$IMAGE:nightly"
+          fi

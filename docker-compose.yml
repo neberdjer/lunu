@@ -1,0 +1,20 @@
+services:
+  lunu:
+    build: .
+    image: lunu:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      LUNU_MASTER_KEY: ${LUNU_MASTER_KEY:?set LUNU_MASTER_KEY in your .env}
+      LUNU_SECURE_COOKIES: ${LUNU_SECURE_COOKIES:-true}
+      LUNU_URL_BASE: ${LUNU_URL_BASE:-}
+      LUNU_TRUSTED_PROXY_HOPS: ${LUNU_TRUSTED_PROXY_HOPS:-0}
+      LUNU_TRUSTED_CLIENT_IP_HEADER: ${LUNU_TRUSTED_CLIENT_IP_HEADER:-}
+      LUNU_FORWARD_AUTH_HEADER: ${LUNU_FORWARD_AUTH_HEADER:-}
+      LUNU_FORWARD_AUTH_PROXIES: ${LUNU_FORWARD_AUTH_PROXIES:-}
+    volumes:
+      - lunu-data:/data
+
+volumes:
+  lunu-data:
