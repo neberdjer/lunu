@@ -7,6 +7,7 @@ const ITEM: &str = r#"{
 		"title": "Foundation",
 		"authorName": "Isaac Asimov",
 		"asin": "B002V0QK4C",
+		"isbn": "9780553293357",
 		"seriesName": "Foundation #1"
 	}}
 }"#;
@@ -36,6 +37,7 @@ fn parses_minified_abs_item_into_library_item() {
 	let mapped = into_item("https://abs.example.com", item);
 	assert_eq!(mapped.abs_item_id, "li_abc");
 	assert_eq!(mapped.asin.as_deref(), Some("B002V0QK4C"));
+	assert_eq!(mapped.isbn.as_deref(), Some("9780553293357"));
 	assert_eq!(mapped.title, "Foundation");
 	assert_eq!(mapped.author.as_deref(), Some("Isaac Asimov"));
 	assert_eq!(mapped.series_name.as_deref(), Some("Foundation"));
@@ -53,6 +55,7 @@ fn item_without_asin_still_maps() {
 			.unwrap();
 	let mapped = into_item("https://abs.example.com", item);
 	assert!(mapped.asin.is_none());
+	assert!(mapped.isbn.is_none());
 	assert_eq!(mapped.title, "Mystery");
 	assert!(mapped.series_name.is_none());
 }

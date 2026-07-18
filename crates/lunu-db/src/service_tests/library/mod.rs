@@ -72,12 +72,20 @@ fn item(abs_id: &str, asin: Option<&str>) -> LibraryItem {
 	LibraryItem {
 		abs_item_id: abs_id.to_string(),
 		asin: asin.map(str::to_string),
+		isbn: None,
 		title: format!("Book {abs_id}"),
 		author: Some("Isaac Asimov".to_string()),
 		cover_url: None,
 		series_name: Some("Foundation".to_string()),
 		series_sequence: asin.map(|_| "1".to_string()),
 		library_path: format!("/abs/{abs_id}"),
+	}
+}
+
+fn item_with_isbn(abs_id: &str, isbn: &str) -> LibraryItem {
+	LibraryItem {
+		isbn: Some(isbn.to_string()),
+		..item(abs_id, None)
 	}
 }
 

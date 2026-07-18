@@ -65,6 +65,19 @@ impl LibraryService {
 			});
 		}
 
+		if let Some(isbn) = item.isbn.as_deref()
+			&& let Some(work_id) = self
+				.works
+				.find_by_external_id(&ExternalId::isbn(isbn))
+				.await?
+		{
+			return Ok(Identity {
+				asin: None,
+				work_id: Some(work_id),
+				matched_by: Some(MatchedBy::Isbn),
+			});
+		}
+
 		if let Some(media) = existing
 			&& media.matched_by.is_some_and(survives_resync)
 		{

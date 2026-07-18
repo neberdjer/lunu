@@ -37,6 +37,7 @@ impl FromStr for MediaSource {
 pub struct LibraryItem {
 	pub abs_item_id: String,
 	pub asin: Option<String>,
+	pub isbn: Option<String>,
 	pub title: String,
 	pub author: Option<String>,
 	pub cover_url: Option<String>,
@@ -48,6 +49,7 @@ pub struct LibraryItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchedBy {
 	Asin,
+	Isbn,
 	Title,
 	Fuzzy,
 	Manual,
@@ -57,6 +59,7 @@ impl MatchedBy {
 	pub fn as_str(&self) -> &'static str {
 		match self {
 			MatchedBy::Asin => "asin",
+			MatchedBy::Isbn => "isbn",
 			MatchedBy::Title => "title",
 			MatchedBy::Fuzzy => "fuzzy",
 			MatchedBy::Manual => "manual",
@@ -70,6 +73,7 @@ impl FromStr for MatchedBy {
 	fn from_str(value: &str) -> Result<Self> {
 		match value {
 			"asin" => Ok(MatchedBy::Asin),
+			"isbn" => Ok(MatchedBy::Isbn),
 			"title" => Ok(MatchedBy::Title),
 			"fuzzy" => Ok(MatchedBy::Fuzzy),
 			"manual" => Ok(MatchedBy::Manual),

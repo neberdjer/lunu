@@ -120,14 +120,15 @@ fn into_item(base: &str, item: AbsItem) -> LibraryItem {
 	let metadata = item.media.and_then(|media| media.metadata);
 	let cover_url = Some(format!("{base}/api/items/{}/cover", item.id));
 
-	let (title, author, asin, series_raw) = match metadata {
+	let (title, author, asin, isbn, series_raw) = match metadata {
 		Some(metadata) => (
 			nonempty(metadata.title),
 			nonempty(metadata.author_name),
 			nonempty(metadata.asin),
+			nonempty(metadata.isbn),
 			metadata.series_name,
 		),
-		None => (None, None, None, None),
+		None => (None, None, None, None, None),
 	};
 
 	let (series_name, series_sequence) = parse_series_name(series_raw);
@@ -135,6 +136,7 @@ fn into_item(base: &str, item: AbsItem) -> LibraryItem {
 	LibraryItem {
 		abs_item_id: item.id,
 		asin,
+		isbn,
 		title: title.unwrap_or_else(|| "Untitled".to_string()),
 		author,
 		cover_url,
@@ -222,6 +224,8 @@ struct AbsMetadata {
 	author_name: Option<String>,
 	#[serde(default)]
 	asin: Option<String>,
+	#[serde(default)]
+	isbn: Option<String>,
 	#[serde(default, rename = "seriesName")]
 	series_name: Option<String>,
 }

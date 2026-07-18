@@ -26,6 +26,10 @@ impl WorkService {
 			.collect())
 	}
 
+	pub async fn find_by_external_id(&self, id: &ExternalId) -> Result<Option<String>> {
+		self.works.find_by_external_id(id).await
+	}
+
 	pub async fn for_book(&self, book: &Book) -> Result<Option<String>> {
 		if book.ids.is_empty() {
 			return Ok(None);

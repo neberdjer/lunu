@@ -123,6 +123,81 @@ async fn resync_preserves_an_earlier_search_match() {
 	assert_eq!(media.matched_by, Some(MatchedBy::Title));
 }
 
+async fn work_known_by_isbn(db: &Db, isbn: &str) -> String {
+	let mut known = book("Foundation");
+	known.ids = vec![ExternalId::isbn(isbn)];
+	work_service(db).for_book(&known).await.unwrap().unwrap()
+}
+
+#[tokio::test]
+async fn an_isbn_links_to_a_work_already_known_by_that_isbn() {
+	let db = memory_db().await;
+	let isbn = "9780553293357";
+	let work_id = work_known_by_isbn(&db, isbn).await;
+
+	let service = library_service_with(
+		&db,
+		vec![item_with_isbn("b", isbn)],
+		stub("empty", Some(Vec::new())),
+	);
+	let summary = service.sync().await.unwrap();
+	assert_eq!(summary.imported, 1);
+
+	let media = media_for(&db, "b").await;
+	assert_eq!(media.matched_by, Some(MatchedBy::Isbn));
+	assert_eq!(
+		media.work_id.as_deref(),
+		Some(work_id.as_str()),
+		"the abs item joins the work a request already established by isbn"
+	);
+	assert_eq!(media.asin, None);
+}
+
+#[tokio::test]
+async fn an_isbn_unknown_to_any_work_falls_through_to_search() {
+	let db = memory_db().await;
+	let service = library_service_with(
+		&db,
+		vec![item_with_isbn("b", "9780000000000")],
+		stub("empty", Some(Vec::new())),
+	);
+	service.sync().await.unwrap();
+
+	let media = media_for(&db, "b").await;
+	assert_eq!(
+		media.matched_by, None,
+		"an isbn no work carries is not enough to invent a match"
+	);
+	assert_eq!(media.work_id, None);
+}
+
+#[tokio::test]
+async fn a_known_isbn_outranks_an_earlier_fuzzy_search_match() {
+	let db = memory_db().await;
+	let isbn = "9780553293357";
+	let books = vec![found("Book b", "B-FOUND", "Isaac Asimov")];
+	library_service_with(&db, vec![item("b", None)], stub("finder", Some(books)))
+		.sync()
+		.await
+		.unwrap();
+
+	let work_id = work_known_by_isbn(&db, isbn).await;
+	let resynced = library_service_with(
+		&db,
+		vec![item_with_isbn("b", isbn)],
+		stub("empty", Some(Vec::new())),
+	);
+	assert_eq!(resynced.sync().await.unwrap().updated, 1);
+
+	let media = media_for(&db, "b").await;
+	assert_eq!(media.matched_by, Some(MatchedBy::Isbn));
+	assert_eq!(media.work_id.as_deref(), Some(work_id.as_str()));
+	assert_eq!(
+		media.asin, None,
+		"the exact isbn match clears the earlier fuzzy search asin"
+	);
+}
+
 #[tokio::test]
 async fn an_item_that_gains_its_own_asin_outranks_a_search_match() {
 	let db = memory_db().await;
