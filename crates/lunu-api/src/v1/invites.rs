@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use actix_web::{HttpResponse, delete, get, post, web};
-use chrono::{Duration, Utc};
 use lunu_core::consts::auth::DEFAULT_INVITE_MAX_USES;
 use lunu_core::models::Role;
 use serde::Deserialize;
@@ -44,9 +43,7 @@ pub async fn create(
 	body: web::Json<CreateInviteRequest>,
 ) -> Result<HttpResponse, ApiError> {
 	let role = Role::from_str(&body.role)?;
-	let expires_at = body
-		.expires_in_days
-		.map(|days| Utc::now() + Duration::days(days));
+	let expires_at = crate::expiry::resolve(body.expires_in_days)?;
 
 	let issued = state
 		.invites

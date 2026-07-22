@@ -112,6 +112,7 @@ impl MetadataService {
 		let providers = self.enabled_providers(scheme).await?;
 
 		let mut last_error = None;
+		let mut answered = false;
 		for provider in providers {
 			if let Some(hit) = self
 				.read_cache::<Option<T>>(provider.id(), kind, key)
@@ -119,7 +120,10 @@ impl MetadataService {
 			{
 				match hit {
 					Some(value) => return Ok(Some(value)),
-					None => continue,
+					None => {
+						answered = true;
+						continue;
+					}
 				}
 			}
 			match call(Arc::clone(provider)).await {
@@ -128,14 +132,15 @@ impl MetadataService {
 					if found.is_some() {
 						return Ok(found);
 					}
+					answered = true;
 				}
 				Err(error) => last_error = Some(error),
 			}
 		}
 
 		match last_error {
-			Some(error) => Err(error),
-			None => Ok(None),
+			Some(error) if !answered => Err(error),
+			_ => Ok(None),
 		}
 	}
 

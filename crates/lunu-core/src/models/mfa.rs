@@ -38,6 +38,7 @@ pub struct UserMfa {
 	pub method: MfaMethod,
 	pub secret: Option<String>,
 	pub confirmed: bool,
+	pub last_totp_step: i64,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }

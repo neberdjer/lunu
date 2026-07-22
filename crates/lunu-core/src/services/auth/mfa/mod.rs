@@ -82,6 +82,7 @@ impl AuthService {
 				method,
 				secret: stored_secret,
 				confirmed: false,
+				last_totp_step: 0,
 				created_at: now,
 				updated_at: now,
 			})
@@ -120,6 +121,7 @@ impl AuthService {
 		self.mfa
 			.upsert(&UserMfa {
 				confirmed: true,
+				last_totp_step: 0,
 				updated_at: Utc::now(),
 				..mfa
 			})

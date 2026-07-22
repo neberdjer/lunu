@@ -131,10 +131,9 @@ impl MediaRepo for SqlxMediaRepo {
 		sqlx::query(
 			"UPDATE media SET \
 			 work_id = $1, asin = $2, abs_item_id = $3, title = $4, author = $5, cover_url = $6, \
-			 series_name = $7, series_sequence = $8, library_path = $9, merged_path = $10, \
-			 merge_state = $11, merge_detail = $12, merge_backup_path = $13, \
-			 overridden = $14, matched_by = $15 \
-			 WHERE id = $16",
+			 series_name = $7, series_sequence = $8, library_path = $9, \
+			 overridden = $10, matched_by = $11 \
+			 WHERE id = $12",
 		)
 		.bind(media.work_id.as_deref())
 		.bind(media.asin.as_deref())
@@ -145,10 +144,6 @@ impl MediaRepo for SqlxMediaRepo {
 		.bind(media.series_name.as_deref())
 		.bind(media.series_sequence.as_deref())
 		.bind(&media.library_path)
-		.bind(media.merged_path.as_deref())
-		.bind(media.merge_state.as_str())
-		.bind(media.merge_detail.as_deref())
-		.bind(media.merge_backup_path.as_deref())
 		.bind(bool_to_int(media.overridden))
 		.bind(media.matched_by.map(|m| m.as_str()))
 		.bind(&media.id)
@@ -171,6 +166,29 @@ impl MediaRepo for SqlxMediaRepo {
 			.execute(&self.db)
 			.await
 			.map_err(map_write_error)?;
+		Ok(())
+	}
+
+	async fn set_merge_result(
+		&self,
+		id: &str,
+		merged_path: Option<&str>,
+		merge_backup_path: Option<&str>,
+		state: MergeState,
+		detail: Option<&str>,
+	) -> Result<()> {
+		sqlx::query(
+			"UPDATE media SET merged_path = $1, merge_backup_path = $2, \
+			 merge_state = $3, merge_detail = $4 WHERE id = $5",
+		)
+		.bind(merged_path)
+		.bind(merge_backup_path)
+		.bind(state.as_str())
+		.bind(detail)
+		.bind(id)
+		.execute(&self.db)
+		.await
+		.map_err(map_write_error)?;
 		Ok(())
 	}
 

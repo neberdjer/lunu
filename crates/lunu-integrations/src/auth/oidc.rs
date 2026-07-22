@@ -11,7 +11,7 @@ use lunu_core::services::SettingsService;
 use lunu_core::traits::{OidcClaims, OidcFlow};
 use serde::Deserialize;
 
-use crate::http::get_json;
+use crate::http::{get_json, write_json};
 use crate::{integration_error, optional_setting, required_setting};
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
@@ -105,7 +105,7 @@ impl OidcFlow for OidcClient {
 			("client_id", &client_id),
 			("code_verifier", verifier),
 		];
-		let token: TokenResponse = get_json(|| {
+		let token: TokenResponse = write_json(|| {
 			let request = self.http.post(&discovery.token_endpoint).form(&form);
 			match &client_secret {
 				Some(secret) => request.basic_auth(&client_id, Some(secret)),

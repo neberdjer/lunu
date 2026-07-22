@@ -20,15 +20,17 @@ pub fn totp_code(secret: &str, unix_seconds: u64) -> Option<String> {
 	Some(code_at(&key, unix_seconds / TOTP_STEP_SECONDS))
 }
 
-pub fn totp_matches(secret: &str, unix_seconds: u64, presented: &str) -> bool {
-	let Some(key) = base32::decode(Alphabet::Rfc4648 { padding: false }, secret) else {
-		return false;
-	};
+pub fn totp_match_step(secret: &str, unix_seconds: u64, presented: &str) -> Option<u64> {
+	let key = base32::decode(Alphabet::Rfc4648 { padding: false }, secret)?;
 	let counter = unix_seconds / TOTP_STEP_SECONDS;
 	let presented = presented.trim();
 	[counter.wrapping_sub(1), counter, counter.wrapping_add(1)]
 		.into_iter()
-		.any(|step| constant_time_eq(&code_at(&key, step), presented))
+		.find(|step| constant_time_eq(&code_at(&key, *step), presented))
+}
+
+pub fn totp_matches(secret: &str, unix_seconds: u64, presented: &str) -> bool {
+	totp_match_step(secret, unix_seconds, presented).is_some()
 }
 
 fn code_at(key: &[u8], counter: u64) -> String {

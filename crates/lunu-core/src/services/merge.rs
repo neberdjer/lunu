@@ -110,7 +110,15 @@ impl MergeService {
 	}
 
 	async fn save(&self, media: Media) -> Result<()> {
-		self.media.update(&media).await?;
+		self.media
+			.set_merge_result(
+				&media.id,
+				media.merged_path.as_deref(),
+				media.merge_backup_path.as_deref(),
+				media.merge_state,
+				media.merge_detail.as_deref(),
+			)
+			.await?;
 		self.announce(media);
 		Ok(())
 	}

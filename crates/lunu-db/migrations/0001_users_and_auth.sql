@@ -74,6 +74,7 @@ CREATE TABLE user_mfa (
 	method TEXT NOT NULL,
 	secret TEXT,
 	confirmed BIGINT NOT NULL DEFAULT 0,
+	last_totp_step BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );

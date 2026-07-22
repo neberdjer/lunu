@@ -4,7 +4,7 @@ use super::{PendingMfa, unix_seconds};
 use crate::consts::auth::{MFA_CODE_DIGITS, MFA_MAX_ATTEMPTS, MFA_TICKET_TTL_MINUTES};
 use crate::consts::reasons;
 use crate::crypto::{
-	constant_time_eq, generate_numeric_code, generate_token, hash_token, totp_matches,
+	constant_time_eq, generate_numeric_code, generate_token, hash_token, totp_match_step,
 };
 use crate::email;
 use crate::models::{MfaMethod, User};
@@ -73,8 +73,23 @@ impl AuthService {
 
 	async fn verify_challenge(&self, ticket: &str, code: &str) -> Result<String> {
 		let (user_id, matched) = self.consume_pending(ticket, code)?;
-		if matched {
-			return Ok(user_id);
+		match matched {
+			MfaMatch::Email => return Ok(user_id),
+			MfaMatch::Totp(step) => {
+				let step = step as i64;
+				let last = self
+					.mfa
+					.find_for_user(&user_id)
+					.await?
+					.map(|mfa| mfa.last_totp_step)
+					.unwrap_or(0);
+				if step <= last {
+					return Err(Error::Validation(reasons::MFA_CODE_INVALID.to_string()));
+				}
+				self.mfa.record_totp_step(&user_id, step).await?;
+				return Ok(user_id);
+			}
+			MfaMatch::None => {}
 		}
 		if self
 			.recovery
@@ -91,7 +106,7 @@ impl AuthService {
 		}
 	}
 
-	pub(super) fn consume_pending(&self, ticket: &str, code: &str) -> Result<(String, bool)> {
+	pub(super) fn consume_pending(&self, ticket: &str, code: &str) -> Result<(String, MfaMatch)> {
 		let mut pending = self.mfa_pending.lock().expect("mfa ticket lock");
 		take_verified(&mut pending, ticket, code)
 	}
@@ -104,7 +119,7 @@ impl AuthService {
 			.map(|(ticket, _)| ticket.clone())
 			.ok_or_else(|| Error::Validation(reasons::MFA_TICKET_INVALID.to_string()))?;
 		let (_, matched) = take_verified(&mut pending, &ticket, code)?;
-		if matched {
+		if matches!(matched, MfaMatch::Email) {
 			Ok(())
 		} else {
 			Err(Error::Validation(reasons::MFA_CODE_INVALID.to_string()))
@@ -167,11 +182,17 @@ impl AuthService {
 	}
 }
 
+pub(super) enum MfaMatch {
+	None,
+	Email,
+	Totp(u64),
+}
+
 fn take_verified(
 	pending: &mut std::collections::HashMap<String, PendingMfa>,
 	ticket: &str,
 	code: &str,
-) -> Result<(String, bool)> {
+) -> Result<(String, MfaMatch)> {
 	let invalid = || Error::Validation(reasons::MFA_TICKET_INVALID.to_string());
 	let entry = pending.get_mut(ticket).ok_or_else(invalid)?;
 	if entry.created_at < Utc::now() - Duration::minutes(MFA_TICKET_TTL_MINUTES)
@@ -181,22 +202,31 @@ fn take_verified(
 		return Err(invalid());
 	}
 
-	let ok = match entry.method {
+	let matched = match entry.method {
 		MfaMethod::Totp => entry
 			.secret
 			.as_deref()
-			.is_some_and(|secret| totp_matches(secret, unix_seconds(Utc::now()), code)),
-		MfaMethod::Email => entry
-			.code_hash
-			.as_deref()
-			.is_some_and(|hash| constant_time_eq(hash, &hash_token(code.trim()))),
+			.and_then(|secret| totp_match_step(secret, unix_seconds(Utc::now()), code))
+			.map(MfaMatch::Totp)
+			.unwrap_or(MfaMatch::None),
+		MfaMethod::Email => {
+			if entry
+				.code_hash
+				.as_deref()
+				.is_some_and(|hash| constant_time_eq(hash, &hash_token(code.trim())))
+			{
+				MfaMatch::Email
+			} else {
+				MfaMatch::None
+			}
+		}
 	};
-	if !ok {
+	if matches!(matched, MfaMatch::None) {
 		entry.attempts += 1;
-		return Ok((entry.user_id.clone(), false));
+		return Ok((entry.user_id.clone(), MfaMatch::None));
 	}
 
 	let user_id = entry.user_id.clone();
 	pending.remove(ticket);
-	Ok((user_id, true))
+	Ok((user_id, matched))
 }

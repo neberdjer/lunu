@@ -85,8 +85,19 @@ where
 	T: serde::de::DeserializeOwned,
 	F: Fn() -> reqwest::RequestBuilder,
 {
-	send_with_retry(build)
-		.await?
+	json_response(send_with_retry(build).await?).await
+}
+
+pub(crate) async fn write_json<T, F>(build: F) -> Result<T>
+where
+	T: serde::de::DeserializeOwned,
+	F: Fn() -> reqwest::RequestBuilder,
+{
+	json_response(send_write(build).await?).await
+}
+
+async fn json_response<T: serde::de::DeserializeOwned>(response: reqwest::Response) -> Result<T> {
+	response
 		.error_for_status()
 		.map_err(crate::integration_error)?
 		.json()

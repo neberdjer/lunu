@@ -27,9 +27,10 @@ fn walk(dir: &Path, keep: &mut impl FnMut(&Path) -> bool, found: &mut Vec<PathBu
 	for entry in fs::read_dir(dir).map_err(integration_error)? {
 		let entry = entry.map_err(integration_error)?;
 		let path = entry.path();
-		if entry.file_type().map_err(integration_error)?.is_dir() {
+		let file_type = entry.file_type().map_err(integration_error)?;
+		if file_type.is_dir() {
 			walk(&path, keep, found)?;
-		} else if keep(&path) {
+		} else if file_type.is_file() && keep(&path) {
 			found.push(path);
 		}
 	}

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
@@ -22,6 +23,7 @@ pub struct SettingsService {
 	repo: Arc<dyn SettingsRepo>,
 	encryptor: Encryptor,
 	cached: RwLock<Option<Arc<HashMap<String, Setting>>>>,
+	generation: AtomicU64,
 }
 
 impl SettingsService {
@@ -30,6 +32,7 @@ impl SettingsService {
 			repo,
 			encryptor,
 			cached: RwLock::new(None),
+			generation: AtomicU64::new(0),
 		}
 	}
 
@@ -42,6 +45,7 @@ impl SettingsService {
 		{
 			return Ok(cached);
 		}
+		let generation = self.generation.load(Ordering::Acquire);
 		let loaded: HashMap<String, Setting> = self
 			.repo
 			.get_all()
@@ -50,11 +54,15 @@ impl SettingsService {
 			.map(|mut setting| (std::mem::take(&mut setting.key), setting))
 			.collect();
 		let loaded = Arc::new(loaded);
-		*self.cached.write().expect("settings cache is not poisoned") = Some(loaded.clone());
+		let mut guard = self.cached.write().expect("settings cache is not poisoned");
+		if self.generation.load(Ordering::Acquire) == generation {
+			*guard = Some(loaded.clone());
+		}
 		Ok(loaded)
 	}
 
 	fn invalidate(&self) {
+		self.generation.fetch_add(1, Ordering::AcqRel);
 		*self.cached.write().expect("settings cache is not poisoned") = None;
 	}
 

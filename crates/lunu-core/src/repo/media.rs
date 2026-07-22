@@ -14,6 +14,14 @@ pub trait MediaRepo: Send + Sync {
 		state: MergeState,
 		detail: Option<&str>,
 	) -> Result<()>;
+	async fn set_merge_result(
+		&self,
+		id: &str,
+		merged_path: Option<&str>,
+		merge_backup_path: Option<&str>,
+		state: MergeState,
+		detail: Option<&str>,
+	) -> Result<()>;
 	async fn delete(&self, id: &str) -> Result<()>;
 	async fn find_by_asin(&self, asin: &str) -> Result<Option<Media>>;
 	async fn find_by_abs_item_id(&self, abs_item_id: &str) -> Result<Option<Media>>;

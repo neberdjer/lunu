@@ -7,6 +7,7 @@ use crate::models::{MfaRecoveryCode, UserMfa};
 pub trait UserMfaRepo: Send + Sync {
 	async fn upsert(&self, mfa: &UserMfa) -> Result<()>;
 	async fn find_for_user(&self, user_id: &str) -> Result<Option<UserMfa>>;
+	async fn record_totp_step(&self, user_id: &str, step: i64) -> Result<()>;
 	async fn delete_for_user(&self, user_id: &str) -> Result<()>;
 }
 

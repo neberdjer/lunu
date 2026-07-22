@@ -11,4 +11,4 @@ pub use token::{
 	constant_time_eq, generate_numeric_code, generate_recovery_code, generate_token, hash_token,
 	pkce_challenge,
 };
-pub use totp::{generate_totp_secret, totp_matches};
+pub use totp::{generate_totp_secret, totp_match_step, totp_matches};

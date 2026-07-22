@@ -46,6 +46,7 @@ pub(super) fn ffprobe_for(ffmpeg: &str) -> String {
 
 pub(super) async fn probe(ffprobe: &str, path: &Path) -> Result<Probed> {
 	let output = Command::new(ffprobe)
+		.kill_on_drop(true)
 		.args([
 			"-v",
 			"error",

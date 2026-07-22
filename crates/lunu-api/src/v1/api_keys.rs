@@ -1,5 +1,4 @@
 use actix_web::{HttpResponse, delete, get, post, web};
-use chrono::{Duration, Utc};
 use lunu_core::consts::auth::KNOWN_API_KEY_SCOPES;
 use serde::{Deserialize, Serialize};
 
@@ -51,9 +50,7 @@ pub async fn create(
 	state: web::Data<AppState>,
 	body: web::Json<CreateApiKeyRequest>,
 ) -> Result<HttpResponse, ApiError> {
-	let expires_at = body
-		.expires_in_days
-		.map(|days| Utc::now() + Duration::days(days));
+	let expires_at = crate::expiry::resolve(body.expires_in_days)?;
 
 	let issued = state
 		.api_keys

@@ -67,6 +67,9 @@ async fn apply_sqlite_pragmas(conn: &mut sqlx::AnyConnection) -> sqlx::Result<()
 	sqlx::query("PRAGMA synchronous = NORMAL")
 		.execute(&mut *conn)
 		.await?;
+	sqlx::query("PRAGMA busy_timeout = 5000")
+		.execute(&mut *conn)
+		.await?;
 	Ok(())
 }
 

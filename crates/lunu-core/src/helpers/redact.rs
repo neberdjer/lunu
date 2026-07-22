@@ -4,6 +4,7 @@ const MASK: &str = "[redacted]";
 const SENSITIVE_NEEDLES: &[&str] = &[
 	"apikey=",
 	"api_key=",
+	"key=",
 	"token=",
 	"password=",
 	"secret=",

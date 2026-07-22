@@ -74,6 +74,7 @@ pub const MEDIA_FILTER_UNKNOWN: &str = "media-filter-unknown";
 pub const MERGE_STATE_UNKNOWN: &str = "merge-state-unknown";
 pub const IMPORT_UNLISTED_ACTION_UNKNOWN: &str = "import-unlisted-action-unknown";
 pub const MERGE_NOTHING_TO_REVERT: &str = "merge-nothing-to-revert";
+pub const INVALID_EXPIRY: &str = "invalid-expiry";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
 pub const NO_METADATA_PROVIDER: &str = "no-metadata-provider";
 pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
@@ -160,6 +161,7 @@ pub const ALL: &[&str] = &[
 	MERGE_STATE_UNKNOWN,
 	IMPORT_UNLISTED_ACTION_UNKNOWN,
 	MERGE_NOTHING_TO_REVERT,
+	INVALID_EXPIRY,
 	MEDIA_SOURCE_UNKNOWN,
 	NO_METADATA_PROVIDER,
 	ABS_NOT_CONFIGURED,

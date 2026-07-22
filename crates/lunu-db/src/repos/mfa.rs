@@ -22,6 +22,7 @@ impl SqlxUserMfaRepo {
 fn map_mfa(row: &AnyRow) -> Result<UserMfa> {
 	let method: String = row.try_get("method").map_err(db_error)?;
 	let confirmed: i64 = row.try_get("confirmed").map_err(db_error)?;
+	let last_totp_step: i64 = row.try_get("last_totp_step").map_err(db_error)?;
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
 
@@ -30,6 +31,7 @@ fn map_mfa(row: &AnyRow) -> Result<UserMfa> {
 		method: parse_enum::<MfaMethod>(&method)?,
 		secret: row.try_get("secret").map_err(db_error)?,
 		confirmed: int_to_bool(confirmed),
+		last_totp_step,
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
@@ -37,6 +39,18 @@ fn map_mfa(row: &AnyRow) -> Result<UserMfa> {
 
 #[async_trait]
 impl UserMfaRepo for SqlxUserMfaRepo {
+	async fn record_totp_step(&self, user_id: &str, step: i64) -> Result<()> {
+		sqlx::query(
+			"UPDATE user_mfa SET last_totp_step = $1 WHERE user_id = $2 AND last_totp_step < $1",
+		)
+		.bind(step)
+		.bind(user_id)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(())
+	}
+
 	async fn upsert(&self, mfa: &UserMfa) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO user_mfa (user_id, method, secret, confirmed, created_at, updated_at) \

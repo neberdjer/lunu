@@ -11,3 +11,5 @@ pub mod reasons;
 pub mod scoring;
 pub mod security;
 pub mod settings;
+
+pub const MAX_EXPIRY_DAYS: i64 = 3650;

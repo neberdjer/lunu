@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use async_trait::async_trait;
 use lunu_core::Result;
@@ -76,6 +77,8 @@ fn place_filtered(
 	}
 }
 
+static PLACE_COUNTER: AtomicU32 = AtomicU32::new(0);
+
 fn place_file(source: &Path, target: &Path) -> Result<()> {
 	if let Some(parent) = target.parent() {
 		fs::create_dir_all(parent).map_err(integration_error)?;
@@ -83,14 +86,21 @@ fn place_file(source: &Path, target: &Path) -> Result<()> {
 	if fs::hard_link(source, target).is_ok() {
 		return Ok(());
 	}
-	fs::copy(source, target).map_err(integration_error)?;
+	if target.exists() {
+		return Ok(());
+	}
+	let staging = target.with_extension(format!(
+		"lunu-import-{}-{}",
+		std::process::id(),
+		PLACE_COUNTER.fetch_add(1, Ordering::Relaxed)
+	));
+	fs::copy(source, &staging).map_err(integration_error)?;
+	fs::rename(&staging, target).map_err(integration_error)?;
 	Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-	use std::sync::atomic::{AtomicU32, Ordering};
-
 	use super::*;
 
 	static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -203,6 +213,29 @@ mod tests {
 			fs::read(dest.join("extras/scans/back.tiff")).unwrap(),
 			b"scan",
 			"extras keep their original folder structure so nothing collides"
+		);
+		fs::remove_dir_all(&root).unwrap();
+	}
+
+	#[tokio::test]
+	async fn a_reimport_never_overwrites_an_existing_library_file() {
+		let root = temp_dir();
+		let source = root.join("dl/book.m4b");
+		fs::create_dir_all(source.parent().unwrap()).unwrap();
+		fs::write(&source, b"seeding-data").unwrap();
+		let target = root.join("library/Author/Title/book.m4b");
+		fs::create_dir_all(target.parent().unwrap()).unwrap();
+		fs::hard_link(&source, &target).unwrap();
+
+		let replacement = root.join("dl2/book.m4b");
+		fs::create_dir_all(replacement.parent().unwrap()).unwrap();
+		fs::write(&replacement, b"different").unwrap();
+		place_file(&replacement, &target).unwrap();
+
+		assert_eq!(
+			fs::read(&source).unwrap(),
+			b"seeding-data",
+			"placing over an existing library file must not truncate the hardlinked source"
 		);
 		fs::remove_dir_all(&root).unwrap();
 	}

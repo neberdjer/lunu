@@ -89,6 +89,7 @@ error-media-filter-unknown = That library filter is not recognized. Use all, unm
 error-merge-state-unknown = That merge state is not recognized.
 error-import-unlisted-action-unknown = That setting for unlisted files is not recognized. Use skip, extras, or keep.
 error-merge-nothing-to-revert = This item has no merge to undo, or its sources were not kept.
+error-invalid-expiry = The expiry must be between 1 and 3650 days.
 
 merge-skip-no-library-path = Lunu has no library path for this item, so there are no files to merge.
 merge-skip-already-merged = This item was already merged, and the merged file is still in place.

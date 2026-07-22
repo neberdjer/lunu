@@ -215,6 +215,7 @@ async fn run_ffmpeg(
 	encode: Option<&str>,
 ) -> Result<()> {
 	let mut command = Command::new(binary);
+	command.kill_on_drop(true);
 	command
 		.args(["-nostdin", "-y", "-f", "concat", "-safe", "0", "-i"])
 		.arg(list)

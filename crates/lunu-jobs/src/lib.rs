@@ -148,30 +148,47 @@ async fn run_with_lease(
 	handler: &Arc<dyn JobHandler>,
 	job: &Job,
 ) -> Result<()> {
+	let mut work = {
+		let handler = handler.clone();
+		let job = job.clone();
+		AbortOnDrop(tokio::spawn(async move { handler.handle(&job).await }))
+	};
 	let heartbeat = {
 		let jobs = jobs.clone();
 		let id = job.id.clone();
 		let locked_by = job.locked_by.clone().unwrap_or_default();
-		tokio::spawn(async move {
+		AbortOnDrop(tokio::spawn(async move {
 			loop {
 				tokio::time::sleep(Duration::from_secs(LEASE_RENEW_SECS)).await;
 				if let Ok(false) | Err(_) = jobs.renew_lease(&id, &locked_by, Utc::now()).await {
 					return;
 				}
 			}
-		})
+		}))
 	};
 
-	let outcome =
-		match tokio::time::timeout(Duration::from_secs(MAX_JOB_SECS), handler.handle(job)).await {
-			Ok(result) => result,
-			Err(_) => Err(Error::Internal(format!(
-				"job exceeded maximum duration of {MAX_JOB_SECS}s"
-			))),
-		};
+	let outcome = match tokio::time::timeout(Duration::from_secs(MAX_JOB_SECS), &mut work.0).await {
+		Ok(Ok(result)) => result,
+		Ok(Err(join)) if join.is_panic() => {
+			Err(Error::Internal("job handler panicked".to_string()))
+		}
+		Ok(Err(_)) => Err(Error::Internal("job handler was cancelled".to_string())),
+		Err(_) => Err(Error::Internal(format!(
+			"job exceeded maximum duration of {MAX_JOB_SECS}s"
+		))),
+	};
 
-	heartbeat.abort();
+	drop(work);
+	drop(heartbeat);
 	outcome
+}
+
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+	fn drop(&mut self) {
+		self.0.abort();
+	}
 }
 
 async fn reaper_loop(jobs: Arc<dyn JobRepo>, lease_timeout: Duration) {

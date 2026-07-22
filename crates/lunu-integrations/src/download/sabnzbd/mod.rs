@@ -9,7 +9,7 @@ use lunu_core::traits::DownloadClient;
 use lunu_core::{Error, Result};
 use serde::Deserialize;
 
-use crate::http::{get_json, send_write};
+use crate::http::{get_json, send_write, write_json};
 use crate::{integration_error, required_setting};
 
 const PROVIDER_ID: &str = lunu_core::consts::settings::SABNZBD;
@@ -146,13 +146,28 @@ impl SabnzbdClient {
 		api_key: &str,
 		params: &[(&str, &str)],
 	) -> Result<T> {
-		get_json(|| {
-			self.http
-				.get(format!("{base_url}/api"))
-				.query(params)
-				.query(&[("apikey", api_key), ("output", "json")])
-		})
-		.await
+		get_json(|| self.query(base_url, api_key, params)).await
+	}
+
+	fn query(
+		&self,
+		base_url: &str,
+		api_key: &str,
+		params: &[(&str, &str)],
+	) -> reqwest::RequestBuilder {
+		self.http
+			.get(format!("{base_url}/api"))
+			.query(params)
+			.query(&[("apikey", api_key), ("output", "json")])
+	}
+
+	async fn add_json<T: serde::de::DeserializeOwned>(
+		&self,
+		base_url: &str,
+		api_key: &str,
+		params: &[(&str, &str)],
+	) -> Result<T> {
+		write_json(|| self.query(base_url, api_key, params)).await
 	}
 
 	async fn call_with(
@@ -161,13 +176,7 @@ impl SabnzbdClient {
 		api_key: &str,
 		params: &[(&str, &str)],
 	) -> Result<()> {
-		let response = send_write(|| {
-			self.http
-				.get(format!("{base_url}/api"))
-				.query(params)
-				.query(&[("apikey", api_key), ("output", "json")])
-		})
-		.await?;
+		let response = send_write(|| self.query(base_url, api_key, params)).await?;
 		response.error_for_status().map_err(integration_error)?;
 		Ok(())
 	}
@@ -188,12 +197,17 @@ impl DownloadClient for SabnzbdClient {
 	}
 
 	async fn add(&self, download_url: &str, category: &str) -> Result<Option<String>> {
+		let (base_url, api_key) = self.prepare().await?;
 		let added: AddResponse = self
-			.call_json(&[
-				("mode", "addurl"),
-				("name", download_url),
-				("cat", category),
-			])
+			.add_json(
+				&base_url,
+				&api_key,
+				&[
+					("mode", "addurl"),
+					("name", download_url),
+					("cat", category),
+				],
+			)
 			.await?;
 		if !added.status {
 			return Err(rejected(added.error));
