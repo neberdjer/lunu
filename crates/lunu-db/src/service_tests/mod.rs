@@ -50,6 +50,7 @@ mod metadata;
 mod mfa;
 mod monitor;
 mod monitor_complete;
+mod monitor_removal;
 mod oidc;
 mod pipeline;
 mod repos;

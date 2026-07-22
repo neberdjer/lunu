@@ -8,11 +8,12 @@ use crate::consts::merge::{
 use crate::consts::reasons;
 use crate::helpers::naming;
 use crate::models::{
-	ActivityTarget, JobType, Media, MediaFilter, MergePayload, MergeState, SourceDisposition,
+	ActivityTarget, JobType, LiveEvent, Media, MediaFilter, MergePayload, MergeState,
+	SourceDisposition,
 };
 use crate::repo::MediaRepo;
 use crate::services::{ActivityService, JobService, SettingsService};
-use crate::traits::{MergeOutcome, MergePlan, MergePreview, Merger, RevertPlan};
+use crate::traits::{EventPublisher, MergeOutcome, MergePlan, MergePreview, Merger, RevertPlan};
 use crate::{Error, Result};
 
 pub struct QueuedMerges {
@@ -26,6 +27,7 @@ pub struct MergeService {
 	merger: Arc<dyn Merger>,
 	jobs: Arc<JobService>,
 	activity: Arc<ActivityService>,
+	events: Arc<dyn EventPublisher>,
 }
 
 impl MergeService {
@@ -35,6 +37,7 @@ impl MergeService {
 		merger: Arc<dyn Merger>,
 		jobs: Arc<JobService>,
 		activity: Arc<ActivityService>,
+		events: Arc<dyn EventPublisher>,
 	) -> Self {
 		Self {
 			media,
@@ -42,6 +45,7 @@ impl MergeService {
 			merger,
 			jobs,
 			activity,
+			events,
 		}
 	}
 
@@ -72,7 +76,7 @@ impl MergeService {
 
 		for media in candidates {
 			self.enqueue(JobType::Merge, &media.id).await?;
-			self.mark(&media.id, MergeState::Queued, None).await?;
+			self.mark(media, MergeState::Queued, None).await?;
 		}
 		Ok(QueuedMerges { queued, truncated })
 	}
@@ -95,15 +99,31 @@ impl MergeService {
 			.ok_or_else(|| Error::NotFound(format!("media {media_id}")))
 	}
 
-	async fn mark(&self, media_id: &str, state: MergeState, detail: Option<&str>) -> Result<()> {
-		self.media.set_merge_state(media_id, state, detail).await
+	async fn mark(&self, media: Media, state: MergeState, detail: Option<&str>) -> Result<()> {
+		self.media.set_merge_state(&media.id, state, detail).await?;
+		self.announce(Media {
+			merge_state: state,
+			merge_detail: detail.map(str::to_string),
+			..media
+		});
+		Ok(())
+	}
+
+	async fn save(&self, media: Media) -> Result<()> {
+		self.media.update(&media).await?;
+		self.announce(media);
+		Ok(())
+	}
+
+	fn announce(&self, media: Media) {
+		self.events.publish(&LiveEvent::Merge(Box::new(media)));
 	}
 
 	pub async fn request(&self, media_id: &str) -> Result<String> {
-		self.find(media_id).await?;
+		let media = self.find(media_id).await?;
 		self.test().await?;
 		let job = self.enqueue(JobType::Merge, media_id).await?;
-		self.mark(media_id, MergeState::Queued, None).await?;
+		self.mark(media, MergeState::Queued, None).await?;
 		Ok(job)
 	}
 
@@ -119,15 +139,14 @@ impl MergeService {
 		let plan = revert_plan(&media)?;
 		let restored = self.merger.revert(&plan).await?;
 
-		self.media
-			.update(&Media {
-				merged_path: None,
-				merge_backup_path: None,
-				merge_state: MergeState::Idle,
-				merge_detail: None,
-				..media
-			})
-			.await?;
+		self.save(Media {
+			merged_path: None,
+			merge_backup_path: None,
+			merge_state: MergeState::Idle,
+			merge_detail: None,
+			..media
+		})
+		.await?;
 		self.activity
 			.record(
 				ActivityTarget::Media(media_id),
@@ -140,7 +159,8 @@ impl MergeService {
 	}
 
 	pub async fn fail(&self, media_id: &str, error: &str) -> Result<()> {
-		self.mark(media_id, MergeState::Failed, Some(error)).await
+		let media = self.find(media_id).await?;
+		self.mark(media, MergeState::Failed, Some(error)).await
 	}
 
 	async fn plan_for(&self, media: &Media) -> Result<MergePlan> {
@@ -210,19 +230,18 @@ impl MergeService {
 		let id = media.id.clone();
 		let (event, detail) = match &outcome {
 			MergeOutcome::Merged(summary) => {
-				self.media
-					.update(&Media {
-						merged_path: Some(summary.output_path.clone()),
-						merge_backup_path: summary.backup_path.clone(),
-						merge_state: MergeState::Merged,
-						merge_detail: None,
-						..media
-					})
-					.await?;
+				self.save(Media {
+					merged_path: Some(summary.output_path.clone()),
+					merge_backup_path: summary.backup_path.clone(),
+					merge_state: MergeState::Merged,
+					merge_detail: None,
+					..media
+				})
+				.await?;
 				(ACTIVITY_MERGED, summary.output_path.clone())
 			}
 			MergeOutcome::Skipped(reason) => {
-				self.mark(&id, MergeState::Skipped, Some(reason)).await?;
+				self.mark(media, MergeState::Skipped, Some(reason)).await?;
 				(ACTIVITY_MERGE_SKIPPED, (*reason).to_string())
 			}
 		};

@@ -134,6 +134,7 @@ async fn import_requires_library_configured() {
 		Arc::new(FakeImporter::default()),
 		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
 		merge_service(&db, jobs, Arc::new(FakeMerger::new(false))),
+		Arc::new(RecordingSidecar::default()),
 	);
 
 	assert!(imports.import("d1", "/downloads/x").await.is_err());

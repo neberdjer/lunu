@@ -17,7 +17,7 @@ impl FakeClient {
 		}
 	}
 
-	fn removals(&self) -> Vec<(String, bool)> {
+	pub(super) fn removals(&self) -> Vec<(String, bool)> {
 		self.removals.lock().unwrap().clone()
 	}
 }
@@ -69,6 +69,7 @@ async fn monitor_marks_request_importing_on_completion() {
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
+		settings_service(&db),
 	);
 
 	monitor
@@ -112,6 +113,7 @@ async fn monitor_reschedules_while_downloading() {
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
+		settings_service(&db),
 	);
 
 	monitor
@@ -146,6 +148,7 @@ async fn monitor_fails_after_max_misses() {
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
+		settings_service(&db),
 	);
 
 	monitor
@@ -193,6 +196,7 @@ pub(super) fn monitor_with(
 		request_service(db, jobs.clone()),
 		jobs,
 		Arc::new(NoopPublisher),
+		settings_service(db),
 	)
 }
 
@@ -214,6 +218,7 @@ async fn monitor_removes_the_torrent_when_the_client_reports_failure() {
 		request_service(&db, jobs.clone()),
 		jobs.clone(),
 		Arc::new(NoopPublisher),
+		settings_service(&db),
 	);
 
 	monitor

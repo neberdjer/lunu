@@ -3,14 +3,22 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 
 use crate::Result;
-use crate::consts::download::{MONITOR_MAX_MISSES, MONITOR_MAX_STALLS, MONITOR_POLL_SECS};
+use crate::consts::download::{
+	MONITOR_MAX_MISSES, MONITOR_MAX_STALLS, MONITOR_POLL_SECS, SETTING_REMOVE_FAILED_DOWNLOADS,
+};
 use crate::models::{
 	Download, DownloadState, DownloadStatus, ImportPayload, JobType, LiveEvent, MonitorPayload,
-	RequestStatus,
+	Protocol, RequestStatus,
 };
 use crate::repo::DownloadRepo;
-use crate::services::{ClientRoster, JobService, RequestService};
+use crate::services::{ClientRoster, JobService, RequestService, SettingsService};
 use crate::traits::EventPublisher;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Removal {
+	Allowed,
+	Forbidden,
+}
 
 pub struct MonitorService {
 	downloads: Arc<dyn DownloadRepo>,
@@ -18,6 +26,7 @@ pub struct MonitorService {
 	requests: Arc<RequestService>,
 	jobs: Arc<JobService>,
 	events: Arc<dyn EventPublisher>,
+	settings: Arc<SettingsService>,
 }
 
 impl MonitorService {
@@ -27,6 +36,7 @@ impl MonitorService {
 		requests: Arc<RequestService>,
 		jobs: Arc<JobService>,
 		events: Arc<dyn EventPublisher>,
+		settings: Arc<SettingsService>,
 	) -> Self {
 		Self {
 			downloads,
@@ -34,6 +44,7 @@ impl MonitorService {
 			requests,
 			jobs,
 			events,
+			settings,
 		}
 	}
 
@@ -63,8 +74,13 @@ impl MonitorService {
 	) -> Result<()> {
 		let attempts = payload.misses + 1;
 		if attempts >= MONITOR_MAX_MISSES {
-			self.fail_download(download, "download not found in client", now, false)
-				.await
+			self.fail_download(
+				download,
+				"download not found in client",
+				now,
+				Removal::Forbidden,
+			)
+			.await
 		} else {
 			self.enqueue_next(&download.request_id, &download.id, attempts, payload.stalls)
 				.await
@@ -76,14 +92,15 @@ impl MonitorService {
 		download: &Download,
 		reason: &str,
 		now: DateTime<Utc>,
-		remove_from_client: bool,
+		removal: Removal,
 	) -> Result<()> {
 		self.downloads
 			.update_status(&download.id, DownloadState::Failed, download.progress, now)
 			.await?;
-		if remove_from_client
+		if removal == Removal::Allowed
 			&& let Some(client_ref) = download.client_ref.as_deref()
 			&& let Ok(client) = self.clients.by_id(&download.client)
+			&& self.may_remove(client.protocol(), download.progress).await
 		{
 			let _ = client.remove(client_ref, true).await;
 		}
@@ -91,6 +108,16 @@ impl MonitorService {
 			.mark_failed(&download.request_id, Some(reason))
 			.await?;
 		Ok(())
+	}
+
+	async fn may_remove(&self, protocol: Protocol, progress: i64) -> bool {
+		if protocol.owes_seeding_at(progress) {
+			return false;
+		}
+		self.settings
+			.toggle(SETTING_REMOVE_FAILED_DOWNLOADS)
+			.await
+			.unwrap_or(false)
 	}
 
 	async fn handle_status(
@@ -109,19 +136,23 @@ impl MonitorService {
 		updated.state = status.state;
 		updated.progress = progress;
 		updated.updated_at = now;
-		self.events.publish(&LiveEvent::Progress(updated));
-
 		match status.state {
-			DownloadState::Completed => self.complete(download, status.content_path, now).await,
+			DownloadState::Completed => {
+				self.events.publish(&LiveEvent::Progress(updated));
+				self.complete(download, status.content_path, now).await
+			}
 			DownloadState::Failed => {
-				self.fail_download(download, "download failed in client", now, true)
+				self.events.publish(&LiveEvent::Progress(updated.clone()));
+				self.fail_download(&updated, "download failed in client", now, Removal::Allowed)
 					.await
 			}
 			DownloadState::Queued => {
+				self.events.publish(&LiveEvent::Progress(updated));
 				self.enqueue_next(&download.request_id, &download.id, 0, 0)
 					.await
 			}
 			DownloadState::Downloading => {
+				self.events.publish(&LiveEvent::Progress(updated));
 				self.handle_progress(download, payload.stalls, progress, now)
 					.await
 			}
@@ -143,8 +174,13 @@ impl MonitorService {
 
 		let stalls = stalls + 1;
 		if stalls >= MONITOR_MAX_STALLS {
-			self.fail_download(download, "download stalled with no progress", now, true)
-				.await
+			self.fail_download(
+				download,
+				"download stalled with no progress",
+				now,
+				Removal::Allowed,
+			)
+			.await
 		} else {
 			self.enqueue_next(&download.request_id, &download.id, 0, stalls)
 				.await
@@ -163,7 +199,7 @@ impl MonitorService {
 					download,
 					"download completed but client reported no files",
 					now,
-					true,
+					Removal::Allowed,
 				)
 				.await;
 		};
@@ -173,7 +209,7 @@ impl MonitorService {
 					download,
 					"download completed with an unsafe content path",
 					now,
-					true,
+					Removal::Allowed,
 				)
 				.await;
 		}

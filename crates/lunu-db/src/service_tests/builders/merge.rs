@@ -91,13 +91,66 @@ pub(crate) fn merge_service(
 	jobs: Arc<lunu_core::services::JobService>,
 	merger: Arc<dyn lunu_core::traits::Merger>,
 ) -> Arc<lunu_core::services::MergeService> {
+	merge_service_with(db, jobs, merger, Arc::new(NoopPublisher))
+}
+
+#[derive(Default)]
+pub(crate) struct MergeEvents {
+	pub(crate) seen: std::sync::Mutex<Vec<(String, String, Option<String>)>>,
+}
+
+impl lunu_core::traits::EventPublisher for MergeEvents {
+	fn publish(&self, event: &lunu_core::models::LiveEvent) {
+		if let lunu_core::models::LiveEvent::Merge(media) = event {
+			self.seen.lock().unwrap().push((
+				media.id.clone(),
+				media.merge_state.as_str().to_string(),
+				media.merged_path.clone(),
+			));
+		}
+	}
+}
+
+pub(crate) fn merge_service_with(
+	db: &Db,
+	jobs: Arc<lunu_core::services::JobService>,
+	merger: Arc<dyn lunu_core::traits::Merger>,
+	events: Arc<dyn lunu_core::traits::EventPublisher>,
+) -> Arc<lunu_core::services::MergeService> {
 	Arc::new(lunu_core::services::MergeService::new(
 		Arc::new(SqlxMediaRepo::new(db.clone())),
 		settings_service(db),
 		merger,
 		jobs,
 		activity_service(db),
+		events,
 	))
+}
+
+pub(crate) struct ImportProbes {
+	pub(crate) importer: Arc<FakeImporter>,
+	pub(crate) sidecar: Arc<RecordingSidecar>,
+}
+
+pub(crate) async fn imports_probed(
+	db: &Db,
+	merger: Arc<FakeMerger>,
+) -> (ImportService, ImportProbes) {
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let settings = settings_service(db);
+	settings.set("library_dir", "/library").await.unwrap();
+	let importer = Arc::new(FakeImporter::default());
+	let sidecar = Arc::new(RecordingSidecar::default());
+	let imports = ImportService::new(
+		Arc::new(SqlxDownloadRepo::new(db.clone())),
+		request_service(db, jobs.clone()),
+		settings,
+		importer.clone(),
+		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
+		merge_service(db, jobs.clone(), merger),
+		sidecar.clone(),
+	);
+	(imports, ImportProbes { importer, sidecar })
 }
 
 pub(crate) async fn imports_with(
@@ -114,6 +167,7 @@ pub(crate) async fn imports_with(
 		Arc::new(FakeImporter::default()),
 		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
 		merge_service(db, jobs.clone(), merger),
+		Arc::new(RecordingSidecar::default()),
 	);
 	(imports, jobs)
 }

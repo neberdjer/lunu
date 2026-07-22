@@ -3,8 +3,8 @@ use std::str::FromStr;
 use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::scoring::{
-	DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_PROTOCOL_WEIGHT,
-	DEFAULT_SEEDER_WEIGHT,
+	DEFAULT_BITRATE_WEIGHT, DEFAULT_FORMAT_WEIGHT, DEFAULT_FREELEECH_WEIGHT,
+	DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS, DEFAULT_PROTOCOL_WEIGHT, DEFAULT_SEEDER_WEIGHT,
 };
 use lunu_core::models::Protocol;
 use lunu_core::services::QualityProfileInput;
@@ -36,6 +36,14 @@ fn default_protocol_weight() -> i64 {
 	DEFAULT_PROTOCOL_WEIGHT
 }
 
+fn default_bitrate_weight() -> i64 {
+	DEFAULT_BITRATE_WEIGHT
+}
+
+fn default_freeleech_weight() -> i64 {
+	DEFAULT_FREELEECH_WEIGHT
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct QualityProfileBody {
 	name: String,
@@ -61,6 +69,13 @@ pub struct QualityProfileBody {
 	preferred_protocol: Option<String>,
 	#[serde(default = "default_protocol_weight")]
 	protocol_weight: i64,
+	min_bitrate_kbps: Option<i64>,
+	#[serde(default = "default_bitrate_weight")]
+	bitrate_weight: i64,
+	#[serde(default)]
+	allowed_languages: Vec<String>,
+	#[serde(default = "default_freeleech_weight")]
+	freeleech_weight: i64,
 	#[serde(default)]
 	is_default: bool,
 }
@@ -87,6 +102,10 @@ impl QualityProfileBody {
 			keyword_weight: self.keyword_weight,
 			preferred_protocol,
 			protocol_weight: self.protocol_weight,
+			min_bitrate_kbps: self.min_bitrate_kbps,
+			bitrate_weight: self.bitrate_weight,
+			allowed_languages: self.allowed_languages,
+			freeleech_weight: self.freeleech_weight,
 			is_default: self.is_default,
 		})
 	}

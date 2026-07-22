@@ -146,6 +146,10 @@ async fn quality_profile_crud_and_default() {
 		keyword_weight: 50,
 		preferred_protocol: Some(lunu_core::models::Protocol::Usenet),
 		protocol_weight: 75,
+		min_bitrate_kbps: Some(64),
+		bitrate_weight: 3,
+		allowed_languages: vec!["en".to_string(), "de".to_string()],
+		freeleech_weight: 250,
 		is_default: true,
 		created_at: now,
 		updated_at: now,
@@ -165,6 +169,10 @@ async fn quality_profile_crud_and_default() {
 		"a stated protocol preference survives the round trip"
 	);
 	assert_eq!(loaded.protocol_weight, 75);
+	assert_eq!(loaded.min_bitrate_kbps, Some(64));
+	assert_eq!(loaded.bitrate_weight, 3);
+	assert_eq!(loaded.allowed_languages, vec!["en", "de"]);
+	assert_eq!(loaded.freeleech_weight, 250);
 	assert!(loaded.is_default);
 
 	let mut cleared = profile.clone();

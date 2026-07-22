@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 
 use crate::consts::scoring::{
-	DEFAULT_AVOIDED_KEYWORDS, DEFAULT_FORMAT_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS,
+	DEFAULT_AVOIDED_KEYWORDS, DEFAULT_BITRATE_WEIGHT, DEFAULT_FORMAT_WEIGHT,
+	DEFAULT_FREELEECH_WEIGHT, DEFAULT_KEYWORD_WEIGHT, DEFAULT_MIN_SEEDERS,
 	DEFAULT_PREFERRED_FORMATS, DEFAULT_PROTOCOL_WEIGHT, DEFAULT_SEEDER_WEIGHT,
 };
 use crate::models::Protocol;
@@ -22,6 +23,10 @@ pub struct QualityProfile {
 	pub keyword_weight: i64,
 	pub preferred_protocol: Option<Protocol>,
 	pub protocol_weight: i64,
+	pub min_bitrate_kbps: Option<i64>,
+	pub bitrate_weight: i64,
+	pub allowed_languages: Vec<String>,
+	pub freeleech_weight: i64,
 	pub is_default: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
@@ -51,6 +56,10 @@ impl QualityProfile {
 			keyword_weight: DEFAULT_KEYWORD_WEIGHT,
 			preferred_protocol: None,
 			protocol_weight: DEFAULT_PROTOCOL_WEIGHT,
+			min_bitrate_kbps: None,
+			bitrate_weight: DEFAULT_BITRATE_WEIGHT,
+			allowed_languages: Vec::new(),
+			freeleech_weight: DEFAULT_FREELEECH_WEIGHT,
 			is_default: true,
 			created_at: now,
 			updated_at: now,

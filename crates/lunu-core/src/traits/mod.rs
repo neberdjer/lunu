@@ -10,6 +10,7 @@ pub mod merger;
 pub mod metadata_provider;
 pub mod notifier;
 pub mod oidc;
+mod sidecar;
 
 pub use auth_provider::{AuthProvider, ExternalIdentity};
 pub use download_client::DownloadClient;
@@ -25,3 +26,4 @@ pub use merger::{
 pub use metadata_provider::MetadataProvider;
 pub use notifier::Notifier;
 pub use oidc::{OidcClaims, OidcFlow};
+pub use sidecar::{Sidecar, SidecarWriter};

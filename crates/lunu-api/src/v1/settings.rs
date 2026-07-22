@@ -17,8 +17,7 @@ pub struct SetSettingRequest {
 #[get("/settings")]
 pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let keys = state.settings.keys().await?;
-	let catalog: Vec<_> = settings::REGISTRY
-		.iter()
+	let catalog: Vec<_> = settings::registry()
 		.map(|spec| {
 			json!({
 				"key": spec.key,

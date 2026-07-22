@@ -9,6 +9,7 @@ mod middleware;
 mod openapi;
 mod pagination;
 mod rate_limit;
+mod rosters;
 mod state;
 mod v1;
 mod wire;

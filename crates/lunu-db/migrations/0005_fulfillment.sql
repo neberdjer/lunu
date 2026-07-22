@@ -13,6 +13,10 @@ CREATE TABLE quality_profiles (
 	keyword_weight BIGINT NOT NULL DEFAULT 100,
 	preferred_protocol TEXT,
 	protocol_weight BIGINT NOT NULL DEFAULT 100,
+	min_bitrate_kbps BIGINT,
+	bitrate_weight BIGINT NOT NULL DEFAULT 1,
+	allowed_languages TEXT NOT NULL DEFAULT '',
+	freeleech_weight BIGINT NOT NULL DEFAULT 0,
 	is_default BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL

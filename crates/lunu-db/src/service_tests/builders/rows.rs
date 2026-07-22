@@ -27,6 +27,7 @@ pub(crate) fn hobbit() -> Request {
 		work_id: "work-B01".to_string(),
 		asin: Some("B01".to_string()),
 		title: "The Hobbit".to_string(),
+		cover_url: Some("https://covers/hobbit.jpg".to_string()),
 		..request("r1")
 	}
 }

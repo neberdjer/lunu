@@ -22,6 +22,10 @@ pub struct QualityProfileInput {
 	pub keyword_weight: i64,
 	pub preferred_protocol: Option<Protocol>,
 	pub protocol_weight: i64,
+	pub min_bitrate_kbps: Option<i64>,
+	pub bitrate_weight: i64,
+	pub allowed_languages: Vec<String>,
+	pub freeleech_weight: i64,
 	pub is_default: bool,
 }
 
@@ -71,6 +75,10 @@ impl QualityProfileService {
 			keyword_weight: input.keyword_weight,
 			preferred_protocol: input.preferred_protocol,
 			protocol_weight: input.protocol_weight,
+			min_bitrate_kbps: input.min_bitrate_kbps,
+			bitrate_weight: input.bitrate_weight,
+			allowed_languages: input.allowed_languages,
+			freeleech_weight: input.freeleech_weight,
 			is_default: input.is_default,
 			created_at: now,
 			updated_at: now,
@@ -104,6 +112,10 @@ impl QualityProfileService {
 		profile.keyword_weight = input.keyword_weight;
 		profile.preferred_protocol = input.preferred_protocol;
 		profile.protocol_weight = input.protocol_weight;
+		profile.min_bitrate_kbps = input.min_bitrate_kbps;
+		profile.bitrate_weight = input.bitrate_weight;
+		profile.allowed_languages = input.allowed_languages;
+		profile.freeleech_weight = input.freeleech_weight;
 		profile.is_default = input.is_default;
 		profile.updated_at = Utc::now();
 

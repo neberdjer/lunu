@@ -9,8 +9,8 @@ use lunu_core::consts::auth::{
 use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT};
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
-	InviteService, IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
+	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
+	IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
 	MetadataService, MonitorService, NotificationInboxService, NotificationService,
 	QualityProfileService, ReleaseService, RequestService, SchedulerService, SettingsService,
 	UserService, WorkService,
@@ -27,14 +27,11 @@ use lunu_db::repos::{
 
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
+use crate::rosters;
 use lunu_integrations::audio::FfmpegMerger;
 use lunu_integrations::auth::{AudiobookshelfProvider, OidcClient};
-use lunu_integrations::download::{QbittorrentClient, SabnzbdClient, TransmissionClient};
 use lunu_integrations::indexer::ProwlarrClient;
-use lunu_integrations::library::{AbsLibrary, HardlinkImporter};
-use lunu_integrations::metadata::{
-	AudnexusProvider, GoogleBooksProvider, HardcoverProvider, OpenLibraryProvider,
-};
+use lunu_integrations::library::{AbsLibrary, FileSidecarWriter, HardlinkImporter};
 use lunu_integrations::notify::{EmailNotifier, NtfyChannel, SmtpMailer, WebhookChannel};
 
 pub struct LogControl {
@@ -147,14 +144,8 @@ impl AppState {
 		let api_keys = Arc::new(ApiKeyService::new(api_keys_repo));
 		let invites = Arc::new(InviteService::new(invites_repo));
 
-		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> = vec![
-			Arc::new(AudnexusProvider::new(settings.clone())),
-			Arc::new(OpenLibraryProvider::new()),
-			Arc::new(GoogleBooksProvider::new(settings.clone())),
-			Arc::new(HardcoverProvider::new(settings.clone())),
-		];
 		let metadata = Arc::new(MetadataService::new(
-			providers,
+			rosters::metadata_providers(&settings),
 			metadata_cache_repo,
 			settings.clone(),
 		));
@@ -207,17 +198,14 @@ impl AppState {
 		));
 		let quality_profiles = Arc::new(QualityProfileService::new(quality_profiles_repo));
 
-		let download_clients = ClientRoster::new(vec![
-			Arc::new(QbittorrentClient::new(settings.clone())),
-			Arc::new(TransmissionClient::new(settings.clone())),
-			Arc::new(SabnzbdClient::new(settings.clone())),
-		]);
+		let download_clients = rosters::download_clients(&settings);
 		let monitor = Arc::new(MonitorService::new(
 			downloads_repo.clone(),
 			download_clients.clone(),
 			requests.clone(),
 			jobs.clone(),
 			hub.clone(),
+			settings.clone(),
 		));
 		let grabs = Arc::new(GrabService::new(
 			downloads_repo.clone(),
@@ -237,6 +225,7 @@ impl AppState {
 			Arc::new(FfmpegMerger::new(settings.clone())),
 			jobs.clone(),
 			activity.clone(),
+			hub.clone(),
 		));
 
 		let importer = Arc::new(HardlinkImporter::new());
@@ -247,6 +236,7 @@ impl AppState {
 			importer,
 			media.clone(),
 			merges.clone(),
+			Arc::new(FileSidecarWriter::new()),
 		));
 
 		let notifications = Arc::new(NotificationService::new(vec![

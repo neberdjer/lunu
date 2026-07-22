@@ -87,6 +87,7 @@ error-email-not-verified = Verify your email address before signing in.
 error-verification-invalid = This verification code is invalid or has expired.
 error-media-filter-unknown = That library filter is not recognized. Use all, unmatched, or mergeable.
 error-merge-state-unknown = That merge state is not recognized.
+error-import-unlisted-action-unknown = That setting for unlisted files is not recognized. Use skip, extras, or keep.
 error-merge-nothing-to-revert = This item has no merge to undo, or its sources were not kept.
 
 merge-skip-no-library-path = Lunu has no library path for this item, so there are no files to merge.

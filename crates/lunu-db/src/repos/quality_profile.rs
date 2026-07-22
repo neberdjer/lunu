@@ -28,6 +28,7 @@ fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 	let avoided_keywords: String = row.try_get("avoided_keywords").map_err(db_error)?;
 	let is_default: i64 = row.try_get("is_default").map_err(db_error)?;
 	let preferred_protocol: Option<String> = row.try_get("preferred_protocol").map_err(db_error)?;
+	let allowed_languages: String = row.try_get("allowed_languages").map_err(db_error)?;
 	let created_at: String = row.try_get("created_at").map_err(db_error)?;
 	let updated_at: String = row.try_get("updated_at").map_err(db_error)?;
 
@@ -49,6 +50,10 @@ fn map_profile(row: &AnyRow) -> Result<QualityProfile> {
 			.map(parse_enum::<Protocol>)
 			.transpose()?,
 		protocol_weight: row.try_get("protocol_weight").map_err(db_error)?,
+		min_bitrate_kbps: row.try_get("min_bitrate_kbps").map_err(db_error)?,
+		bitrate_weight: row.try_get("bitrate_weight").map_err(db_error)?,
+		allowed_languages: split_list(&allowed_languages),
+		freeleech_weight: row.try_get("freeleech_weight").map_err(db_error)?,
 		is_default: int_to_bool(is_default),
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
@@ -62,8 +67,10 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			"INSERT INTO quality_profiles \
 			 (id, name, allowed_formats, preferred_formats, min_seeders, min_size_mb, max_size_mb, \
 			 seeder_weight, format_weight, preferred_keywords, avoided_keywords, keyword_weight, \
-			 preferred_protocol, protocol_weight, is_default, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+			 preferred_protocol, protocol_weight, min_bitrate_kbps, bitrate_weight, \
+			 allowed_languages, freeleech_weight, is_default, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+			 $18, $19, $20, $21)",
 		)
 		.bind(&profile.id)
 		.bind(&profile.name)
@@ -79,6 +86,10 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(profile.keyword_weight)
 		.bind(profile.preferred_protocol.map(|protocol| protocol.as_str()))
 		.bind(profile.protocol_weight)
+		.bind(profile.min_bitrate_kbps)
+		.bind(profile.bitrate_weight)
+		.bind(join_list(&profile.allowed_languages))
+		.bind(profile.freeleech_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.created_at))
 		.bind(format_dt(profile.updated_at))
@@ -94,8 +105,10 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 			 name = $1, allowed_formats = $2, preferred_formats = $3, min_seeders = $4, \
 			 min_size_mb = $5, max_size_mb = $6, seeder_weight = $7, format_weight = $8, \
 			 preferred_keywords = $9, avoided_keywords = $10, keyword_weight = $11, \
-			 preferred_protocol = $12, protocol_weight = $13, is_default = $14, updated_at = $15 \
-			 WHERE id = $16",
+			 preferred_protocol = $12, protocol_weight = $13, min_bitrate_kbps = $14, \
+			 bitrate_weight = $15, allowed_languages = $16, freeleech_weight = $17, \
+			 is_default = $18, updated_at = $19 \
+			 WHERE id = $20",
 		)
 		.bind(&profile.name)
 		.bind(join_list(&profile.allowed_formats))
@@ -110,6 +123,10 @@ impl QualityProfileRepo for SqlxQualityProfileRepo {
 		.bind(profile.keyword_weight)
 		.bind(profile.preferred_protocol.map(|protocol| protocol.as_str()))
 		.bind(profile.protocol_weight)
+		.bind(profile.min_bitrate_kbps)
+		.bind(profile.bitrate_weight)
+		.bind(join_list(&profile.allowed_languages))
+		.bind(profile.freeleech_weight)
 		.bind(bool_to_int(profile.is_default))
 		.bind(format_dt(profile.updated_at))
 		.bind(&profile.id)

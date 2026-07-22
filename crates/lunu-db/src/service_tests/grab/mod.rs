@@ -1,3 +1,5 @@
+mod cancel;
+
 use lunu_core::services::{ClientRoster, GrabService, ReleaseSelection};
 
 use super::builders::*;
@@ -26,6 +28,7 @@ struct StubClient {
 	assigned: Option<&'static str>,
 	configured: bool,
 	adds: std::sync::Mutex<Vec<String>>,
+	removals: std::sync::Mutex<Vec<String>>,
 }
 
 impl StubClient {
@@ -36,6 +39,7 @@ impl StubClient {
 			assigned: None,
 			configured: true,
 			adds: std::sync::Mutex::new(Vec::new()),
+			removals: std::sync::Mutex::new(Vec::new()),
 		}
 	}
 
@@ -54,6 +58,7 @@ impl StubClient {
 			assigned: Some("nzo-1"),
 			configured: true,
 			adds: std::sync::Mutex::new(Vec::new()),
+			removals: std::sync::Mutex::new(Vec::new()),
 		}
 	}
 
@@ -80,7 +85,8 @@ impl DownloadClient for StubClient {
 	async fn status(&self, _client_ref: &str) -> CoreResult<Option<DownloadStatus>> {
 		Ok(None)
 	}
-	async fn remove(&self, _client_ref: &str, _delete_files: bool) -> CoreResult<()> {
+	async fn remove(&self, client_ref: &str, _delete_files: bool) -> CoreResult<()> {
+		self.removals.lock().unwrap().push(client_ref.to_string());
 		Ok(())
 	}
 	async fn test_connection(&self) -> CoreResult<()> {

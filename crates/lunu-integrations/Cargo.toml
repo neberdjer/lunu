@@ -14,7 +14,7 @@ lunu-i18n.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-tokio = { workspace = true, features = ["time", "process", "rt"] }
+tokio = { workspace = true, features = ["time", "process", "rt", "fs"] }
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = [
     "json",

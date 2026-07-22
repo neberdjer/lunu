@@ -6,7 +6,7 @@ use tokio::sync::broadcast::error::RecvError;
 
 use lunu_core::models::LiveEvent;
 
-use crate::dto::{ActivityResponse, DownloadResponse, NotificationResponse};
+use crate::dto::{ActivityResponse, DownloadResponse, MediaResponse, NotificationResponse};
 use crate::extract::AdminUser;
 use crate::state::AppState;
 
@@ -16,6 +16,7 @@ enum WsMessage {
 	Activity(ActivityResponse),
 	Progress(DownloadResponse),
 	Notification(NotificationResponse),
+	Merge(MediaResponse),
 }
 
 fn encode(event: &LiveEvent) -> String {
@@ -25,6 +26,7 @@ fn encode(event: &LiveEvent) -> String {
 		LiveEvent::Notification(notification) => {
 			WsMessage::Notification(NotificationResponse::from(notification))
 		}
+		LiveEvent::Merge(media) => WsMessage::Merge(MediaResponse::from(media.as_ref().clone())),
 	};
 	serde_json::to_string(&message).unwrap_or_default()
 }

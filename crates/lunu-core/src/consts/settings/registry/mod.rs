@@ -6,9 +6,14 @@ use super::{
 	QBITTORRENT_PASSWORD, QBITTORRENT_URL, QBITTORRENT_USERNAME, REQUIRE_EMAIL_VERIFICATION,
 	SABNZBD_API_KEY, SABNZBD_URL, SLACK_WEBHOOK_URL, SMTP_ENCRYPTION, SMTP_ENCRYPTION_MODES,
 	SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME, SettingKind, SettingSpec,
-	TOGGLE_MODES, TRANSMISSION_PASSWORD, TRANSMISSION_URL, TRANSMISSION_USERNAME,
+	TOGGLE_MODES, TOGGLE_ON, TRANSMISSION_PASSWORD, TRANSMISSION_URL, TRANSMISSION_USERNAME,
 };
-use crate::consts::library::SETTING_LIBRARY_DIR;
+use crate::consts::download::SETTING_REMOVE_FAILED_DOWNLOADS;
+use crate::consts::library::{
+	DEFAULT_IMPORT_KEEP_EXTENSIONS, DEFAULT_IMPORT_UNLISTED, IMPORT_UNLISTED_ACTIONS,
+	SETTING_IMPORT_KEEP_EXTENSIONS, SETTING_IMPORT_UNLISTED, SETTING_LIBRARY_DIR,
+	SETTING_WRITE_SIDECAR,
+};
 use crate::consts::merge::{
 	DEFAULT_FFMPEG_BINARY, DEFAULT_MERGE_BITRATE, DEFAULT_MERGE_SOURCE_ACTION,
 	MERGE_SOURCE_ACTIONS, SETTING_MERGE_BACKUP_DIR, SETTING_MERGE_BITRATE, SETTING_MERGE_ENABLED,
@@ -23,63 +28,34 @@ use crate::consts::metadata::{
 	METADATA_REGION_SETTING, MIN_PROVIDER_PRIORITY, VALID_METADATA_REGIONS,
 };
 
-pub const REGISTRY: &[SettingSpec] = &[
+mod metadata;
+
+use metadata::METADATA_SETTINGS;
+
+const CORE_SETTINGS: &[SettingSpec] = &[
 	SettingSpec {
-		key: METADATA_AUDNEXUS_URL,
-		kind: SettingKind::Url,
-		secret: false,
-		default: Some(DEFAULT_AUDNEXUS_URL),
-	},
-	SettingSpec {
-		key: METADATA_AUDNEXUS_ENABLED,
+		key: SETTING_REMOVE_FAILED_DOWNLOADS,
 		kind: SettingKind::Enum(TOGGLE_MODES),
 		secret: false,
-		default: Some(DEFAULT_PROVIDER_TOGGLE),
+		default: Some(TOGGLE_ON),
 	},
 	SettingSpec {
-		key: METADATA_AUDNEXUS_PRIORITY,
-		kind: SettingKind::Number {
-			min: MIN_PROVIDER_PRIORITY,
-			max: MAX_PROVIDER_PRIORITY,
-		},
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_PRIORITY_VALUE),
-	},
-	SettingSpec {
-		key: METADATA_OPENLIBRARY_ENABLED,
-		kind: SettingKind::Enum(TOGGLE_MODES),
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_TOGGLE),
-	},
-	SettingSpec {
-		key: METADATA_OPENLIBRARY_PRIORITY,
-		kind: SettingKind::Number {
-			min: MIN_PROVIDER_PRIORITY,
-			max: MAX_PROVIDER_PRIORITY,
-		},
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_PRIORITY_VALUE),
-	},
-	SettingSpec {
-		key: METADATA_GOOGLE_BOOKS_ENABLED,
-		kind: SettingKind::Enum(TOGGLE_MODES),
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_TOGGLE),
-	},
-	SettingSpec {
-		key: METADATA_GOOGLE_BOOKS_PRIORITY,
-		kind: SettingKind::Number {
-			min: MIN_PROVIDER_PRIORITY,
-			max: MAX_PROVIDER_PRIORITY,
-		},
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_PRIORITY_VALUE),
-	},
-	SettingSpec {
-		key: METADATA_GOOGLE_BOOKS_API_KEY,
+		key: SETTING_IMPORT_KEEP_EXTENSIONS,
 		kind: SettingKind::Text,
-		secret: true,
-		default: None,
+		secret: false,
+		default: Some(DEFAULT_IMPORT_KEEP_EXTENSIONS),
+	},
+	SettingSpec {
+		key: SETTING_IMPORT_UNLISTED,
+		kind: SettingKind::Enum(IMPORT_UNLISTED_ACTIONS),
+		secret: false,
+		default: Some(DEFAULT_IMPORT_UNLISTED),
+	},
+	SettingSpec {
+		key: SETTING_WRITE_SIDECAR,
+		kind: SettingKind::Enum(TOGGLE_MODES),
+		secret: false,
+		default: Some(TOGGLE_ON),
 	},
 	SettingSpec {
 		key: SETTING_MERGE_ENABLED,
@@ -110,27 +86,6 @@ pub const REGISTRY: &[SettingSpec] = &[
 		kind: SettingKind::Text,
 		secret: false,
 		default: Some(DEFAULT_MERGE_BITRATE),
-	},
-	SettingSpec {
-		key: METADATA_HARDCOVER_ENABLED,
-		kind: SettingKind::Enum(TOGGLE_MODES),
-		secret: false,
-		default: Some(DEFAULT_TOGGLE),
-	},
-	SettingSpec {
-		key: METADATA_HARDCOVER_PRIORITY,
-		kind: SettingKind::Number {
-			min: MIN_PROVIDER_PRIORITY,
-			max: MAX_PROVIDER_PRIORITY,
-		},
-		secret: false,
-		default: Some(DEFAULT_PROVIDER_PRIORITY_VALUE),
-	},
-	SettingSpec {
-		key: METADATA_HARDCOVER_API_KEY,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
 	},
 	SettingSpec {
 		key: PROWLARR_URL,
@@ -235,12 +190,6 @@ pub const REGISTRY: &[SettingSpec] = &[
 		default: None,
 	},
 	SettingSpec {
-		key: METADATA_REGION_SETTING,
-		kind: SettingKind::Enum(VALID_METADATA_REGIONS),
-		secret: false,
-		default: Some(DEFAULT_METADATA_REGION),
-	},
-	SettingSpec {
 		key: ABS_URL,
 		kind: SettingKind::Url,
 		secret: false,
@@ -338,6 +287,10 @@ pub const REGISTRY: &[SettingSpec] = &[
 	},
 ];
 
+pub fn registry() -> impl Iterator<Item = &'static SettingSpec> {
+	CORE_SETTINGS.iter().chain(METADATA_SETTINGS.iter())
+}
+
 pub fn lookup(key: &str) -> Option<&'static SettingSpec> {
-	REGISTRY.iter().find(|spec| spec.key == key)
+	registry().find(|spec| spec.key == key)
 }

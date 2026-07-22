@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 
 use lunu_core::Result;
-use lunu_core::consts::scoring::KNOWN_AUDIO_FORMATS;
+use lunu_core::helpers::format::is_audio_extension;
 
 use crate::integration_error;
 
@@ -39,11 +39,7 @@ fn walk(dir: &Path, keep: &mut impl FnMut(&Path) -> bool, found: &mut Vec<PathBu
 fn is_mergeable(path: &Path) -> bool {
 	path.extension()
 		.and_then(|extension| extension.to_str())
-		.is_some_and(|extension| {
-			KNOWN_AUDIO_FORMATS
-				.iter()
-				.any(|known| known.eq_ignore_ascii_case(extension))
-		})
+		.is_some_and(is_audio_extension)
 }
 
 pub(super) fn chapter_title(path: &Path) -> String {

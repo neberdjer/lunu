@@ -150,6 +150,7 @@ impl GrabService {
 
 		if let Some(client_ref) = download.client_ref.as_deref()
 			&& let Ok(client) = self.clients.by_id(&download.client)
+			&& !client.protocol().owes_seeding_at(download.progress)
 		{
 			let _ = client.remove(client_ref, true).await;
 		}

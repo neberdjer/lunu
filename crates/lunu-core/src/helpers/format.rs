@@ -1,5 +1,11 @@
 use crate::consts::scoring::KNOWN_AUDIO_FORMATS;
 
+pub fn is_audio_extension(extension: &str) -> bool {
+	KNOWN_AUDIO_FORMATS
+		.iter()
+		.any(|known| known.eq_ignore_ascii_case(extension))
+}
+
 pub fn detect_format(title: &str) -> Option<&'static str> {
 	KNOWN_AUDIO_FORMATS
 		.iter()

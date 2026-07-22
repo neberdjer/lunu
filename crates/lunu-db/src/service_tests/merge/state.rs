@@ -178,3 +178,32 @@ async fn a_preview_refuses_the_same_misconfiguration_a_merge_would() {
 		"a preview that hid the misconfiguration would send the user to click merge and fail there"
 	);
 }
+
+#[tokio::test]
+async fn each_merge_transition_is_announced_live() {
+	let db = memory_db().await;
+	let merger = Arc::new(FakeMerger::new(true));
+	let media = imported_media(&db, merger.clone()).await;
+	let events = Arc::new(MergeEvents::default());
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let merges = merge_service_with(&db, jobs, merger, events.clone());
+
+	merges.request(&media.id).await.unwrap();
+	merges.merge(&media.id).await.unwrap();
+	merges.revert(&media.id).await.unwrap();
+
+	let seen = events.seen.lock().unwrap().clone();
+	assert_eq!(
+		seen,
+		vec![
+			(media.id.clone(), "queued".to_string(), None),
+			(
+				media.id.clone(),
+				"merged".to_string(),
+				Some("/library/Unknown Author/The Hobbit/The Hobbit.m4b".to_string())
+			),
+			(media.id.clone(), "idle".to_string(), None),
+		],
+		"a client watching the socket must see the row move without refetching it"
+	);
+}

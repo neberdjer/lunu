@@ -1,4 +1,4 @@
-use lunu_core::models::Media;
+use lunu_core::models::{Media, Placement};
 use lunu_core::repo::MediaRepo;
 
 use super::builders::*;
@@ -20,6 +20,7 @@ async fn import_places_content_and_marks_available() {
 		importer.clone(),
 		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
 		merge_service(&db, jobs, Arc::new(FakeMerger::new(false))),
+		Arc::new(RecordingSidecar::default()),
 	);
 
 	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
@@ -117,4 +118,120 @@ async fn seed_media_for_request(db: &Db, overridden: bool) {
 		})
 		.await
 		.unwrap();
+}
+
+async fn imports_with_sidecar(db: &Db) -> (ImportService, Arc<RecordingSidecar>) {
+	seed_download(db, Utc::now()).await;
+	let (imports, probes) = imports_probed(db, Arc::new(FakeMerger::new(false))).await;
+	(imports, probes.sidecar)
+}
+
+#[tokio::test]
+async fn an_import_leaves_audiobookshelf_a_metadata_file_beside_the_audio() {
+	let db = memory_db().await;
+	let (imports, sidecar) = imports_with_sidecar(&db).await;
+
+	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
+
+	let written = sidecar.written.lock().unwrap().clone();
+	assert_eq!(written.len(), 1, "exactly one sidecar per import");
+	let (dir, opf, cover) = &written[0];
+	assert_eq!(
+		dir, "/library/Unknown Author/The Hobbit",
+		"the sidecar belongs in the item folder audiobookshelf scans"
+	);
+	assert!(opf.contains("<dc:title>The Hobbit</dc:title>"));
+	assert!(
+		opf.contains("opf:scheme=\"ASIN\">B01</dc:identifier>"),
+		"the asin is the whole point: it outranks a folder name guess, got {opf}"
+	);
+	assert_eq!(
+		cover.as_deref(),
+		Some("https://covers/hobbit.jpg"),
+		"the cover url must reach the writer, which is what makes cover.jpg possible"
+	);
+}
+
+#[tokio::test]
+async fn turning_the_setting_off_leaves_the_library_untouched() {
+	let db = memory_db().await;
+	let (imports, sidecar) = imports_with_sidecar(&db).await;
+	settings_service(&db)
+		.set("import_write_metadata", "off")
+		.await
+		.unwrap();
+
+	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
+
+	assert!(
+		sidecar.written.lock().unwrap().is_empty(),
+		"an operator who manages metadata elsewhere must not have files written under them"
+	);
+}
+
+#[tokio::test]
+async fn the_configured_keep_list_reaches_the_importer() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+	let settings = settings_service(&db);
+	settings.set("import_keep_extensions", "jpg").await.unwrap();
+	settings
+		.set("import_unlisted_files", "extras")
+		.await
+		.unwrap();
+	let (imports, probes) = imports_probed(&db, Arc::new(FakeMerger::new(false))).await;
+
+	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
+
+	let filter = probes.importer.filter.lock().unwrap().clone().unwrap();
+	assert_eq!(
+		placed(&filter, "back.jpg"),
+		Placement::Library,
+		"the configured keep list must reach the importer"
+	);
+	assert_eq!(
+		placed(&filter, "cover.jpg"),
+		Placement::Skip,
+		"cover.jpg is reserved while lunu is writing its own"
+	);
+	assert_eq!(
+		placed(&filter, "tracker.nfo"),
+		Placement::Extras,
+		"the operator's choice for unlisted files must reach the importer, not a default"
+	);
+	assert_eq!(
+		placed(&filter, "01.mp3"),
+		Placement::Library,
+		"audio is never filtered out"
+	);
+}
+
+#[tokio::test]
+async fn an_unset_keep_list_falls_back_to_the_registry_default() {
+	let db = memory_db().await;
+	seed_download(&db, Utc::now()).await;
+	let (imports, probes) = imports_probed(&db, Arc::new(FakeMerger::new(false))).await;
+
+	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
+
+	let filter = probes.importer.filter.lock().unwrap().clone().unwrap();
+	assert_eq!(
+		placed(&filter, "book.pdf"),
+		Placement::Library,
+		"book documents are in the shipped default keep list"
+	);
+	assert_eq!(
+		placed(&filter, "tracker.nfo"),
+		Placement::Skip,
+		"with nothing configured the default is to leave tracker litter behind"
+	);
+	assert_eq!(
+		placed(&filter, "metadata.opf"),
+		Placement::Skip,
+		"lunu writes the sidecar itself, so linking the release copy would clobber the source"
+	);
+}
+
+fn placed(filter: &lunu_core::models::ImportFilter, name: &str) -> Placement {
+	filter.placement(std::path::Path::new(name))
 }

@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::consts::download::COMPLETE_PROGRESS;
 use crate::consts::reasons;
 use crate::{Error, Result};
 
@@ -24,6 +25,10 @@ impl Protocol {
 
 	pub fn has_swarm(&self) -> bool {
 		matches!(self, Protocol::Torrent)
+	}
+
+	pub fn owes_seeding_at(&self, progress: i64) -> bool {
+		self.has_swarm() && progress >= COMPLETE_PROGRESS
 	}
 }
 

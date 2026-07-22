@@ -58,7 +58,7 @@ pub const DEFAULT_PROVIDER_TOGGLE: &str = TOGGLE_ON;
 
 mod registry;
 
-pub use registry::{REGISTRY, lookup};
+pub use registry::{lookup, registry};
 
 pub enum SettingKind {
 	Text,

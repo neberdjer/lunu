@@ -72,6 +72,7 @@ pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const MEDIA_FILTER_UNKNOWN: &str = "media-filter-unknown";
 pub const MERGE_STATE_UNKNOWN: &str = "merge-state-unknown";
+pub const IMPORT_UNLISTED_ACTION_UNKNOWN: &str = "import-unlisted-action-unknown";
 pub const MERGE_NOTHING_TO_REVERT: &str = "merge-nothing-to-revert";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
 pub const NO_METADATA_PROVIDER: &str = "no-metadata-provider";
@@ -157,6 +158,7 @@ pub const ALL: &[&str] = &[
 	VERIFICATION_INVALID,
 	MEDIA_FILTER_UNKNOWN,
 	MERGE_STATE_UNKNOWN,
+	IMPORT_UNLISTED_ACTION_UNKNOWN,
 	MERGE_NOTHING_TO_REVERT,
 	MEDIA_SOURCE_UNKNOWN,
 	NO_METADATA_PROVIDER,

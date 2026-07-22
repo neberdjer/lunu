@@ -250,12 +250,19 @@ pub(super) fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {
 #[derive(Default)]
 pub(super) struct FakeImporter {
 	pub(super) call: std::sync::Mutex<Option<(String, String)>>,
+	pub(super) filter: std::sync::Mutex<Option<lunu_core::models::ImportFilter>>,
 }
 
 #[async_trait]
 impl Importer for FakeImporter {
-	async fn import(&self, source: &str, destination: &str) -> CoreResult<()> {
+	async fn import(
+		&self,
+		source: &str,
+		destination: &str,
+		filter: &lunu_core::models::ImportFilter,
+	) -> CoreResult<()> {
 		*self.call.lock().unwrap() = Some((source.to_string(), destination.to_string()));
+		*self.filter.lock().unwrap() = Some(filter.clone());
 		Ok(())
 	}
 }
@@ -265,10 +272,12 @@ pub(super) use super::stubs::StubProvider;
 mod mail;
 mod merge;
 mod rows;
+mod sidecar;
 
 pub(super) use mail::{NoopMailer, RecordingMailer};
 pub(super) use merge::{
-	FakeMerger, imported_media, imports_with, imports_with_merge, media_of_request, merge_service,
-	mergeable_count, merges_for,
+	FakeMerger, MergeEvents, imported_media, imports_probed, imports_with, imports_with_merge,
+	media_of_request, merge_service, merge_service_with, mergeable_count, merges_for,
 };
 pub(super) use rows::{hobbit, media, request, request_status};
+pub(super) use sidecar::RecordingSidecar;
