@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::models::{Format, MatchedBy, Media, MediaSource};
+use lunu_core::models::{Format, MatchedBy, Media, MediaFilter, MediaSource, MergeState};
 use lunu_core::repo::MediaRepo;
 use sqlx::Row;
 use sqlx::any::AnyRow;
@@ -20,15 +20,25 @@ impl SqlxMediaRepo {
 }
 
 const COLUMNS: &str = "id, work_id, format, asin, abs_item_id, title, author, cover_url, \
-	series_name, series_sequence, library_path, source, overridden, matched_by, request_id, \
-	created_at";
-const VALUES: &str = "($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)";
+	series_name, series_sequence, library_path, merged_path, merge_state, merge_detail, \
+	merge_backup_path, source, overridden, matched_by, request_id, created_at";
+const COLUMN_COUNT: usize = 20;
 
-fn list_filter(unmatched_only: bool) -> &'static str {
-	if unmatched_only {
-		"WHERE matched_by IS NULL AND source = 'abs'"
-	} else {
-		""
+fn list_filter(filter: MediaFilter) -> String {
+	match filter {
+		MediaFilter::All => String::new(),
+		MediaFilter::Unmatched => "WHERE matched_by IS NULL AND source = 'abs'".to_string(),
+		MediaFilter::Mergeable => {
+			let candidates: Vec<String> = MergeState::ALL
+				.iter()
+				.filter(|state| state.is_merge_candidate())
+				.map(|state| format!("'{}'", state.as_str()))
+				.collect();
+			format!(
+				"WHERE library_path <> '' AND merge_state IN ({})",
+				candidates.join(", ")
+			)
+		}
 	}
 }
 
@@ -38,6 +48,7 @@ fn map_media(row: &AnyRow) -> Result<Media> {
 	let format: String = row.try_get("format").map_err(db_error)?;
 	let matched_by: Option<String> = row.try_get("matched_by").map_err(db_error)?;
 	let overridden: i64 = row.try_get("overridden").map_err(db_error)?;
+	let merge_state: String = row.try_get("merge_state").map_err(db_error)?;
 
 	Ok(Media {
 		id: row.try_get("id").map_err(db_error)?,
@@ -51,6 +62,10 @@ fn map_media(row: &AnyRow) -> Result<Media> {
 		series_name: row.try_get("series_name").map_err(db_error)?,
 		series_sequence: row.try_get("series_sequence").map_err(db_error)?,
 		library_path: row.try_get("library_path").map_err(db_error)?,
+		merged_path: row.try_get("merged_path").map_err(db_error)?,
+		merge_state: parse_enum::<MergeState>(&merge_state)?,
+		merge_detail: row.try_get("merge_detail").map_err(db_error)?,
+		merge_backup_path: row.try_get("merge_backup_path").map_err(db_error)?,
 		source: parse_enum::<MediaSource>(&source)?,
 		overridden: int_to_bool(overridden),
 		matched_by: matched_by
@@ -75,6 +90,10 @@ async fn insert_media(db: &Db, sql: &str, media: &Media) -> Result<()> {
 		.bind(media.series_name.as_deref())
 		.bind(media.series_sequence.as_deref())
 		.bind(&media.library_path)
+		.bind(media.merged_path.as_deref())
+		.bind(media.merge_state.as_str())
+		.bind(media.merge_detail.as_deref())
+		.bind(media.merge_backup_path.as_deref())
 		.bind(media.source.as_str())
 		.bind(bool_to_int(media.overridden))
 		.bind(media.matched_by.map(|m| m.as_str()))
@@ -90,17 +109,21 @@ async fn insert_media(db: &Db, sql: &str, media: &Media) -> Result<()> {
 impl MediaRepo for SqlxMediaRepo {
 	async fn upsert_request(&self, media: &Media) -> Result<()> {
 		let sql = format!(
-			"INSERT INTO media ({COLUMNS}) VALUES {VALUES} \
+			"INSERT INTO media ({COLUMNS}) VALUES ({}) \
 			 ON CONFLICT (asin) DO UPDATE SET \
 			 work_id = $2, title = $6, author = $7, cover_url = $8, library_path = $11, \
-			 request_id = $15 \
-			 WHERE media.overridden = 0"
+			 request_id = $19 \
+			 WHERE media.overridden = 0",
+			placeholders(1, COLUMN_COUNT)
 		);
 		insert_media(&self.db, &sql, media).await
 	}
 
 	async fn insert(&self, media: &Media) -> Result<()> {
-		let sql = format!("INSERT INTO media ({COLUMNS}) VALUES {VALUES}");
+		let sql = format!(
+			"INSERT INTO media ({COLUMNS}) VALUES ({})",
+			placeholders(1, COLUMN_COUNT)
+		);
 		insert_media(&self.db, &sql, media).await
 	}
 
@@ -108,9 +131,10 @@ impl MediaRepo for SqlxMediaRepo {
 		sqlx::query(
 			"UPDATE media SET \
 			 work_id = $1, asin = $2, abs_item_id = $3, title = $4, author = $5, cover_url = $6, \
-			 series_name = $7, series_sequence = $8, library_path = $9, overridden = $10, \
-			 matched_by = $11 \
-			 WHERE id = $12",
+			 series_name = $7, series_sequence = $8, library_path = $9, merged_path = $10, \
+			 merge_state = $11, merge_detail = $12, merge_backup_path = $13, \
+			 overridden = $14, matched_by = $15 \
+			 WHERE id = $16",
 		)
 		.bind(media.work_id.as_deref())
 		.bind(media.asin.as_deref())
@@ -121,12 +145,32 @@ impl MediaRepo for SqlxMediaRepo {
 		.bind(media.series_name.as_deref())
 		.bind(media.series_sequence.as_deref())
 		.bind(&media.library_path)
+		.bind(media.merged_path.as_deref())
+		.bind(media.merge_state.as_str())
+		.bind(media.merge_detail.as_deref())
+		.bind(media.merge_backup_path.as_deref())
 		.bind(bool_to_int(media.overridden))
 		.bind(media.matched_by.map(|m| m.as_str()))
 		.bind(&media.id)
 		.execute(&self.db)
 		.await
 		.map_err(map_write_error)?;
+		Ok(())
+	}
+
+	async fn set_merge_state(
+		&self,
+		id: &str,
+		state: MergeState,
+		detail: Option<&str>,
+	) -> Result<()> {
+		sqlx::query("UPDATE media SET merge_state = $1, merge_detail = $2 WHERE id = $3")
+			.bind(state.as_str())
+			.bind(detail)
+			.bind(id)
+			.execute(&self.db)
+			.await
+			.map_err(map_write_error)?;
 		Ok(())
 	}
 
@@ -193,10 +237,10 @@ impl MediaRepo for SqlxMediaRepo {
 			.collect()
 	}
 
-	async fn list_page(&self, unmatched_only: bool, limit: i64, offset: i64) -> Result<Vec<Media>> {
+	async fn list_page(&self, filter: MediaFilter, limit: i64, offset: i64) -> Result<Vec<Media>> {
 		let sql = format!(
 			"SELECT * FROM media {} ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-			list_filter(unmatched_only)
+			list_filter(filter)
 		);
 		let rows = sqlx::query(&sql)
 			.bind(limit)
@@ -207,10 +251,10 @@ impl MediaRepo for SqlxMediaRepo {
 		map_rows(rows, map_media)
 	}
 
-	async fn list_count(&self, unmatched_only: bool) -> Result<i64> {
+	async fn list_count(&self, filter: MediaFilter) -> Result<i64> {
 		let sql = format!(
 			"SELECT COUNT(*) AS count FROM media {}",
-			list_filter(unmatched_only)
+			list_filter(filter)
 		);
 		fetch_count(&self.db, sqlx::query(&sql)).await
 	}

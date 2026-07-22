@@ -225,6 +225,18 @@ mod tests {
 	}
 
 	#[test]
+	fn every_merge_skip_reason_has_a_catalog_message() {
+		let locale = lunu_i18n::default_locale();
+		for reason in lunu_core::consts::merge::MERGE_SKIP_REASONS {
+			let key = format!("merge-skip-{reason}");
+			assert!(
+				lunu_i18n::has_key(&locale, &key),
+				"a skipped merge shows the user '{key}', so it needs a message of its own"
+			);
+		}
+	}
+
+	#[test]
 	fn a_missing_key_is_detected_rather_than_papered_over() {
 		let locale = lunu_i18n::default_locale();
 		assert!(!lunu_i18n::has_key(&locale, "error-not-a-real-key"));

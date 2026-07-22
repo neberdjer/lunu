@@ -11,6 +11,8 @@ CREATE TABLE quality_profiles (
 	preferred_keywords TEXT NOT NULL DEFAULT '',
 	avoided_keywords TEXT NOT NULL DEFAULT '',
 	keyword_weight BIGINT NOT NULL DEFAULT 100,
+	preferred_protocol TEXT,
+	protocol_weight BIGINT NOT NULL DEFAULT 100,
 	is_default BIGINT NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL

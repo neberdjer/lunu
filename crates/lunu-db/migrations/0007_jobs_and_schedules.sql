@@ -14,7 +14,9 @@ CREATE TABLE jobs (
 	request_id TEXT
 );
 CREATE UNIQUE INDEX idx_jobs_active_recurring ON jobs (job_type)
-	WHERE request_id IS NULL AND status IN ('pending', 'running');
+	WHERE request_id IS NULL
+	AND status IN ('pending', 'running')
+	AND job_type IN ('library-sync', 'session-cleanup', 'job-cleanup');
 CREATE INDEX idx_jobs_claim ON jobs (status, run_after);
 CREATE INDEX idx_jobs_request_id ON jobs (request_id);
 

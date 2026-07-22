@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::Result;
-use crate::models::{Activity, LiveEvent};
+use crate::models::{Activity, ActivityTarget, LiveEvent};
 use crate::repo::ActivityRepo;
 use crate::services::new_id;
 use crate::traits::EventPublisher;
@@ -20,14 +20,19 @@ impl ActivityService {
 
 	pub async fn record(
 		&self,
-		request_id: &str,
+		target: ActivityTarget<'_>,
 		event: &str,
 		detail: Option<&str>,
 		actor: Option<&str>,
 	) -> Result<()> {
+		let (request_id, media_id) = match target {
+			ActivityTarget::Request(id) => (Some(id.to_string()), None),
+			ActivityTarget::Media(id) => (None, Some(id.to_string())),
+		};
 		let activity = Activity {
 			id: new_id(),
-			request_id: request_id.to_string(),
+			request_id,
+			media_id,
 			event: event.to_string(),
 			detail: detail.map(str::to_string),
 			actor: actor.map(str::to_string),

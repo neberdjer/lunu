@@ -9,7 +9,7 @@ pub(crate) use account::{
 	ApiKeyResponse, InviteResponse, IssuedApiKeyResponse, IssuedInviteResponse, SessionResponse,
 	UserResponse, UserSettingsResponse,
 };
-pub(crate) use library::MediaResponse;
+pub(crate) use library::{MediaResponse, MergePreviewResponse};
 pub(crate) use metadata::BookResponse;
 pub(crate) use release::ScoredReleaseResponse;
 pub(crate) use request::{

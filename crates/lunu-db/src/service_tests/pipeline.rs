@@ -8,23 +8,7 @@ async fn approving_a_request_enqueues_a_grab_job() {
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
 	let requests = request_service(&db, jobs.clone());
 
-	let now = Utc::now();
-	let request = Request {
-		work_id: "work-B01".to_string(),
-		format: Format::Audiobook,
-		id: "r1".to_string(),
-		user_id: "u1".to_string(),
-		asin: Some("B01".to_string()),
-		title: "The Hobbit".to_string(),
-		author: None,
-		cover_url: None,
-		status: RequestStatus::Pending,
-		approved_by: None,
-		notes: None,
-		quality_profile_id: None,
-		created_at: now,
-		updated_at: now,
-	};
+	let request = hobbit();
 	SqlxRequestRepo::new(db.clone())
 		.create(&request)
 		.await
@@ -46,23 +30,10 @@ async fn approving_a_request_enqueues_a_grab_job() {
 #[tokio::test]
 async fn marking_available_enqueues_a_notification() {
 	let db = memory_db().await;
-	let now = Utc::now();
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
-			work_id: "work-B01".to_string(),
-			format: Format::Audiobook,
-			id: "r1".to_string(),
-			user_id: "u1".to_string(),
-			asin: Some("B01".to_string()),
-			title: "The Hobbit".to_string(),
-			author: None,
-			cover_url: None,
 			status: RequestStatus::Importing,
-			approved_by: None,
-			notes: None,
-			quality_profile_id: None,
-			created_at: now,
-			updated_at: now,
+			..hobbit()
 		})
 		.await
 		.unwrap();
@@ -129,23 +100,7 @@ async fn request_transitions_record_activity() {
 	let activity = activity_service(&db);
 	let requests = request_service_with_activity(&db, jobs, activity.clone());
 
-	let now = Utc::now();
-	let request = Request {
-		work_id: "work-B01".to_string(),
-		format: Format::Audiobook,
-		id: "r1".to_string(),
-		user_id: "u1".to_string(),
-		asin: Some("B01".to_string()),
-		title: "The Hobbit".to_string(),
-		author: None,
-		cover_url: None,
-		status: RequestStatus::Pending,
-		approved_by: None,
-		notes: None,
-		quality_profile_id: None,
-		created_at: now,
-		updated_at: now,
-	};
+	let request = hobbit();
 	SqlxRequestRepo::new(db.clone())
 		.create(&request)
 		.await
@@ -174,10 +129,11 @@ async fn import_requires_library_configured() {
 	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
 	let imports = ImportService::new(
 		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		request_service(&db, jobs),
+		request_service(&db, jobs.clone()),
 		settings_service(&db),
 		Arc::new(FakeImporter::default()),
 		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
+		merge_service(&db, jobs, Arc::new(FakeMerger::new(false))),
 	);
 
 	assert!(imports.import("d1", "/downloads/x").await.is_err());
@@ -191,10 +147,11 @@ struct RecordingPublisher {
 impl EventPublisher for RecordingPublisher {
 	fn publish(&self, event: &lunu_core::models::LiveEvent) {
 		if let lunu_core::models::LiveEvent::Activity(activity) = event {
-			self.events
-				.lock()
-				.unwrap()
-				.push(format!("{}:{}", activity.request_id, activity.event));
+			self.events.lock().unwrap().push(format!(
+				"{}:{}",
+				activity.request_id.clone().unwrap_or_default(),
+				activity.event
+			));
 		}
 	}
 }
@@ -209,7 +166,7 @@ async fn recording_activity_publishes_event() {
 	);
 
 	activity
-		.record("r1", "downloading", None, None)
+		.record(ActivityTarget::Request("r1"), "downloading", None, None)
 		.await
 		.unwrap();
 

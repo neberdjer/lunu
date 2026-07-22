@@ -1,3 +1,4 @@
+use super::builders::*;
 use super::*;
 
 #[tokio::test]
@@ -14,6 +15,8 @@ async fn create_within_quota_enforces_limit() {
 		title: "t".to_string(),
 		author: None,
 		cover_url: None,
+		series_name: None,
+		series_sequence: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
 		notes: None,
@@ -93,19 +96,12 @@ async fn request_lifecycle_and_quota_count() {
 	let now = Utc::now();
 	let request = Request {
 		work_id: "work-B01".to_string(),
-		format: Format::Audiobook,
-		id: "r1".to_string(),
-		user_id: "u1".to_string(),
 		asin: Some("B01".to_string()),
 		title: "The Hobbit".to_string(),
 		author: Some("Tolkien".to_string()),
-		cover_url: None,
-		status: RequestStatus::Pending,
-		approved_by: None,
-		notes: None,
-		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
+		..request("r1")
 	};
 	requests.create(&request).await.unwrap();
 

@@ -1,3 +1,5 @@
+mod common;
+
 use lunu_core::models::ExternalId;
 use lunu_core::traits::MetadataProvider;
 use lunu_integrations::metadata::AudnexusProvider;
@@ -8,7 +10,7 @@ const TOLKIEN: &str = "B000ARC6KA";
 const LOTR_SERIES: &str = "B009CFOEGK";
 
 fn provider() -> AudnexusProvider {
-	AudnexusProvider::new()
+	AudnexusProvider::new(common::no_settings())
 }
 
 #[tokio::test]

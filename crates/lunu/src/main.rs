@@ -98,6 +98,7 @@ async fn main() -> ExitCode {
 		state.grabs.clone(),
 		state.monitor.clone(),
 		state.imports.clone(),
+		state.merges.clone(),
 		state.notifications.clone(),
 		state.requests.clone(),
 		state.library.clone(),

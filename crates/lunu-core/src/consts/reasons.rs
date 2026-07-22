@@ -28,6 +28,9 @@ pub const INVALID_LOG_LEVEL: &str = "invalid-log-level";
 pub const OIDC_NOT_CONFIGURED: &str = "oidc-not-configured";
 pub const OIDC_STATE_INVALID: &str = "oidc-state-invalid";
 pub const OIDC_ACCOUNT_CONFLICT: &str = "oidc-account-conflict";
+pub const MERGE_UNAVAILABLE: &str = "merge-unavailable";
+pub const MERGE_SOURCE_ACTION_UNKNOWN: &str = "merge-source-action-unknown";
+pub const MERGE_BACKUP_NOT_CONFIGURED: &str = "merge-backup-not-configured";
 pub const MFA_METHOD_UNKNOWN: &str = "mfa-method-unknown";
 pub const MFA_REQUIRED: &str = "mfa-required";
 pub const MFA_TICKET_INVALID: &str = "mfa-ticket-invalid";
@@ -67,6 +70,9 @@ pub const PROFILE_NAME_REQUIRED: &str = "profile-name-required";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
+pub const MEDIA_FILTER_UNKNOWN: &str = "media-filter-unknown";
+pub const MERGE_STATE_UNKNOWN: &str = "merge-state-unknown";
+pub const MERGE_NOTHING_TO_REVERT: &str = "merge-nothing-to-revert";
 pub const MEDIA_SOURCE_UNKNOWN: &str = "media-source-unknown";
 pub const NO_METADATA_PROVIDER: &str = "no-metadata-provider";
 pub const ABS_NOT_CONFIGURED: &str = "abs-not-configured";
@@ -107,6 +113,9 @@ pub const ALL: &[&str] = &[
 	OIDC_NOT_CONFIGURED,
 	OIDC_STATE_INVALID,
 	OIDC_ACCOUNT_CONFLICT,
+	MERGE_UNAVAILABLE,
+	MERGE_SOURCE_ACTION_UNKNOWN,
+	MERGE_BACKUP_NOT_CONFIGURED,
 	MFA_METHOD_UNKNOWN,
 	MFA_REQUIRED,
 	MFA_TICKET_INVALID,
@@ -146,6 +155,9 @@ pub const ALL: &[&str] = &[
 	RESET_TOKEN_INVALID,
 	EMAIL_NOT_VERIFIED,
 	VERIFICATION_INVALID,
+	MEDIA_FILTER_UNKNOWN,
+	MERGE_STATE_UNKNOWN,
+	MERGE_NOTHING_TO_REVERT,
 	MEDIA_SOURCE_UNKNOWN,
 	NO_METADATA_PROVIDER,
 	ABS_NOT_CONFIGURED,

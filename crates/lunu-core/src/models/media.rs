@@ -6,6 +6,79 @@ use crate::consts::reasons;
 use crate::models::Format;
 use crate::{Error, Result};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MediaFilter {
+	#[default]
+	All,
+	Unmatched,
+	Mergeable,
+}
+
+impl FromStr for MediaFilter {
+	type Err = Error;
+
+	fn from_str(value: &str) -> Result<Self> {
+		match value {
+			"all" => Ok(MediaFilter::All),
+			"unmatched" => Ok(MediaFilter::Unmatched),
+			"mergeable" => Ok(MediaFilter::Mergeable),
+			_ => Err(Error::Validation(reasons::MEDIA_FILTER_UNKNOWN.to_string())),
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MergeState {
+	#[default]
+	Idle,
+	Queued,
+	Merged,
+	Skipped,
+	Failed,
+}
+
+impl MergeState {
+	pub fn is_merge_candidate(&self) -> bool {
+		match self {
+			MergeState::Idle | MergeState::Failed => true,
+			MergeState::Queued | MergeState::Merged | MergeState::Skipped => false,
+		}
+	}
+
+	pub const ALL: &'static [MergeState] = &[
+		MergeState::Idle,
+		MergeState::Queued,
+		MergeState::Merged,
+		MergeState::Skipped,
+		MergeState::Failed,
+	];
+
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			MergeState::Idle => "idle",
+			MergeState::Queued => "queued",
+			MergeState::Merged => "merged",
+			MergeState::Skipped => "skipped",
+			MergeState::Failed => "failed",
+		}
+	}
+}
+
+impl FromStr for MergeState {
+	type Err = Error;
+
+	fn from_str(value: &str) -> Result<Self> {
+		match value {
+			"idle" => Ok(MergeState::Idle),
+			"queued" => Ok(MergeState::Queued),
+			"merged" => Ok(MergeState::Merged),
+			"skipped" => Ok(MergeState::Skipped),
+			"failed" => Ok(MergeState::Failed),
+			_ => Err(Error::Validation(reasons::MERGE_STATE_UNKNOWN.to_string())),
+		}
+	}
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MediaSource {
 	Request,
@@ -98,6 +171,10 @@ pub struct Media {
 	pub series_name: Option<String>,
 	pub series_sequence: Option<String>,
 	pub library_path: String,
+	pub merged_path: Option<String>,
+	pub merge_state: MergeState,
+	pub merge_detail: Option<String>,
+	pub merge_backup_path: Option<String>,
 	pub source: MediaSource,
 	pub overridden: bool,
 	pub matched_by: Option<MatchedBy>,

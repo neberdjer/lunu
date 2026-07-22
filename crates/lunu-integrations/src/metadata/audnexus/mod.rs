@@ -1,8 +1,11 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use lunu_core::Result;
+use lunu_core::consts::metadata::{DEFAULT_AUDNEXUS_URL, METADATA_AUDNEXUS_URL};
 use lunu_core::models::{Book, Chapters, ExternalId, IdScheme, SeriesSummary};
+use lunu_core::services::SettingsService;
 use lunu_core::traits::MetadataProvider;
 use serde::Deserialize;
 
@@ -16,21 +19,24 @@ const ACCEPTS: &[IdScheme] = &[IdScheme::Asin];
 
 pub struct AudnexusProvider {
 	client: reqwest::Client,
+	settings: Arc<SettingsService>,
 }
 
 impl AudnexusProvider {
-	pub fn new() -> Self {
+	async fn base(&self) -> lunu_core::Result<String> {
+		Ok(self
+			.settings
+			.get_or_default(METADATA_AUDNEXUS_URL)
+			.await?
+			.unwrap_or_else(|| DEFAULT_AUDNEXUS_URL.to_string()))
+	}
+
+	pub fn new(settings: Arc<SettingsService>) -> Self {
 		let client = crate::http_client_builder(Duration::from_secs(REQUEST_TIMEOUT_SECS))
 			.build()
 			.expect("reqwest client builds with static configuration");
 
-		Self { client }
-	}
-}
-
-impl Default for AudnexusProvider {
-	fn default() -> Self {
-		Self::new()
+		Self { client, settings }
 	}
 }
 
@@ -52,14 +58,14 @@ impl MetadataProvider for AudnexusProvider {
 		let Some(asin) = asin_of(id) else {
 			return Ok(None);
 		};
-		audnex_api::get_book(&self.client, region, asin).await
+		audnex_api::get_book(&self.client, &self.base().await?, region, asin).await
 	}
 
 	async fn get_chapters(&self, id: &ExternalId, region: &str) -> Result<Option<Chapters>> {
 		let Some(asin) = asin_of(id) else {
 			return Ok(None);
 		};
-		audnex_api::get_chapters(&self.client, region, asin).await
+		audnex_api::get_chapters(&self.client, &self.base().await?, region, asin).await
 	}
 
 	async fn similar(&self, id: &ExternalId, region: &str) -> Result<Vec<Book>> {
@@ -73,7 +79,9 @@ impl MetadataProvider for AudnexusProvider {
 		let Some(asin) = asin_of(author) else {
 			return Ok(Vec::new());
 		};
-		let Some(name) = audnex_api::get_author_name(&self.client, region, asin).await? else {
+		let Some(name) =
+			audnex_api::get_author_name(&self.client, &self.base().await?, region, asin).await?
+		else {
 			return Ok(Vec::new());
 		};
 		audible_api::books_by_author(&self.client, region, &name).await

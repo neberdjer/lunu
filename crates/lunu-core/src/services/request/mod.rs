@@ -5,8 +5,8 @@ use chrono::Utc;
 
 use crate::consts::reasons;
 use crate::models::{
-	ExternalId, GrabPayload, JobType, NotificationEvent, NotificationKind, Request, RequestStatus,
-	User,
+	ActivityTarget, ExternalId, GrabPayload, JobType, NotificationEvent, NotificationKind, Request,
+	RequestStatus, User,
 };
 use crate::repo::{DownloadRepo, MediaRepo, RequestRepo, UserSettingsRepo};
 use crate::services::{
@@ -109,7 +109,12 @@ impl RequestService {
 		actor: Option<&str>,
 	) -> Result<()> {
 		self.activity
-			.record(&request.id, request.status.as_str(), detail, actor)
+			.record(
+				ActivityTarget::Request(&request.id),
+				request.status.as_str(),
+				detail,
+				actor,
+			)
 			.await?;
 		self.notify_status(request).await;
 		Ok(())

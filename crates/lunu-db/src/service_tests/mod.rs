@@ -12,11 +12,11 @@ use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONT
 use lunu_core::consts::download::MONITOR_MAX_MISSES;
 use lunu_core::crypto::{Encryptor, hash_token};
 use lunu_core::models::{
-	Activity, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus,
-	EmailVerificationToken, ExternalId, Format, IdScheme, Job, JobStatus, JobType,
-	MetadataCacheEntry, MonitorPayload, NotificationEvent, NotificationKind, PasswordResetToken,
-	Protocol, QualityProfile, Release, Request, RequestStatus, Role, SeriesSummary, User,
-	UserSettings,
+	Activity, ActivityTarget, AuthSource, Book, Chapters, Download, DownloadState, DownloadStatus,
+	EmailVerificationToken, ExternalId, Format, IdScheme, Job, JobStatus, JobType, Media,
+	MediaSource, MergeState, MetadataCacheEntry, MonitorPayload, NotificationEvent,
+	NotificationKind, PasswordResetToken, Protocol, QualityProfile, Release, Request,
+	RequestStatus, Role, SeriesSummary, User, UserSettings,
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, EmailVerificationRepo, JobRepo, MetadataCacheRepo,
@@ -45,6 +45,7 @@ mod data;
 mod grab;
 mod import;
 mod library;
+mod merge;
 mod metadata;
 mod mfa;
 mod monitor;

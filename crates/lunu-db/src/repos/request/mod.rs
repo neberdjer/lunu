@@ -5,7 +5,9 @@ use chrono::{DateTime, Utc};
 use lunu_core::Result;
 use lunu_core::models::{Request, RequestStatus};
 use lunu_core::repo::RequestRepo;
-use sqlx::Row;
+use sqlx::any::AnyArguments;
+use sqlx::query::Query;
+use sqlx::{Any, Row};
 
 use super::{fetch_count, map_row_opt, map_rows, placeholders};
 use crate::convert::format_dt;
@@ -25,14 +27,17 @@ impl SqlxRequestRepo {
 	}
 }
 
-#[async_trait]
-impl RequestRepo for SqlxRequestRepo {
-	async fn create(&self, request: &Request) -> Result<()> {
-		sqlx::query(
-			"INSERT INTO requests \
-			 (id, user_id, work_id, format, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
-		)
+const REQUEST_COLUMNS: &str = "id, user_id, work_id, format, asin, title, author, cover_url, \
+	status, approved_by, notes, quality_profile_id, created_at, updated_at, series_name, \
+	series_sequence";
+const REQUEST_PLACEHOLDERS: &str =
+	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16";
+
+fn bind_request<'q>(
+	query: Query<'q, Any, AnyArguments<'q>>,
+	request: &'q Request,
+) -> Query<'q, Any, AnyArguments<'q>> {
+	query
 		.bind(&request.id)
 		.bind(&request.user_id)
 		.bind(&request.work_id)
@@ -47,9 +52,20 @@ impl RequestRepo for SqlxRequestRepo {
 		.bind(request.quality_profile_id.as_deref())
 		.bind(format_dt(request.created_at))
 		.bind(format_dt(request.updated_at))
-		.execute(&self.db)
-		.await
-		.map_err(map_write_error)?;
+		.bind(request.series_name.as_deref())
+		.bind(request.series_sequence.as_deref())
+}
+
+#[async_trait]
+impl RequestRepo for SqlxRequestRepo {
+	async fn create(&self, request: &Request) -> Result<()> {
+		let sql =
+			format!("INSERT INTO requests ({REQUEST_COLUMNS}) VALUES ({REQUEST_PLACEHOLDERS})");
+		let query = sqlx::query(&sql);
+		bind_request(query, request)
+			.execute(&self.db)
+			.await
+			.map_err(map_write_error)?;
 		Ok(())
 	}
 
@@ -59,31 +75,17 @@ impl RequestRepo for SqlxRequestRepo {
 		quota: i64,
 		since: DateTime<Utc>,
 	) -> Result<bool> {
-		let result = sqlx::query(
-			"INSERT INTO requests \
-			 (id, user_id, work_id, format, asin, title, author, cover_url, status, approved_by, notes, quality_profile_id, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 \
-			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $15) < $16",
-		)
-		.bind(&request.id)
-		.bind(&request.user_id)
-		.bind(&request.work_id)
-		.bind(request.format.as_str())
-		.bind(request.asin.as_deref())
-		.bind(&request.title)
-		.bind(request.author.as_deref())
-		.bind(request.cover_url.as_deref())
-		.bind(request.status.as_str())
-		.bind(request.approved_by.as_deref())
-		.bind(request.notes.as_deref())
-		.bind(request.quality_profile_id.as_deref())
-		.bind(format_dt(request.created_at))
-		.bind(format_dt(request.updated_at))
-		.bind(format_dt(since))
-		.bind(quota)
-		.execute(&self.db)
-		.await
-		.map_err(map_write_error)?;
+		let sql = format!(
+			"INSERT INTO requests ({REQUEST_COLUMNS}) SELECT {REQUEST_PLACEHOLDERS} \
+			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $17) < $18"
+		);
+		let query = sqlx::query(&sql);
+		let result = bind_request(query, request)
+			.bind(format_dt(since))
+			.bind(quota)
+			.execute(&self.db)
+			.await
+			.map_err(map_write_error)?;
 		Ok(result.rows_affected() > 0)
 	}
 

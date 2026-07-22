@@ -2,6 +2,7 @@ use chrono::Duration;
 use lunu_core::models::{ExternalId, Format, Media, MediaSource, Request, RequestStatus, Work};
 use lunu_core::repo::{ActivityRepo, MediaRepo, RequestRepo, WorkRepo};
 
+use super::super::builders::*;
 use super::super::*;
 use super::{repo, work};
 use crate::repair::merge_duplicate_works;
@@ -32,6 +33,8 @@ async fn seed_request(db: &Db, id: &str, user_id: &str, work_id: &str, status: R
 			title: "The Hobbit".to_string(),
 			author: Some("J.R.R. Tolkien".to_string()),
 			cover_url: None,
+			series_name: None,
+			series_sequence: None,
 			status,
 			approved_by: None,
 			notes: None,
@@ -129,22 +132,14 @@ async fn merging_repoints_media() {
 	let media_repo = SqlxMediaRepo::new(db.clone());
 	media_repo
 		.insert(&Media {
-			id: "m1".to_string(),
 			work_id: Some("w-new".to_string()),
-			format: Format::Audiobook,
 			asin: Some("B-INGLIS".to_string()),
 			abs_item_id: Some("abs-1".to_string()),
 			title: "The Hobbit".to_string(),
 			author: Some("J.R.R. Tolkien".to_string()),
-			cover_url: None,
-			series_name: None,
-			series_sequence: None,
 			library_path: "/abs/hobbit".to_string(),
 			source: MediaSource::Abs,
-			overridden: false,
-			matched_by: None,
-			request_id: None,
-			created_at: Utc::now(),
+			..media("m1")
 		})
 		.await
 		.unwrap();

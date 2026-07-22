@@ -29,6 +29,10 @@ optional). The web frontend is in progress;
   forward-auth, and TOTP or email two-factor authentication.
 - Notifications: email, Discord, Slack, ntfy, Apprise, and a generic webhook, each activating when
   its url is configured.
+- Merging: multi-file MP3 releases can be merged into a single chaptered M4B, either automatically
+  on import or on demand for books already in the library. Originals can be kept, deleted, or
+  shelved in a backup directory, and a shelved merge can be reverted. Needs ffmpeg, which the
+  image bundles.
 - Operations: a bounded in-memory log viewer with a runtime level toggle, a background job queue,
   and live updates over WebSockets.
 

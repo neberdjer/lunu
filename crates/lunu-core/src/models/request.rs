@@ -79,6 +79,8 @@ pub struct Request {
 	pub title: String,
 	pub author: Option<String>,
 	pub cover_url: Option<String>,
+	pub series_name: Option<String>,
+	pub series_sequence: Option<String>,
 	pub status: RequestStatus,
 	pub approved_by: Option<String>,
 	pub notes: Option<String>,

@@ -21,6 +21,8 @@ pub(super) fn map_request(row: &AnyRow) -> Result<Request> {
 		title: row.try_get("title").map_err(db_error)?,
 		author: row.try_get("author").map_err(db_error)?,
 		cover_url: row.try_get("cover_url").map_err(db_error)?,
+		series_name: row.try_get("series_name").map_err(db_error)?,
+		series_sequence: row.try_get("series_sequence").map_err(db_error)?,
 		status: parse_enum::<RequestStatus>(&status)?,
 		approved_by: row.try_get("approved_by").map_err(db_error)?,
 		notes: row.try_get("notes").map_err(db_error)?,

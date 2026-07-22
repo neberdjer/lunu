@@ -3,12 +3,14 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
+use crate::consts::merge;
 use crate::consts::reasons;
 use crate::consts::settings;
 use crate::consts::settings::TOGGLE_ON;
 use crate::crypto::Encryptor;
-use crate::models::Setting;
+use crate::models::{Setting, SourceDisposition};
 use crate::repo::SettingsRepo;
+use crate::services::nonempty;
 use crate::{Error, Result};
 
 pub struct SettingView {
@@ -47,15 +49,16 @@ impl SettingsService {
 			.get_all()
 			.await?
 			.into_iter()
-			.map(|setting| (setting.key.clone(), setting))
+			.map(|mut setting| (std::mem::take(&mut setting.key), setting))
 			.collect();
 
 		let mut resolved = HashMap::new();
 		for key in keys {
 			let value = match stored.get(*key) {
-				Some(setting) => Some(self.plain_value(setting)?),
-				None => registry_default(key),
-			};
+				Some(setting) => nonempty(Some(self.plain_value(setting)?)),
+				None => None,
+			}
+			.or_else(|| registry_default(key));
 			if let Some(value) = value {
 				resolved.insert((*key).to_string(), value);
 			}
@@ -64,10 +67,24 @@ impl SettingsService {
 	}
 
 	pub async fn get_or_default(&self, key: &str) -> Result<Option<String>> {
-		if let Some(value) = self.get(key).await? {
-			return Ok(Some(value));
-		}
-		Ok(registry_default(key))
+		Ok(nonempty(self.get(key).await?).or_else(|| registry_default(key)))
+	}
+
+	async fn reject_broken_pair(&self, key: &str, value: Option<&str>) -> Result<()> {
+		let pending = nonempty(value.map(str::to_string));
+		let (action, backup) = match key {
+			merge::SETTING_MERGE_SOURCE_ACTION => (
+				pending.or_else(|| registry_default(key)),
+				self.get_or_default(merge::SETTING_MERGE_BACKUP_DIR).await?,
+			),
+			merge::SETTING_MERGE_BACKUP_DIR => (
+				self.get_or_default(merge::SETTING_MERGE_SOURCE_ACTION)
+					.await?,
+				pending,
+			),
+			_ => return Ok(()),
+		};
+		SourceDisposition::resolve(action.as_deref().unwrap_or_default(), backup).map(|_| ())
 	}
 
 	pub async fn toggle(&self, key: &str) -> Result<bool> {
@@ -104,6 +121,8 @@ impl SettingsService {
 		spec.validate(value)
 			.map_err(|reason| Error::Validation(reason.to_string()))?;
 
+		self.reject_broken_pair(key, Some(value)).await?;
+
 		let stored = if spec.secret {
 			self.encryptor.encrypt(value)?
 		} else {
@@ -121,6 +140,7 @@ impl SettingsService {
 	}
 
 	pub async fn delete(&self, key: &str) -> Result<()> {
+		self.reject_broken_pair(key, None).await?;
 		self.repo.delete(key).await
 	}
 

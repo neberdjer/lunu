@@ -132,23 +132,11 @@ async fn monitor_jobs(jobs: &JobService) -> Vec<Job> {
 }
 
 async fn seed_approved_request(db: &Db) {
-	let now = Utc::now();
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
-			work_id: "work-B01".to_string(),
-			format: Format::Audiobook,
-			id: "r1".to_string(),
-			user_id: "u1".to_string(),
-			asin: Some("B01".to_string()),
-			title: "The Hobbit".to_string(),
-			author: None,
-			cover_url: None,
 			status: RequestStatus::Approved,
 			approved_by: Some("admin".to_string()),
-			notes: None,
-			quality_profile_id: None,
-			created_at: now,
-			updated_at: now,
+			..hobbit()
 		})
 		.await
 		.unwrap();

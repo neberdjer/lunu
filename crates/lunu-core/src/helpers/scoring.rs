@@ -25,11 +25,10 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 	}
 
 	let format = detect_format(&release.title);
-	if !profile.allowed_formats.is_empty() {
-		let allowed = format.is_some_and(|found| contains_format(&profile.allowed_formats, found));
-		if !allowed {
-			return None;
-		}
+	if !profile.allowed_formats.is_empty()
+		&& format.is_some_and(|found| !contains_format(&profile.allowed_formats, found))
+	{
+		return None;
 	}
 
 	let mut score = if swarmed {
@@ -154,6 +153,17 @@ mod tests {
 	#[test]
 	fn rejects_disallowed_format() {
 		assert!(score_release(&release("Title [FLAC]", 10), &profile()).is_none());
+	}
+
+	#[test]
+	fn a_title_that_names_no_format_stays_eligible() {
+		let ranked = rank_releases(vec![release("The Hobbit - J.R.R. Tolkien", 10)], &profile());
+		assert_eq!(
+			ranked.len(),
+			1,
+			"indexers that keep the format in metadata rather than the title must not be wiped \
+			 out the moment an allowed-format list is configured"
+		);
 	}
 
 	#[test]

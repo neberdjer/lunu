@@ -10,7 +10,7 @@ use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONT
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
-	InviteService, IssueService, JobService, LibraryService, LogBuffer, MediaService,
+	InviteService, IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
 	MetadataService, MonitorService, NotificationInboxService, NotificationService,
 	QualityProfileService, ReleaseService, RequestService, SchedulerService, SettingsService,
 	UserService, WorkService,
@@ -27,6 +27,7 @@ use lunu_db::repos::{
 
 use crate::hub::EventHub;
 use crate::rate_limit::RateLimiter;
+use lunu_integrations::audio::FfmpegMerger;
 use lunu_integrations::auth::{AudiobookshelfProvider, OidcClient};
 use lunu_integrations::download::{QbittorrentClient, SabnzbdClient, TransmissionClient};
 use lunu_integrations::indexer::ProwlarrClient;
@@ -83,6 +84,7 @@ pub struct AppState {
 	pub scheduler: Arc<SchedulerService>,
 	pub monitor: Arc<MonitorService>,
 	pub imports: Arc<ImportService>,
+	pub merges: Arc<MergeService>,
 	pub activity: Arc<ActivityService>,
 	pub media: Arc<MediaService>,
 	pub library: Arc<LibraryService>,
@@ -146,7 +148,7 @@ impl AppState {
 		let invites = Arc::new(InviteService::new(invites_repo));
 
 		let providers: Vec<Arc<dyn lunu_core::traits::MetadataProvider>> = vec![
-			Arc::new(AudnexusProvider::new()),
+			Arc::new(AudnexusProvider::new(settings.clone())),
 			Arc::new(OpenLibraryProvider::new()),
 			Arc::new(GoogleBooksProvider::new(settings.clone())),
 			Arc::new(HardcoverProvider::new(settings.clone())),
@@ -229,6 +231,14 @@ impl AppState {
 			requests.clone(),
 		));
 
+		let merges = Arc::new(MergeService::new(
+			media_repo.clone(),
+			settings.clone(),
+			Arc::new(FfmpegMerger::new(settings.clone())),
+			jobs.clone(),
+			activity.clone(),
+		));
+
 		let importer = Arc::new(HardlinkImporter::new());
 		let imports = Arc::new(ImportService::new(
 			downloads_repo,
@@ -236,6 +246,7 @@ impl AppState {
 			settings.clone(),
 			importer,
 			media.clone(),
+			merges.clone(),
 		));
 
 		let notifications = Arc::new(NotificationService::new(vec![
@@ -271,6 +282,7 @@ impl AppState {
 			jobs,
 			monitor,
 			imports,
+			merges,
 			activity,
 			media,
 			library,

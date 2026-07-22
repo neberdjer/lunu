@@ -6,6 +6,7 @@ pub mod indexer;
 pub mod job_handler;
 pub mod library_source;
 pub mod mailer;
+pub mod merger;
 pub mod metadata_provider;
 pub mod notifier;
 pub mod oidc;
@@ -18,6 +19,9 @@ pub use indexer::Indexer;
 pub use job_handler::JobHandler;
 pub use library_source::LibrarySource;
 pub use mailer::Mailer;
+pub use merger::{
+	MergeOutcome, MergePlan, MergePreview, MergeSummary, Merger, PreviewChapter, RevertPlan,
+};
 pub use metadata_provider::MetadataProvider;
 pub use notifier::Notifier;
 pub use oidc::{OidcClaims, OidcFlow};

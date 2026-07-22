@@ -4,7 +4,7 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::Result;
-use crate::models::{Media, MediaSource, Request};
+use crate::models::{Media, MediaSource, MergeState, Request};
 use crate::repo::MediaRepo;
 use crate::services::new_id;
 
@@ -17,10 +17,10 @@ impl MediaService {
 		Self { media }
 	}
 
-	pub async fn record(&self, request: &Request, library_path: &str) -> Result<()> {
+	pub async fn record(&self, request: &Request, library_path: &str) -> Result<String> {
 		if let Some(existing) = self.media.find_by_request(&request.id).await? {
 			if existing.overridden {
-				return Ok(());
+				return Ok(existing.id);
 			}
 			let updated = Media {
 				work_id: Some(request.work_id.clone()),
@@ -29,10 +29,13 @@ impl MediaService {
 				title: request.title.clone(),
 				author: request.author.clone(),
 				cover_url: request.cover_url.clone(),
+				series_name: request.series_name.clone(),
+				series_sequence: request.series_sequence.clone(),
 				library_path: library_path.to_string(),
 				..existing
 			};
-			return self.media.update(&updated).await;
+			self.media.update(&updated).await?;
+			return Ok(updated.id);
 		}
 		let media = Media {
 			id: new_id(),
@@ -43,16 +46,21 @@ impl MediaService {
 			title: request.title.clone(),
 			author: request.author.clone(),
 			cover_url: request.cover_url.clone(),
-			series_name: None,
-			series_sequence: None,
+			series_name: request.series_name.clone(),
+			series_sequence: request.series_sequence.clone(),
 			library_path: library_path.to_string(),
+			merged_path: None,
+			merge_state: MergeState::default(),
+			merge_detail: None,
+			merge_backup_path: None,
 			source: MediaSource::Request,
 			overridden: false,
 			matched_by: None,
 			request_id: Some(request.id.clone()),
 			created_at: Utc::now(),
 		};
-		self.media.upsert_request(&media).await
+		self.media.upsert_request(&media).await?;
+		Ok(media.id)
 	}
 
 	pub async fn find(&self, asin: &str) -> Result<Option<Media>> {

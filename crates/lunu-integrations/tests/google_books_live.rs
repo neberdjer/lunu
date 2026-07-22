@@ -1,52 +1,18 @@
-use std::sync::Arc;
+mod common;
 
-use async_trait::async_trait;
-use chrono::Utc;
-use lunu_core::consts::crypto::SETTINGS_ENCRYPTION_CONTEXT;
 use lunu_core::consts::metadata::METADATA_GOOGLE_BOOKS_API_KEY;
-use lunu_core::crypto::Encryptor;
-use lunu_core::models::{ExternalId, IdScheme, Setting};
-use lunu_core::repo::SettingsRepo;
-use lunu_core::services::SettingsService;
+use lunu_core::models::{ExternalId, IdScheme};
 use lunu_core::traits::MetadataProvider;
 use lunu_integrations::metadata::GoogleBooksProvider;
 
 const REGION: &str = "us";
 const HOBBIT_ISBN: &str = "9780007487295";
 
-struct EnvKeySettings;
-
-#[async_trait]
-impl SettingsRepo for EnvKeySettings {
-	async fn get(&self, key: &str) -> lunu_core::Result<Option<Setting>> {
-		if key == METADATA_GOOGLE_BOOKS_API_KEY
-			&& let Ok(value) = std::env::var("GOOGLE_BOOKS_API_KEY")
-			&& !value.is_empty()
-		{
-			return Ok(Some(Setting {
-				key: key.to_string(),
-				value,
-				encrypted: false,
-				updated_at: Utc::now(),
-			}));
-		}
-		Ok(None)
-	}
-	async fn set(&self, _setting: &Setting) -> lunu_core::Result<()> {
-		Ok(())
-	}
-	async fn get_all(&self) -> lunu_core::Result<Vec<Setting>> {
-		Ok(Vec::new())
-	}
-	async fn delete(&self, _key: &str) -> lunu_core::Result<()> {
-		Ok(())
-	}
-}
-
 fn provider() -> GoogleBooksProvider {
-	let encryptor = Encryptor::new("live-test-master-key", SETTINGS_ENCRYPTION_CONTEXT).unwrap();
-	let settings = Arc::new(SettingsService::new(Arc::new(EnvKeySettings), encryptor));
-	GoogleBooksProvider::new(settings)
+	GoogleBooksProvider::new(common::settings_from_env(
+		METADATA_GOOGLE_BOOKS_API_KEY,
+		"GOOGLE_BOOKS_API_KEY",
+	))
 }
 
 #[tokio::test]

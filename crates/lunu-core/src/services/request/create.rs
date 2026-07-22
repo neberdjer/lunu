@@ -68,6 +68,7 @@ impl RequestService {
 			self.approval(user).await?
 		};
 
+		let series = book.series.into_iter().next();
 		let now = Utc::now();
 		let request = Request {
 			id: new_id(),
@@ -78,6 +79,8 @@ impl RequestService {
 			title: book.title,
 			author: book.authors.into_iter().next(),
 			cover_url: book.cover_url,
+			series_name: series.as_ref().map(|entry| entry.name.clone()),
+			series_sequence: series.and_then(|entry| entry.position),
 			status,
 			approved_by: None,
 			notes: nonempty(input.notes),
@@ -111,6 +114,8 @@ impl RequestService {
 			title,
 			author,
 			cover_url: None,
+			series_name: None,
+			series_sequence: None,
 			status,
 			approved_by: None,
 			notes: nonempty(input.notes),

@@ -143,7 +143,10 @@ async fn sync_imports_items_with_and_without_asin() {
 	let owned = media.available_among(&["B01".to_string()]).await.unwrap();
 	assert_eq!(owned, vec!["B01".to_string()]);
 
-	let (unmatched, total) = service.list(true, 20, 0).await.unwrap();
+	let (unmatched, total) = service
+		.list(lunu_core::models::MediaFilter::Unmatched, 20, 0)
+		.await
+		.unwrap();
 	assert_eq!(total, 1);
 	assert_eq!(unmatched[0].abs_item_id.as_deref(), Some("b"));
 }
@@ -171,7 +174,10 @@ async fn resync_does_not_clobber_overridden_row() {
 	let service = library_service(&db, vec![item("b", None)]);
 	service.sync().await.unwrap();
 
-	let (unmatched, _) = service.list(true, 20, 0).await.unwrap();
+	let (unmatched, _) = service
+		.list(lunu_core::models::MediaFilter::Unmatched, 20, 0)
+		.await
+		.unwrap();
 	let id = unmatched[0].id.clone();
 	service.match_asin(&id, "B002V0QK4C").await.unwrap();
 
@@ -194,7 +200,10 @@ async fn match_assigns_asin_and_marks_overridden() {
 	let service = library_service(&db, vec![item("b", None)]);
 	service.sync().await.unwrap();
 
-	let (unmatched, _) = service.list(true, 20, 0).await.unwrap();
+	let (unmatched, _) = service
+		.list(lunu_core::models::MediaFilter::Unmatched, 20, 0)
+		.await
+		.unwrap();
 	let id = unmatched[0].id.clone();
 
 	let matched = service.match_asin(&id, "B002V0QK4C").await.unwrap();
@@ -202,7 +211,10 @@ async fn match_assigns_asin_and_marks_overridden() {
 	assert_eq!(matched.title, "Foundation");
 	assert!(matched.overridden);
 
-	let (still_unmatched, total) = service.list(true, 20, 0).await.unwrap();
+	let (still_unmatched, total) = service
+		.list(lunu_core::models::MediaFilter::Unmatched, 20, 0)
+		.await
+		.unwrap();
 	assert_eq!(total, 0);
 	assert!(still_unmatched.is_empty());
 }
@@ -217,23 +229,13 @@ async fn sync_merges_duplicate_request_and_abs_rows_without_crashing() {
 
 	let media_repo = SqlxMediaRepo::new(db.clone());
 	media_repo
-		.upsert_request(&lunu_core::models::Media {
+		.upsert_request(&Media {
 			work_id: Some("work-B01".to_string()),
-			format: Format::Audiobook,
-			id: "req-row".to_string(),
 			asin: Some("B01".to_string()),
-			abs_item_id: None,
 			title: "Book b".to_string(),
-			author: None,
-			cover_url: None,
-			series_name: None,
-			series_sequence: None,
 			library_path: "/lib/b".to_string(),
-			source: lunu_core::models::MediaSource::Request,
-			overridden: false,
-			matched_by: None,
 			request_id: Some("r1".to_string()),
-			created_at: chrono::Utc::now(),
+			..media("req-row")
 		})
 		.await
 		.unwrap();

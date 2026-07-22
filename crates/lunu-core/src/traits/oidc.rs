@@ -23,7 +23,7 @@ impl OidcClaims {
 		{
 			return local.to_string();
 		}
-		format!("user-{}", &self.subject.chars().take(8).collect::<String>())
+		format!("user-{}", self.subject.chars().take(8).collect::<String>())
 	}
 }
 

@@ -14,7 +14,11 @@ use crate::http::send_with_retry;
 use crate::{integration_error, required_setting};
 
 const PROVIDER_ID: &str = lunu_core::consts::settings::PROWLARR;
-const AUDIOBOOK_CATEGORY: &str = "3030";
+const AUDIOBOOK_CATEGORIES: &[(&str, &str)] = &[
+	("categories", "3030"),
+	("categories", "7000"),
+	("categories", "8000"),
+];
 const SEARCH_TYPE: &str = "search";
 const REQUEST_TIMEOUT_SECS: u64 = 60;
 const SETTING_URL: &str = lunu_core::consts::settings::PROWLARR_URL;
@@ -63,11 +67,8 @@ impl Indexer for ProwlarrClient {
 			self.http
 				.get(&url)
 				.header("X-Api-Key", api_key.as_str())
-				.query(&[
-					("query", query),
-					("categories", AUDIOBOOK_CATEGORY),
-					("type", SEARCH_TYPE),
-				])
+				.query(&[("query", query), ("type", SEARCH_TYPE)])
+				.query(AUDIOBOOK_CATEGORIES)
 		})
 		.await?;
 
@@ -102,6 +103,7 @@ struct ProwlarrRelease {
 	leechers: Option<i64>,
 	protocol: Option<String>,
 	download_url: Option<String>,
+	magnet_url: Option<String>,
 	info_hash: Option<String>,
 	info_url: Option<String>,
 	publish_date: Option<String>,
@@ -121,7 +123,7 @@ impl ProwlarrRelease {
 			size: self.size.unwrap_or(0),
 			seeders: self.seeders.unwrap_or(0),
 			leechers: self.leechers.unwrap_or(0),
-			download_url: self.download_url?,
+			download_url: self.download_url.or(self.magnet_url)?,
 			info_hash: self.info_hash,
 			info_url: self.info_url,
 			publish_date: self.publish_date,
@@ -156,6 +158,12 @@ mod tests {
 			"title": "Torrent Without Download Url",
 			"indexer": "BrokenTracker",
 			"protocol": "torrent"
+		},
+		{
+			"title": "Magnet Only Release",
+			"indexer": "MagnetTracker",
+			"protocol": "torrent",
+			"magnetUrl": "magnet:?xt=urn:btih:def"
 		}
 	]"#;
 
@@ -167,7 +175,7 @@ mod tests {
 			.filter_map(ProwlarrRelease::into_release)
 			.collect();
 
-		assert_eq!(releases.len(), 2);
+		assert_eq!(releases.len(), 3);
 		assert_eq!(releases[0].title, "Author - The Hobbit [M4B]");
 		assert_eq!(releases[0].protocol, Protocol::Torrent);
 		assert_eq!(releases[0].seeders, 42);
@@ -177,6 +185,10 @@ mod tests {
 			releases[1].seeders, 0,
 			"usenet genuinely has no swarm, and scoring gates seeders by protocol rather than \
 			 needing an invented floor-clearing count here"
+		);
+		assert_eq!(
+			releases[2].download_url, "magnet:?xt=urn:btih:def",
+			"an indexer that fills only magnetUrl must not have its releases silently dropped"
 		);
 	}
 }

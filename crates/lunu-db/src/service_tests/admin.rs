@@ -111,6 +111,8 @@ async fn status_by_works_scopes_to_user_and_keeps_newest() {
 				title: "t".to_string(),
 				author: None,
 				cover_url: None,
+				series_name: None,
+				series_sequence: None,
 				status,
 				approved_by: None,
 				notes: None,

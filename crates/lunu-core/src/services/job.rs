@@ -49,9 +49,20 @@ impl JobService {
 		request_id: &str,
 		run_after: DateTime<Utc>,
 	) -> Result<Job> {
+		self.enqueue(job_type, payload, Some(request_id), run_after)
+			.await
+	}
+
+	async fn enqueue<T: Serialize + ?Sized>(
+		&self,
+		job_type: JobType,
+		payload: &T,
+		request_id: Option<&str>,
+		run_after: DateTime<Utc>,
+	) -> Result<Job> {
 		let job = build_job(
 			job_type,
-			Some(request_id.to_string()),
+			request_id.map(str::to_string),
 			serde_json::to_string(payload)?,
 			run_after,
 		);
@@ -62,6 +73,21 @@ impl JobService {
 	pub async fn enqueue_detached(&self, job_type: JobType) -> Result<bool> {
 		let job = build_job(job_type, None, "null".to_string(), Utc::now());
 		self.jobs.create_recurring(&job).await
+	}
+
+	pub async fn enqueue_detached_with<T: Serialize + ?Sized>(
+		&self,
+		job_type: JobType,
+		payload: &T,
+	) -> Result<Job> {
+		self.enqueue(job_type, payload, None, Utc::now()).await
+	}
+
+	pub async fn find(&self, id: &str) -> Result<Job> {
+		self.jobs
+			.find_by_id(id)
+			.await?
+			.ok_or_else(|| Error::NotFound(format!("job {id}")))
 	}
 
 	pub async fn list(&self) -> Result<Vec<Job>> {

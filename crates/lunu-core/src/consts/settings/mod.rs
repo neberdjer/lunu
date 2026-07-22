@@ -1,5 +1,6 @@
 use crate::consts::reasons;
 
+pub const FFMPEG: &str = "ffmpeg";
 pub const PROWLARR: &str = "prowlarr";
 pub const QBITTORRENT: &str = "qbittorrent";
 pub const SABNZBD: &str = "sabnzbd";

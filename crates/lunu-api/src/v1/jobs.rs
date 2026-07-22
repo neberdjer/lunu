@@ -42,6 +42,17 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
+#[utoipa::path(tag = "jobs", params(("id" = String, Path, description = "Job id")), responses((status = 200, body = JobResponse), (status = 404, description = "Unknown job")))]
+#[get("/jobs/{id}")]
+pub async fn find(
+	_admin: AdminUser,
+	id: web::Path<String>,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let job = state.jobs.find(&id.into_inner()).await?;
+	Ok(HttpResponse::Ok().json(JobResponse::from(&job)))
+}
+
 #[utoipa::path(tag = "jobs", params(("id" = String, Path, description = "Job id")), responses((status = 204, description = "Job requeued"), (status = 409, description = "Only a failed job can be requeued")))]
 #[post("/jobs/{id}/retry")]
 pub async fn retry(

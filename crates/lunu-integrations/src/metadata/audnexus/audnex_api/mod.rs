@@ -13,14 +13,14 @@ mod chapters;
 use book::{AudnexusAuthor, AudnexusBook};
 use chapters::AudnexusChapters;
 
-const AUDNEXUS_BASE: &str = "https://api.audnex.us";
-
 pub(super) async fn get_book(
 	client: &reqwest::Client,
+	base: &str,
 	region: &str,
 	asin: &str,
 ) -> Result<Option<Book>> {
-	let Some(body) = get_json::<AudnexusBook>(client, region, &format!("books/{asin}")).await?
+	let Some(body) =
+		get_json::<AudnexusBook>(client, base, region, &format!("books/{asin}")).await?
 	else {
 		return Ok(None);
 	};
@@ -32,11 +32,12 @@ pub(super) async fn get_book(
 
 pub(super) async fn get_author_name(
 	client: &reqwest::Client,
+	base: &str,
 	region: &str,
 	asin: &str,
 ) -> Result<Option<String>> {
 	Ok(
-		get_json::<AudnexusAuthor>(client, region, &format!("authors/{asin}"))
+		get_json::<AudnexusAuthor>(client, base, region, &format!("authors/{asin}"))
 			.await?
 			.map(|author| author.name),
 	)
@@ -44,11 +45,12 @@ pub(super) async fn get_author_name(
 
 pub(super) async fn get_chapters(
 	client: &reqwest::Client,
+	base: &str,
 	region: &str,
 	asin: &str,
 ) -> Result<Option<Chapters>> {
 	Ok(
-		get_json::<AudnexusChapters>(client, region, &format!("books/{asin}/chapters"))
+		get_json::<AudnexusChapters>(client, base, region, &format!("books/{asin}/chapters"))
 			.await?
 			.map(AudnexusChapters::into_chapters),
 	)
@@ -91,10 +93,11 @@ async fn merge_audible_series(client: &reqwest::Client, region: &str, book: &mut
 
 async fn get_json<T: DeserializeOwned>(
 	client: &reqwest::Client,
+	base: &str,
 	region: &str,
 	path: &str,
 ) -> Result<Option<T>> {
-	let url = format!("{AUDNEXUS_BASE}/{path}");
+	let url = format!("{}/{path}", base.trim_end_matches('/'));
 	let response = send_with_retry(|| client.get(&url).query(&[("region", region)])).await?;
 
 	let status = response.status();

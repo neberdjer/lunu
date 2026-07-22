@@ -5,6 +5,7 @@ pub mod download;
 pub mod jobs;
 pub mod library;
 pub mod logging;
+pub mod merge;
 pub mod metadata;
 pub mod reasons;
 pub mod scoring;

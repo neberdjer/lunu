@@ -1,33 +1,5 @@
 use super::*;
 
-pub(super) struct NoopMailer;
-
-#[async_trait]
-impl Mailer for NoopMailer {
-	async fn send(&self, _to: &str, _subject: &str, _html: &str) -> CoreResult<()> {
-		Ok(())
-	}
-}
-
-#[derive(Default)]
-pub(super) struct RecordingMailer {
-	sent: std::sync::atomic::AtomicUsize,
-}
-
-impl RecordingMailer {
-	pub(super) fn count(&self) -> usize {
-		self.sent.load(std::sync::atomic::Ordering::Relaxed)
-	}
-}
-
-#[async_trait]
-impl Mailer for RecordingMailer {
-	async fn send(&self, _to: &str, _subject: &str, _html: &str) -> CoreResult<()> {
-		self.sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-		Ok(())
-	}
-}
-
 pub(super) fn expect_session(
 	outcome: lunu_core::services::LoginOutcome,
 ) -> lunu_core::services::Authenticated {
@@ -230,20 +202,11 @@ pub(super) fn work_service(db: &Db) -> Arc<WorkService> {
 pub(super) async fn seed_download(db: &Db, at: chrono::DateTime<Utc>) {
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
-			work_id: "work-B01".to_string(),
-			format: Format::Audiobook,
-			id: "r1".to_string(),
-			user_id: "u1".to_string(),
-			asin: Some("B01".to_string()),
-			title: "The Hobbit".to_string(),
-			author: None,
-			cover_url: None,
 			status: RequestStatus::Downloading,
 			approved_by: Some("admin".to_string()),
-			notes: None,
-			quality_profile_id: None,
 			created_at: at,
 			updated_at: at,
+			..hobbit()
 		})
 		.await
 		.unwrap();
@@ -298,3 +261,14 @@ impl Importer for FakeImporter {
 }
 
 pub(super) use super::stubs::StubProvider;
+
+mod mail;
+mod merge;
+mod rows;
+
+pub(super) use mail::{NoopMailer, RecordingMailer};
+pub(super) use merge::{
+	FakeMerger, imported_media, imports_with, imports_with_merge, media_of_request, merge_service,
+	mergeable_count, merges_for,
+};
+pub(super) use rows::{hobbit, media, request, request_status};

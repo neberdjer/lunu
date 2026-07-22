@@ -1,31 +1,15 @@
+mod payloads;
+
+pub use payloads::{GrabPayload, ImportPayload, MergePayload, MonitorPayload};
+
 use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
 
 use crate::consts::jobs::{RETRY_BASE_SECS, RETRY_MAX_SECS};
 use crate::consts::reasons;
 use crate::{Error, Result};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GrabPayload {
-	pub request_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MonitorPayload {
-	pub download_id: String,
-	pub misses: i64,
-	#[serde(default)]
-	pub stalls: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportPayload {
-	pub download_id: String,
-	pub content_path: String,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStatus {
@@ -71,6 +55,8 @@ pub enum JobType {
 	Grab,
 	MonitorDownload,
 	Import,
+	Merge,
+	MergeRevert,
 	Notify,
 	LibrarySync,
 	SessionCleanup,
@@ -83,6 +69,8 @@ impl JobType {
 			JobType::Grab => "grab",
 			JobType::MonitorDownload => "monitor-download",
 			JobType::Import => "import",
+			JobType::Merge => "merge",
+			JobType::MergeRevert => "merge-revert",
 			JobType::Notify => "notify",
 			JobType::LibrarySync => "library-sync",
 			JobType::SessionCleanup => "session-cleanup",
@@ -90,10 +78,32 @@ impl JobType {
 		}
 	}
 
+	pub fn is_recurring(&self) -> bool {
+		matches!(
+			self,
+			JobType::LibrarySync | JobType::SessionCleanup | JobType::JobCleanup
+		)
+	}
+
+	pub fn media_subject(&self) -> bool {
+		match self {
+			JobType::Merge | JobType::MergeRevert => true,
+			JobType::Grab
+			| JobType::MonitorDownload
+			| JobType::Import
+			| JobType::Notify
+			| JobType::LibrarySync
+			| JobType::SessionCleanup
+			| JobType::JobCleanup => false,
+		}
+	}
+
 	pub fn propagates_failure_to_request(&self) -> bool {
 		match self {
 			JobType::Grab | JobType::MonitorDownload | JobType::Import => true,
-			JobType::Notify
+			JobType::Merge
+			| JobType::MergeRevert
+			| JobType::Notify
 			| JobType::LibrarySync
 			| JobType::SessionCleanup
 			| JobType::JobCleanup => false,
@@ -115,6 +125,8 @@ impl FromStr for JobType {
 			"grab" => Ok(JobType::Grab),
 			"monitor-download" => Ok(JobType::MonitorDownload),
 			"import" => Ok(JobType::Import),
+			"merge" => Ok(JobType::Merge),
+			"merge-revert" => Ok(JobType::MergeRevert),
 			"notify" => Ok(JobType::Notify),
 			"library-sync" => Ok(JobType::LibrarySync),
 			"session-cleanup" => Ok(JobType::SessionCleanup),
@@ -156,86 +168,4 @@ impl Job {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	fn job(attempts: i64, max_attempts: i64) -> Job {
-		let now = Utc::now();
-		Job {
-			id: "j1".to_string(),
-			job_type: JobType::Grab,
-			request_id: None,
-			payload: "{}".to_string(),
-			status: JobStatus::Running,
-			attempts,
-			max_attempts,
-			run_after: now,
-			locked_by: None,
-			locked_at: None,
-			last_error: None,
-			created_at: now,
-			updated_at: now,
-		}
-	}
-
-	#[test]
-	fn only_fulfillment_jobs_fail_the_users_request() {
-		for job_type in [JobType::Grab, JobType::MonitorDownload, JobType::Import] {
-			assert!(
-				job_type.propagates_failure_to_request(),
-				"{job_type} is part of fulfilling a request, so exhausting it must fail the request"
-			);
-		}
-		for job_type in [
-			JobType::Notify,
-			JobType::LibrarySync,
-			JobType::SessionCleanup,
-			JobType::JobCleanup,
-		] {
-			assert!(
-				!job_type.propagates_failure_to_request(),
-				"{job_type} is background work, so failing it must never fail a user's request"
-			);
-		}
-	}
-
-	#[test]
-	fn job_type_round_trips_through_its_wire_name() {
-		for job_type in [
-			JobType::Grab,
-			JobType::MonitorDownload,
-			JobType::Import,
-			JobType::Notify,
-			JobType::LibrarySync,
-			JobType::SessionCleanup,
-			JobType::JobCleanup,
-		] {
-			assert_eq!(JobType::from_str(job_type.as_str()).unwrap(), job_type);
-		}
-	}
-
-	#[test]
-	fn should_retry_until_max_attempts() {
-		assert!(job(1, 3).should_retry());
-		assert!(job(2, 3).should_retry());
-		assert!(!job(3, 3).should_retry());
-		assert!(!job(4, 3).should_retry());
-	}
-
-	#[test]
-	fn retry_backoff_grows_then_caps() {
-		assert_eq!(
-			job(1, 5).retry_backoff(),
-			Duration::seconds(RETRY_BASE_SECS)
-		);
-		assert_eq!(
-			job(2, 5).retry_backoff(),
-			Duration::seconds(RETRY_BASE_SECS * 2)
-		);
-		assert_eq!(
-			job(3, 5).retry_backoff(),
-			Duration::seconds(RETRY_BASE_SECS * 4)
-		);
-		assert!(job(40, 50).retry_backoff() <= Duration::seconds(RETRY_MAX_SECS));
-	}
-}
+mod tests;

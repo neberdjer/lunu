@@ -8,20 +8,11 @@ async fn request_list_page_filters_and_counts() {
 	let now = Utc::now();
 
 	let make = |id: &str, user: &str, status: RequestStatus| Request {
-		work_id: format!("work-{id}"),
-		format: Format::Audiobook,
-		id: id.to_string(),
 		user_id: user.to_string(),
-		asin: Some(id.to_string()),
-		title: "t".to_string(),
-		author: None,
-		cover_url: None,
 		status,
-		approved_by: None,
-		notes: None,
-		quality_profile_id: None,
 		created_at: now,
 		updated_at: now,
+		..request(id)
 	};
 	repo.create(&make("a", "u1", RequestStatus::Pending))
 		.await
@@ -70,7 +61,8 @@ async fn delete_request_cascades_to_downloads_and_activity() {
 	SqlxActivityRepo::new(db.clone())
 		.create(&Activity {
 			id: "act1".to_string(),
-			request_id: "r1".to_string(),
+			request_id: Some("r1".to_string()),
+			media_id: None,
 			event: "downloading".to_string(),
 			detail: None,
 			actor: None,
@@ -117,19 +109,12 @@ async fn retry_reopens_failed_request_and_enqueues_grab() {
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
 			work_id: "work-B01".to_string(),
-			format: Format::Audiobook,
-			id: "r1".to_string(),
-			user_id: "u1".to_string(),
 			asin: Some("B01".to_string()),
 			title: "Book".to_string(),
-			author: None,
-			cover_url: None,
 			status: RequestStatus::Failed,
-			approved_by: None,
-			notes: None,
-			quality_profile_id: None,
 			created_at: now,
 			updated_at: now,
+			..request("r1")
 		})
 		.await
 		.unwrap();
@@ -159,19 +144,11 @@ async fn blocklisted_release_excluded_from_for_request() {
 	SqlxRequestRepo::new(db.clone())
 		.create(&Request {
 			work_id: "work-B01".to_string(),
-			format: Format::Audiobook,
-			id: "r1".to_string(),
-			user_id: "u1".to_string(),
 			asin: Some("B01".to_string()),
 			title: "Book".to_string(),
-			author: None,
-			cover_url: None,
-			status: RequestStatus::Pending,
-			approved_by: None,
-			notes: None,
-			quality_profile_id: None,
 			created_at: now,
 			updated_at: now,
+			..request("r1")
 		})
 		.await
 		.unwrap();

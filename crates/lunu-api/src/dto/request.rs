@@ -24,7 +24,8 @@ impl From<&BlocklistEntry> for BlocklistResponse {
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct ActivityResponse {
 	pub id: String,
-	pub request_id: String,
+	pub request_id: Option<String>,
+	pub media_id: Option<String>,
 	pub event: String,
 	pub detail: Option<String>,
 	pub actor: Option<String>,
@@ -36,6 +37,7 @@ impl From<&Activity> for ActivityResponse {
 		Self {
 			id: activity.id.clone(),
 			request_id: activity.request_id.clone(),
+			media_id: activity.media_id.clone(),
 			event: activity.event.clone(),
 			detail: activity.detail.clone(),
 			actor: activity.actor.clone(),

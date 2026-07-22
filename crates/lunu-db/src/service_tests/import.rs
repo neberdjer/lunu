@@ -1,4 +1,4 @@
-use lunu_core::models::{Media, MediaSource};
+use lunu_core::models::Media;
 use lunu_core::repo::MediaRepo;
 
 use super::builders::*;
@@ -15,10 +15,11 @@ async fn import_places_content_and_marks_available() {
 	let importer = Arc::new(FakeImporter::default());
 	let imports = ImportService::new(
 		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		request_service(&db, jobs),
+		request_service(&db, jobs.clone()),
 		settings,
 		importer.clone(),
 		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
+		merge_service(&db, jobs, Arc::new(FakeMerger::new(false))),
 	);
 
 	imports.import("d1", "/downloads/The Hobbit").await.unwrap();
@@ -26,15 +27,7 @@ async fn import_places_content_and_marks_available() {
 	let call = importer.call.lock().unwrap().clone().unwrap();
 	assert_eq!(call.0, "/downloads/The Hobbit");
 	assert_eq!(call.1, "/library/Unknown Author/The Hobbit");
-	assert_eq!(
-		SqlxRequestRepo::new(db.clone())
-			.find_by_id("r1")
-			.await
-			.unwrap()
-			.unwrap()
-			.status,
-		RequestStatus::Available
-	);
+	assert_eq!(request_status(&db).await, RequestStatus::Available);
 }
 
 #[tokio::test]
@@ -68,12 +61,7 @@ async fn import_retry_does_not_clobber_admin_curated_media() {
 		"the retry must not insert a duplicate media row"
 	);
 	assert_eq!(
-		SqlxRequestRepo::new(db.clone())
-			.find_by_id("r1")
-			.await
-			.unwrap()
-			.unwrap()
-			.status,
+		request_status(&db).await,
 		RequestStatus::Available,
 		"the import still completes"
 	);
@@ -109,37 +97,23 @@ async fn import_updates_media_when_not_overridden() {
 }
 
 async fn import_service_for(db: &Db) -> ImportService {
-	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
-	let settings = settings_service(db);
-	settings.set("library_dir", "/library").await.unwrap();
-	ImportService::new(
-		Arc::new(SqlxDownloadRepo::new(db.clone())),
-		request_service(db, jobs),
-		settings,
-		Arc::new(FakeImporter::default()),
-		Arc::new(MediaService::new(Arc::new(SqlxMediaRepo::new(db.clone())))),
-	)
+	imports_with(db, Arc::new(FakeMerger::new(false))).await.0
 }
 
 async fn seed_media_for_request(db: &Db, overridden: bool) {
 	SqlxMediaRepo::new(db.clone())
 		.insert(&Media {
 			work_id: Some("work-CURATED".to_string()),
-			format: Format::Audiobook,
-			id: "m1".to_string(),
 			asin: Some("CURATED".to_string()),
-			abs_item_id: None,
 			title: "The Hobbit (Andy Serkis Edition)".to_string(),
 			author: Some("J.R.R. Tolkien".to_string()),
 			cover_url: Some("curated-cover".to_string()),
 			series_name: Some("Middle-earth".to_string()),
 			series_sequence: Some("1".to_string()),
 			library_path: "/library/Tolkien/The Hobbit".to_string(),
-			source: MediaSource::Request,
 			overridden,
-			matched_by: None,
 			request_id: Some("r1".to_string()),
-			created_at: Utc::now(),
+			..media("m1")
 		})
 		.await
 		.unwrap();

@@ -6,6 +6,8 @@ pub const OPENLIBRARY_PROVIDER: &str = "openlibrary";
 pub const GOOGLE_BOOKS_PROVIDER: &str = "google_books";
 pub const HARDCOVER_PROVIDER: &str = "hardcover";
 
+pub const METADATA_AUDNEXUS_URL: &str = "metadata_audnexus_url";
+pub const DEFAULT_AUDNEXUS_URL: &str = "https://api.audnex.us";
 pub const METADATA_AUDNEXUS_ENABLED: &str = "metadata_audnexus_enabled";
 pub const METADATA_AUDNEXUS_PRIORITY: &str = "metadata_audnexus_priority";
 pub const METADATA_OPENLIBRARY_ENABLED: &str = "metadata_openlibrary_enabled";
