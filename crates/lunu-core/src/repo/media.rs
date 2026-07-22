@@ -20,6 +20,7 @@ pub trait MediaRepo: Send + Sync {
 	async fn find_by_id(&self, id: &str) -> Result<Option<Media>>;
 	async fn find_by_request(&self, request_id: &str) -> Result<Option<Media>>;
 	async fn available_among(&self, asins: &[String]) -> Result<Vec<String>>;
+	async fn all(&self) -> Result<Vec<Media>>;
 	async fn list_page(&self, filter: MediaFilter, limit: i64, offset: i64) -> Result<Vec<Media>>;
 	async fn list_count(&self, filter: MediaFilter) -> Result<i64>;
 	async fn count(&self) -> Result<i64>;

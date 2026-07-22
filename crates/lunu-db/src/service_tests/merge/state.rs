@@ -207,3 +207,32 @@ async fn each_merge_transition_is_announced_live() {
 		"a client watching the socket must see the row move without refetching it"
 	);
 }
+
+#[tokio::test]
+async fn asking_twice_for_the_same_merge_yields_one_job() {
+	let db = memory_db().await;
+	let merger = Arc::new(FakeMerger::new(true));
+	let media = imported_media(&db, merger.clone()).await;
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let merges = merge_service(&db, jobs.clone(), merger);
+
+	let first = merges.request(&media.id).await.unwrap();
+	let second = merges.request(&media.id).await.unwrap();
+
+	assert_eq!(
+		first, second,
+		"a second request must join the queued job, not start a rival one"
+	);
+	let queued: Vec<_> = jobs
+		.list()
+		.await
+		.unwrap()
+		.into_iter()
+		.filter(|job| job.job_type == JobType::Merge)
+		.collect();
+	assert_eq!(
+		queued.len(),
+		1,
+		"two merge jobs for one book would transcode into the same part file"
+	);
+}

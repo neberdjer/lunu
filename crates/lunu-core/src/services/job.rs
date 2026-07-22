@@ -75,6 +75,26 @@ impl JobService {
 		self.jobs.create_recurring(&job).await
 	}
 
+	pub async fn enqueue_unique_with<T: Serialize + ?Sized>(
+		&self,
+		job_type: JobType,
+		payload: &T,
+		dedupe_key: &str,
+	) -> Result<Job> {
+		let mut job = build_job(job_type, None, serde_json::to_string(payload)?, Utc::now());
+		job.dedupe_key = Some(dedupe_key.to_string());
+		if self.jobs.create_recurring(&job).await? {
+			return Ok(job);
+		}
+		match self.jobs.find_active_by_dedupe(dedupe_key).await? {
+			Some(existing) => Ok(existing),
+			None => {
+				self.jobs.create(&job).await?;
+				Ok(job)
+			}
+		}
+	}
+
 	pub async fn enqueue_detached_with<T: Serialize + ?Sized>(
 		&self,
 		job_type: JobType,
@@ -136,6 +156,7 @@ fn build_job(
 		id: new_id(),
 		job_type,
 		request_id,
+		dedupe_key: None,
 		payload,
 		status: JobStatus::Pending,
 		attempts: 0,

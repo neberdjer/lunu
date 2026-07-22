@@ -11,7 +11,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::http::send_with_retry;
+use crate::http::send_write;
 use crate::{integration_error, optional_setting, required_setting};
 
 const PROVIDER_ID: &str = lunu_core::consts::settings::TRANSMISSION;
@@ -146,7 +146,7 @@ impl TransmissionClient {
 		username: &Option<String>,
 		password: &Option<String>,
 	) -> Result<reqwest::Response> {
-		send_with_retry(|| {
+		send_write(|| {
 			let mut request = self.http.post(endpoint).json(body);
 			if let Some(session) = self.session_id.lock().expect("session lock").clone() {
 				request = request.header(SESSION_HEADER, session);

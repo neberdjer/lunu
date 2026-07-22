@@ -5,7 +5,9 @@ use chrono::{Duration, Utc};
 use crate::consts::auth::SESSION_TTL_DAYS;
 use crate::consts::reasons;
 use crate::crypto::Encryptor;
-use crate::crypto::{dummy_verify, generate_token, hash_password, hash_token, verify_password};
+use crate::crypto::{
+	dummy_verify_async, generate_token, hash_password_async, hash_token, verify_password_async,
+};
 use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{EmailVerificationRepo, InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
 use crate::repo::{MfaRecoveryCodeRepo, UserMfaRepo};
@@ -119,7 +121,7 @@ impl AuthService {
 			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
 		}
 
-		let mut user = build_local_user(username, password, email, Role::Admin)?;
+		let mut user = build_local_user(username, password, email, Role::Admin).await?;
 		user.email_verified = true;
 		if !self.users.create_initial_admin(&user).await? {
 			return Err(Error::Conflict(reasons::SETUP_COMPLETED.to_string()));
@@ -132,7 +134,7 @@ impl AuthService {
 		if let Some(user) = self.users.find_by_username(username).await? {
 			if user.auth_source == AuthSource::Local {
 				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
-				if !verify_password(password, hash)? {
+				if !verify_password_async(password, hash).await? {
 					return Err(Error::Unauthorized);
 				}
 				if !user.enabled {
@@ -157,7 +159,7 @@ impl AuthService {
 		}
 
 		let Some(identity) = self.authenticate_external(username, password).await? else {
-			dummy_verify(password);
+			dummy_verify_async(password).await;
 			return Err(Error::Unauthorized);
 		};
 		let user = self.provision_external(identity).await?;
@@ -224,7 +226,7 @@ impl AuthService {
 		}
 
 		let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
-		if !verify_password(current, hash)? {
+		if !verify_password_async(current, hash).await? {
 			return Err(Error::Unauthorized);
 		}
 
@@ -233,7 +235,7 @@ impl AuthService {
 		}
 
 		validate_password(new)?;
-		user.password_hash = Some(hash_password(new)?);
+		user.password_hash = Some(hash_password_async(new).await?);
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 
@@ -267,7 +269,7 @@ impl AuthService {
 
 		ensure_username_available(self.users.as_ref(), username).await?;
 
-		let user = build_local_user(username, password, invite.email.clone(), invite.role)?;
+		let user = build_local_user(username, password, invite.email.clone(), invite.role).await?;
 
 		if !self.invites.redeem(&invite.id).await? {
 			return Err(Error::Validation(reasons::INVITE_UNUSABLE.to_string()));

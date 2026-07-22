@@ -22,3 +22,7 @@ CREATE TABLE media (
 );
 CREATE INDEX idx_media_merge_state ON media (merge_state);
 CREATE INDEX idx_media_created_at ON media (created_at);
+CREATE INDEX idx_media_request_id ON media (request_id);
+CREATE INDEX idx_media_work_id ON media (work_id);
+CREATE INDEX idx_media_unmatched ON media (created_at)
+	WHERE matched_by IS NULL AND source = 'abs';

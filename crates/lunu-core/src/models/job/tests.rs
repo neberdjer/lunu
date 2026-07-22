@@ -6,6 +6,7 @@ fn job(attempts: i64, max_attempts: i64) -> Job {
 		id: "j1".to_string(),
 		job_type: JobType::Grab,
 		request_id: None,
+		dedupe_key: None,
 		payload: "{}".to_string(),
 		status: JobStatus::Running,
 		attempts,

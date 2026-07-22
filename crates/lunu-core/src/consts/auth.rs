@@ -40,3 +40,6 @@ pub const MFA_CODE_DIGITS: u32 = 6;
 pub const MFA_TICKET_TTL_MINUTES: i64 = 5;
 pub const MFA_MAX_ATTEMPTS: i64 = 5;
 pub const MFA_RECOVERY_CODE_COUNT: usize = 10;
+
+pub const SESSION_TOUCH_INTERVAL_SECS: i64 = 300;
+pub const API_KEY_TOUCH_INTERVAL_SECS: i64 = 300;

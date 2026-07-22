@@ -55,7 +55,7 @@ use chrono::Utc;
 
 use crate::consts::auth::{PASSWORD_MIN_LEN, USERNAME_MAX_LEN};
 use crate::consts::reasons;
-use crate::crypto::hash_password;
+use crate::crypto::hash_password_async;
 use crate::models::{AuthSource, Role, User};
 use crate::repo::UserRepo;
 use crate::traits::ExternalIdentity;
@@ -172,7 +172,7 @@ pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> Use
 	)
 }
 
-pub(crate) fn build_local_user(
+pub(crate) async fn build_local_user(
 	username: &str,
 	password: &str,
 	email: Option<String>,
@@ -188,7 +188,7 @@ pub(crate) fn build_local_user(
 		email,
 		display_name: None,
 		locale: None,
-		password_hash: Some(hash_password(password)?),
+		password_hash: Some(hash_password_async(password).await?),
 		role,
 		auth_source: AuthSource::Local,
 		oidc_subject: None,
@@ -197,4 +197,12 @@ pub(crate) fn build_local_user(
 		created_at: now,
 		updated_at: now,
 	})
+}
+
+pub(crate) fn stale(
+	seen: Option<chrono::DateTime<chrono::Utc>>,
+	now: chrono::DateTime<chrono::Utc>,
+	interval_secs: i64,
+) -> bool {
+	seen.is_none_or(|seen| (now - seen).num_seconds() >= interval_secs)
 }

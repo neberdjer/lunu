@@ -5,6 +5,7 @@ use lunu_core::consts::metadata::{METADATA_AUDNEXUS_ENABLED, METADATA_AUDNEXUS_P
 use super::builders::*;
 use super::*;
 
+mod caching;
 mod routing;
 
 struct CountingProvider {

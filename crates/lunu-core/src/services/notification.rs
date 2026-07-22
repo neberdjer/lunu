@@ -43,12 +43,26 @@ impl NotificationService {
 			failed: 0,
 			last_error: None,
 		};
+
+		let mut sending = tokio::task::JoinSet::new();
 		for notifier in &self.notifiers {
-			match notifier.deliver(event).await {
-				Ok(()) => report.delivered += 1,
-				Err(error) => {
+			let notifier = notifier.clone();
+			let event = event.clone();
+			sending.spawn(async move { notifier.deliver(&event).await });
+		}
+
+		while let Some(finished) = sending.join_next().await {
+			match finished {
+				Ok(Ok(())) => report.delivered += 1,
+				Ok(Err(error)) => {
 					report.failed += 1;
 					report.last_error = Some(error);
+				}
+				Err(error) => {
+					report.failed += 1;
+					report.last_error = Some(Error::Internal(format!(
+						"notification task did not complete: {error}"
+					)));
 				}
 			}
 		}

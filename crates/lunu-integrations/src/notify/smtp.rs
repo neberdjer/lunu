@@ -16,14 +16,46 @@ use crate::{integration_error, optional_setting};
 
 pub struct SmtpMailer {
 	settings: Arc<SettingsService>,
+	cached: tokio::sync::RwLock<Option<(String, AsyncSmtpTransport<Tokio1Executor>)>>,
 }
 
 impl SmtpMailer {
 	pub fn new(settings: Arc<SettingsService>) -> Self {
-		Self { settings }
+		Self {
+			settings,
+			cached: tokio::sync::RwLock::new(None),
+		}
 	}
 
 	async fn transport(&self, host: &str) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
+		let fingerprint = self.fingerprint(host).await?;
+		if let Some((cached_for, transport)) = self.cached.read().await.as_ref()
+			&& *cached_for == fingerprint
+		{
+			return Ok(transport.clone());
+		}
+
+		let built = self.build_transport(host).await?;
+		*self.cached.write().await = Some((fingerprint, built.clone()));
+		Ok(built)
+	}
+
+	async fn fingerprint(&self, host: &str) -> Result<String> {
+		let parts = [
+			Some(host.to_string()),
+			optional_setting(&self.settings, SMTP_ENCRYPTION).await?,
+			optional_setting(&self.settings, SMTP_PORT).await?,
+			optional_setting(&self.settings, SMTP_USERNAME).await?,
+			optional_setting(&self.settings, SMTP_PASSWORD).await?,
+		];
+		Ok(parts
+			.iter()
+			.map(|part| part.as_deref().unwrap_or_default())
+			.collect::<Vec<_>>()
+			.join("\u{1}"))
+	}
+
+	async fn build_transport(&self, host: &str) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
 		let mode = optional_setting(&self.settings, SMTP_ENCRYPTION)
 			.await?
 			.unwrap_or_else(|| DEFAULT_SMTP_ENCRYPTION.to_string());

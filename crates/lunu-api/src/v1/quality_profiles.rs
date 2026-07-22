@@ -119,11 +119,12 @@ pub async fn list(
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let pagination = Pagination::resolve(query.page, query.limit);
-	let profiles = state
-		.quality_profiles
-		.list_page(pagination.limit, pagination.offset)
-		.await?;
-	let total = state.quality_profiles.count().await?;
+	let (profiles, total) = tokio::try_join!(
+		state
+			.quality_profiles
+			.list_page(pagination.limit, pagination.offset),
+		state.quality_profiles.count()
+	)?;
 	let items: Vec<QualityProfileResponse> =
 		profiles.iter().map(QualityProfileResponse::from).collect();
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))

@@ -39,7 +39,7 @@ impl LogBuffer {
 			at: Utc::now(),
 			level: level.to_ascii_lowercase(),
 			target: target.to_string(),
-			message: redact(message),
+			message: redact(message).into_owned(),
 		};
 		let mut entries = self.entries.lock().expect("log buffer lock");
 		if entries.len() == self.capacity {

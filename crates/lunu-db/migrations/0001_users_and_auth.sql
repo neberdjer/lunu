@@ -50,7 +50,6 @@ CREATE TABLE invites (
 	created_at TEXT NOT NULL,
 	expires_at TEXT
 );
-CREATE INDEX idx_invites_created_by ON invites (created_by);
 
 CREATE TABLE password_reset_tokens (
 	id TEXT PRIMARY KEY,
@@ -95,3 +94,4 @@ CREATE TABLE mfa_recovery_codes (
 	created_at TEXT NOT NULL
 );
 CREATE INDEX idx_mfa_recovery_codes_user_id ON mfa_recovery_codes (user_id);
+CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);

@@ -13,6 +13,7 @@ fn pending_job(id: &str) -> Job {
 		id: id.to_string(),
 		job_type: JobType::Grab,
 		request_id: Some(format!("req-{id}")),
+		dedupe_key: None,
 		payload: "{}".to_string(),
 		status: JobStatus::Pending,
 		attempts: 0,
@@ -58,7 +59,11 @@ async fn concurrent_workers_claim_each_job_exactly_once() {
 		handles.push(tokio::spawn(async move {
 			let worker_id = format!("worker-{worker}");
 			let mut claimed = Vec::new();
-			while let Some(job) = repo.claim_next(&worker_id, Utc::now()).await.unwrap() {
+			while let Some(job) = repo
+				.claim_next(&worker_id, Utc::now(), JobType::ALL)
+				.await
+				.unwrap()
+			{
 				claimed.push(job.id);
 			}
 			claimed
@@ -89,7 +94,7 @@ async fn concurrent_claim_increments_attempts_once_per_job() {
 		handles.push(tokio::spawn(async move {
 			let worker_id = format!("worker-{worker}");
 			while repo
-				.claim_next(&worker_id, Utc::now())
+				.claim_next(&worker_id, Utc::now(), JobType::ALL)
 				.await
 				.unwrap()
 				.is_some()
@@ -120,7 +125,7 @@ async fn only_the_lease_holder_can_finalize_a_job() {
 	let repo = Arc::new(SqlxJobRepo::new(db.clone()));
 	repo.create(&pending_job("job-fence")).await.unwrap();
 	let claimed = repo
-		.claim_next("holder", Utc::now())
+		.claim_next("holder", Utc::now(), JobType::ALL)
 		.await
 		.unwrap()
 		.expect("claimable");
@@ -148,7 +153,7 @@ async fn reaper_reclaims_only_expired_leases_and_allows_reclaim() {
 	let repo = Arc::new(SqlxJobRepo::new(db.clone()));
 	repo.create(&pending_job("job-stale")).await.unwrap();
 	let claimed = repo
-		.claim_next("dead-worker", Utc::now())
+		.claim_next("dead-worker", Utc::now(), JobType::ALL)
 		.await
 		.unwrap()
 		.expect("claimable");
@@ -172,10 +177,44 @@ async fn reaper_reclaims_only_expired_leases_and_allows_reclaim() {
 	);
 
 	let reclaimed = repo
-		.claim_next("live-worker", future)
+		.claim_next("live-worker", future, JobType::ALL)
 		.await
 		.unwrap()
 		.expect("reaped job is claimable again");
 	assert_eq!(reclaimed.id, claimed.id);
 	assert_eq!(reclaimed.attempts, 2, "reclaim counts as another attempt");
+}
+
+#[tokio::test]
+async fn a_merge_backlog_cannot_starve_the_general_lane() {
+	let db = memory_db().await;
+	let repo = Arc::new(SqlxJobRepo::new(db.clone()));
+	for index in 0..5 {
+		let mut merge = pending_job(&format!("merge-{index}"));
+		merge.job_type = JobType::Merge;
+		merge.request_id = None;
+		repo.create(&merge).await.unwrap();
+	}
+	let mut grab = pending_job("grab-1");
+	grab.job_type = JobType::Grab;
+	repo.create(&grab).await.unwrap();
+
+	let general = repo
+		.claim_next("worker-0", Utc::now(), &JobType::general_lane())
+		.await
+		.unwrap()
+		.expect("a general worker still finds work behind a merge backlog");
+
+	assert_eq!(
+		general.job_type,
+		JobType::Grab,
+		"merges queued first must not be handed to a general worker"
+	);
+
+	let media = repo
+		.claim_next("media-0", Utc::now(), &JobType::media_lane())
+		.await
+		.unwrap()
+		.expect("the media lane claims the merges");
+	assert_eq!(media.job_type, JobType::Merge);
 }

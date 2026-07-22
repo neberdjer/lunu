@@ -5,6 +5,32 @@ use crate::helpers::release_tags::{
 use crate::models::{QualityProfile, Release, ScoredRelease};
 
 pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64> {
+	score_against(release, profile, &Keywords::for_profile(profile))
+}
+
+struct Keywords {
+	avoided: Vec<String>,
+	preferred: Vec<String>,
+}
+
+impl Keywords {
+	fn for_profile(profile: &QualityProfile) -> Self {
+		Self {
+			avoided: profile
+				.avoided_keywords
+				.iter()
+				.map(|k| tokenize(k))
+				.collect(),
+			preferred: profile
+				.preferred_keywords
+				.iter()
+				.map(|k| tokenize(k))
+				.collect(),
+		}
+	}
+}
+
+fn score_against(release: &Release, profile: &QualityProfile, keywords: &Keywords) -> Option<i64> {
 	let swarmed = release.protocol.has_swarm();
 	if swarmed && release.seeders < profile.min_seeders {
 		return None;
@@ -19,10 +45,10 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 	}
 
 	let title = format!(" {} ", tokenize(&release.title));
-	if profile
-		.avoided_keywords
+	if keywords
+		.avoided
 		.iter()
-		.any(|keyword| contains_token(&title, &tokenize(keyword)))
+		.any(|keyword| contains_token(&title, keyword))
 	{
 		return None;
 	}
@@ -66,10 +92,10 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 		score = score.saturating_add(rank.saturating_mul(profile.format_weight));
 	}
 
-	let hits = profile
-		.preferred_keywords
+	let hits = keywords
+		.preferred
 		.iter()
-		.filter(|keyword| contains_token(&title, &tokenize(keyword)))
+		.filter(|keyword| contains_token(&title, keyword))
 		.count() as i64;
 	score = score.saturating_add(hits.saturating_mul(profile.keyword_weight));
 
@@ -84,15 +110,15 @@ pub fn score_release(release: &Release, profile: &QualityProfile) -> Option<i64>
 }
 
 pub fn rank_releases(releases: Vec<Release>, profile: &QualityProfile) -> Vec<ScoredRelease> {
-	let mut scored: Vec<ScoredRelease> = releases
-		.into_iter()
-		.filter_map(|release| {
-			let score = score_release(&release, profile)?;
-			Some(ScoredRelease { release, score })
-		})
-		.collect();
+	let keywords = Keywords::for_profile(profile);
+	let mut scored: Vec<ScoredRelease> = Vec::with_capacity(releases.len());
+	for release in releases {
+		if let Some(score) = score_against(&release, profile, &keywords) {
+			scored.push(ScoredRelease { release, score });
+		}
+	}
 
-	scored.sort_by_key(|scored| std::cmp::Reverse(scored.score));
+	scored.sort_unstable_by_key(|scored| std::cmp::Reverse(scored.score));
 	scored
 }
 

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 const MASK: &str = "[redacted]";
 const SENSITIVE_NEEDLES: &[&str] = &[
 	"apikey=",
@@ -8,20 +10,30 @@ const SENSITIVE_NEEDLES: &[&str] = &[
 	"bearer ",
 ];
 
-pub fn redact(message: &str) -> String {
-	let lower = message.to_ascii_lowercase();
-	let has_needle = SENSITIVE_NEEDLES
-		.iter()
-		.any(|needle| lower.contains(needle));
-	if !has_needle && !message.contains("://") {
-		return message.to_string();
+pub fn redact(message: &str) -> Cow<'_, str> {
+	let has_url = message.contains("://");
+	let lower = (has_url || message.contains('=') || message.contains(' '))
+		.then(|| message.to_ascii_lowercase());
+	let has_needle = lower.as_deref().is_some_and(|lower| {
+		SENSITIVE_NEEDLES
+			.iter()
+			.any(|needle| lower.contains(needle))
+	});
+	if !has_needle && !has_url {
+		return Cow::Borrowed(message);
 	}
 
-	let mut redacted = mask_userinfo(message);
-	for needle in SENSITIVE_NEEDLES {
-		redacted = mask_after(&redacted, needle);
+	let mut redacted = if has_url {
+		mask_userinfo(message)
+	} else {
+		message.to_string()
+	};
+	if has_needle {
+		for needle in SENSITIVE_NEEDLES {
+			redacted = mask_after(&redacted, needle);
+		}
 	}
-	redacted
+	Cow::Owned(redacted)
 }
 
 fn value_end(text: &str) -> usize {
@@ -31,6 +43,9 @@ fn value_end(text: &str) -> usize {
 
 fn mask_after(text: &str, needle: &str) -> String {
 	let lower = text.to_ascii_lowercase();
+	if !lower.contains(needle) {
+		return text.to_string();
+	}
 	let mut result = String::with_capacity(text.len());
 	let mut cursor = 0;
 

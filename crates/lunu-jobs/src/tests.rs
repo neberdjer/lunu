@@ -35,6 +35,10 @@ impl JobRepo for RecordingRepo {
 	async fn create_recurring(&self, _job: &Job) -> Result<bool> {
 		Ok(true)
 	}
+	async fn find_active_by_dedupe(&self, _key: &str) -> Result<Option<Job>> {
+		Ok(None)
+	}
+
 	async fn find_by_id(&self, _id: &str) -> Result<Option<Job>> {
 		Ok(None)
 	}
@@ -61,7 +65,12 @@ impl JobRepo for RecordingRepo {
 	async fn has_active(&self, _job_type: &str, _request_id: &str) -> Result<bool> {
 		Ok(false)
 	}
-	async fn claim_next(&self, _worker_id: &str, _now: DateTime<Utc>) -> Result<Option<Job>> {
+	async fn claim_next(
+		&self,
+		_worker_id: &str,
+		_now: DateTime<Utc>,
+		_lane: &[JobType],
+	) -> Result<Option<Job>> {
 		Ok(None)
 	}
 	async fn renew_lease(&self, _id: &str, _locked_by: &str, _now: DateTime<Utc>) -> Result<bool> {
@@ -140,6 +149,7 @@ fn job(attempts: i64, max_attempts: i64) -> Job {
 		id: "j1".to_string(),
 		job_type: JobType::Grab,
 		request_id: None,
+		dedupe_key: None,
 		payload: "{}".to_string(),
 		status: JobStatus::Running,
 		attempts,

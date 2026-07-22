@@ -4,7 +4,9 @@ pub mod token;
 pub mod totp;
 
 pub use cipher::Encryptor;
-pub use password::{dummy_verify, hash_password, verify_password};
+pub use password::{
+	dummy_verify_async, hash_password, hash_password_async, verify_password, verify_password_async,
+};
 pub use token::{
 	constant_time_eq, generate_numeric_code, generate_recovery_code, generate_token, hash_token,
 	pkce_challenge,

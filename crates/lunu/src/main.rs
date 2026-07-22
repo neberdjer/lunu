@@ -1,5 +1,5 @@
 use std::process::ExitCode;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use actix_web::{App, HttpResponse, HttpServer, web};
 use lunu_api::{AppState, LogControl};
@@ -105,13 +105,21 @@ async fn main() -> ExitCode {
 		state.auth.clone(),
 		state.jobs.clone(),
 	));
-	WorkerPool::new(state.jobs.repo(), handler, WorkerConfig::default()).start();
+	let worker_config = WorkerConfig::default();
+	let job_runtime = match lunu_jobs::job_runtime(worker_config.workers) {
+		Ok(handle) => handle,
+		Err(error) => {
+			tracing::error!(%error, "failed to start the job runtime");
+			return ExitCode::FAILURE;
+		}
+	};
+	WorkerPool::new(state.jobs.repo(), handler, worker_config).start(job_runtime);
 
 	if let Err(error) = state.scheduler.ensure_defaults().await {
 		tracing::error!(%error, "failed to seed default schedules");
 		return ExitCode::FAILURE;
 	}
-	SchedulerPool::new(state.scheduler.clone()).start();
+	SchedulerPool::new(state.scheduler.clone()).start(job_runtime);
 
 	let state = web::Data::new(state);
 	let hsts = state.config.secure_cookies;
@@ -134,7 +142,10 @@ async fn main() -> ExitCode {
 			.service(scope(api_scope.as_str()).configure(lunu_api::configure))
 			.split_for_parts();
 
-		let spec = web::Bytes::from(api.to_json().unwrap_or_default());
+		static SPEC: OnceLock<web::Bytes> = OnceLock::new();
+		let spec = SPEC
+			.get_or_init(|| web::Bytes::from(api.to_json().unwrap_or_default()))
+			.clone();
 		app.route(
 			&docs_path,
 			web::get().to(move || {

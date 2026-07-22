@@ -8,7 +8,7 @@ use lunu_core::models::NotificationEvent;
 use lunu_core::services::SettingsService;
 use lunu_core::traits::Notifier;
 
-use crate::http::send_with_retry;
+use crate::http::send_write;
 use crate::{http_client_builder, integration_error, optional_setting};
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
@@ -39,7 +39,7 @@ impl Notifier for NtfyChannel {
 			return Ok(());
 		};
 
-		let response = send_with_retry(|| {
+		let response = send_write(|| {
 			self.http
 				.post(&url)
 				.header("X-Title", event.kind.summary())

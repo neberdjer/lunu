@@ -4,7 +4,7 @@ use chrono::Utc;
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::consts::reasons;
-use crate::crypto::hash_password;
+use crate::crypto::hash_password_async;
 use crate::models::{AuthSource, Role, User, UserSettings};
 use crate::repo::{SessionRepo, UserRepo, UserSettingsRepo};
 use crate::services::{
@@ -80,7 +80,7 @@ impl UserService {
 	) -> Result<User> {
 		ensure_username_available(self.users.as_ref(), username).await?;
 
-		let user = build_local_user(username, password, email, role)?;
+		let user = build_local_user(username, password, email, role).await?;
 		self.users.create(&user).await?;
 		Ok(user)
 	}
@@ -151,7 +151,7 @@ impl UserService {
 		}
 		validate_password(password)?;
 
-		user.password_hash = Some(hash_password(password)?);
+		user.password_hash = Some(hash_password_async(password).await?);
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 		self.sessions.delete_for_user(id).await?;

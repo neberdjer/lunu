@@ -64,6 +64,34 @@ pub enum JobType {
 }
 
 impl JobType {
+	pub const ALL: &'static [JobType] = &[
+		JobType::Grab,
+		JobType::MonitorDownload,
+		JobType::Import,
+		JobType::Merge,
+		JobType::MergeRevert,
+		JobType::Notify,
+		JobType::LibrarySync,
+		JobType::SessionCleanup,
+		JobType::JobCleanup,
+	];
+
+	pub fn media_lane() -> Vec<JobType> {
+		Self::ALL
+			.iter()
+			.copied()
+			.filter(JobType::media_subject)
+			.collect()
+	}
+
+	pub fn general_lane() -> Vec<JobType> {
+		Self::ALL
+			.iter()
+			.copied()
+			.filter(|job_type| !job_type.media_subject())
+			.collect()
+	}
+
 	pub fn as_str(&self) -> &'static str {
 		match self {
 			JobType::Grab => "grab",
@@ -141,6 +169,7 @@ pub struct Job {
 	pub id: String,
 	pub job_type: JobType,
 	pub request_id: Option<String>,
+	pub dedupe_key: Option<String>,
 	pub payload: String,
 	pub status: JobStatus,
 	pub attempts: i64,

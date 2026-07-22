@@ -1,4 +1,5 @@
 pub const METADATA_CACHE_TTL_DAYS: i64 = 14;
+pub const METADATA_MISS_TTL_HOURS: i64 = 12;
 pub const METADATA_GENRE_LIMIT: usize = 10;
 
 pub const AUDNEXUS_PROVIDER: &str = "audnexus";

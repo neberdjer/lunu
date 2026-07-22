@@ -12,7 +12,7 @@ use lunu_core::traits::Notifier;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::http::send_with_retry;
+use crate::http::send_write;
 use crate::{http_client_builder, integration_error, optional_setting};
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
@@ -101,7 +101,7 @@ impl Notifier for WebhookChannel {
 		};
 
 		let body = (self.body)(event);
-		let response = send_with_retry(|| self.http.post(&url).json(&body)).await?;
+		let response = send_write(|| self.http.post(&url).json(&body)).await?;
 		response.error_for_status().map_err(integration_error)?;
 		Ok(())
 	}

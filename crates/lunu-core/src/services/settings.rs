@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
 
@@ -21,18 +21,49 @@ pub struct SettingView {
 pub struct SettingsService {
 	repo: Arc<dyn SettingsRepo>,
 	encryptor: Encryptor,
+	cached: RwLock<Option<Arc<HashMap<String, Setting>>>>,
 }
 
 impl SettingsService {
 	pub fn new(repo: Arc<dyn SettingsRepo>, encryptor: Encryptor) -> Self {
-		Self { repo, encryptor }
+		Self {
+			repo,
+			encryptor,
+			cached: RwLock::new(None),
+		}
+	}
+
+	async fn snapshot(&self) -> Result<Arc<HashMap<String, Setting>>> {
+		if let Some(cached) = self
+			.cached
+			.read()
+			.expect("settings cache is not poisoned")
+			.clone()
+		{
+			return Ok(cached);
+		}
+		let loaded: HashMap<String, Setting> = self
+			.repo
+			.get_all()
+			.await?
+			.into_iter()
+			.map(|mut setting| (std::mem::take(&mut setting.key), setting))
+			.collect();
+		let loaded = Arc::new(loaded);
+		*self.cached.write().expect("settings cache is not poisoned") = Some(loaded.clone());
+		Ok(loaded)
+	}
+
+	fn invalidate(&self) {
+		*self.cached.write().expect("settings cache is not poisoned") = None;
 	}
 
 	pub async fn get(&self, key: &str) -> Result<Option<String>> {
-		let Some(setting) = self.repo.get(key).await? else {
+		let snapshot = self.snapshot().await?;
+		let Some(setting) = snapshot.get(key) else {
 			return Ok(None);
 		};
-		Ok(Some(self.plain_value(&setting)?))
+		Ok(Some(self.plain_value(setting)?))
 	}
 
 	fn plain_value(&self, setting: &Setting) -> Result<String> {
@@ -44,15 +75,9 @@ impl SettingsService {
 	}
 
 	pub async fn resolve_many(&self, keys: &[&str]) -> Result<HashMap<String, String>> {
-		let stored: HashMap<String, Setting> = self
-			.repo
-			.get_all()
-			.await?
-			.into_iter()
-			.map(|mut setting| (std::mem::take(&mut setting.key), setting))
-			.collect();
+		let stored = self.snapshot().await?;
 
-		let mut resolved = HashMap::new();
+		let mut resolved = HashMap::with_capacity(keys.len());
 		for key in keys {
 			let value = match stored.get(*key) {
 				Some(setting) => nonempty(Some(self.plain_value(setting)?)),
@@ -99,14 +124,15 @@ impl SettingsService {
 	}
 
 	pub async fn view(&self, key: &str) -> Result<Option<SettingView>> {
-		let Some(setting) = self.repo.get(key).await? else {
+		let snapshot = self.snapshot().await?;
+		let Some(setting) = snapshot.get(key) else {
 			return Ok(None);
 		};
 
 		let value = if setting.encrypted {
 			None
 		} else {
-			Some(setting.value)
+			Some(setting.value.clone())
 		};
 
 		Ok(Some(SettingView {
@@ -136,22 +162,23 @@ impl SettingsService {
 				encrypted: spec.secret,
 				updated_at: Utc::now(),
 			})
-			.await
+			.await?;
+		self.invalidate();
+		Ok(())
 	}
 
 	pub async fn delete(&self, key: &str) -> Result<()> {
 		self.reject_broken_pair(key, None).await?;
-		self.repo.delete(key).await
+		self.repo.delete(key).await?;
+		self.invalidate();
+		Ok(())
 	}
 
 	pub async fn keys(&self) -> Result<Vec<String>> {
-		Ok(self
-			.repo
-			.get_all()
-			.await?
-			.into_iter()
-			.map(|setting| setting.key)
-			.collect())
+		let snapshot = self.snapshot().await?;
+		let mut keys: Vec<String> = snapshot.keys().cloned().collect();
+		keys.sort();
+		Ok(keys)
 	}
 }
 

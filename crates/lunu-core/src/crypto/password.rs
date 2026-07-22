@@ -23,6 +23,36 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
 		.is_ok())
 }
 
+pub async fn hash_password_async(password: &str) -> Result<String> {
+	let password = password.to_string();
+	offload(move || hash_password(&password)).await
+}
+
+pub async fn verify_password_async(password: &str, hash: &str) -> Result<bool> {
+	let password = password.to_string();
+	let hash = hash.to_string();
+	offload(move || verify_password(&password, &hash)).await
+}
+
+pub async fn dummy_verify_async(password: &str) {
+	let password = password.to_string();
+	let _ = offload(move || {
+		dummy_verify(&password);
+		Ok(())
+	})
+	.await;
+}
+
+async fn offload<T, F>(work: F) -> Result<T>
+where
+	F: FnOnce() -> Result<T> + Send + 'static,
+	T: Send + 'static,
+{
+	tokio::task::spawn_blocking(work)
+		.await
+		.map_err(|error| Error::Internal(format!("password work did not complete: {error}")))?
+}
+
 pub fn dummy_verify(password: &str) {
 	static DUMMY_HASH: OnceLock<String> = OnceLock::new();
 	let hash = DUMMY_HASH

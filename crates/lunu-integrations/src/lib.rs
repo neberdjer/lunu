@@ -14,12 +14,19 @@ use std::time::Duration;
 use lunu_core::services::SettingsService;
 
 pub(crate) fn integration_error(error: impl std::fmt::Display) -> lunu_core::Error {
-	lunu_core::Error::Integration(lunu_core::helpers::redact::redact(&error.to_string()))
+	lunu_core::Error::Integration(
+		lunu_core::helpers::redact::redact(&error.to_string()).into_owned(),
+	)
 }
+
+const CONNECT_TIMEOUT_SECS: u64 = 5;
+const POOL_IDLE_TIMEOUT_SECS: u64 = 90;
 
 pub(crate) fn http_client_builder(timeout: Duration) -> reqwest::ClientBuilder {
 	reqwest::Client::builder()
 		.user_agent(concat!("lunu/", env!("CARGO_PKG_VERSION")))
+		.connect_timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS))
+		.pool_idle_timeout(Duration::from_secs(POOL_IDLE_TIMEOUT_SECS))
 		.timeout(timeout)
 }
 

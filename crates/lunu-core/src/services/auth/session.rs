@@ -1,8 +1,10 @@
 use chrono::Utc;
 
 use super::AuthService;
+use crate::consts::auth::SESSION_TOUCH_INTERVAL_SECS;
 use crate::crypto::hash_token;
 use crate::models::{Session, User};
+use crate::services::stale;
 use crate::{Error, Result};
 
 impl AuthService {
@@ -26,7 +28,9 @@ impl AuthService {
 			return Ok(None);
 		}
 
-		self.sessions.touch(&session.id, now).await?;
+		if stale(session.last_seen_at, now, SESSION_TOUCH_INTERVAL_SECS) {
+			self.sessions.touch(&session.id, now).await?;
+		}
 		Ok(Some(user))
 	}
 

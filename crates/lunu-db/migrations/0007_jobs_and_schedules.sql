@@ -11,14 +11,20 @@ CREATE TABLE jobs (
 	last_error TEXT,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	request_id TEXT
+	request_id TEXT,
+	dedupe_key TEXT
 );
 CREATE UNIQUE INDEX idx_jobs_active_recurring ON jobs (job_type)
 	WHERE request_id IS NULL
 	AND status IN ('pending', 'running')
 	AND job_type IN ('library-sync', 'session-cleanup', 'job-cleanup');
+CREATE UNIQUE INDEX idx_jobs_dedupe ON jobs (dedupe_key)
+	WHERE dedupe_key IS NOT NULL AND status IN ('pending', 'running');
 CREATE INDEX idx_jobs_claim ON jobs (status, run_after);
 CREATE INDEX idx_jobs_request_id ON jobs (request_id);
+CREATE INDEX idx_jobs_created_at ON jobs (created_at);
+CREATE INDEX idx_jobs_status_created_at ON jobs (status, created_at);
+CREATE INDEX idx_jobs_status_updated_at ON jobs (status, updated_at);
 
 CREATE TABLE schedules (
 	kind TEXT PRIMARY KEY,

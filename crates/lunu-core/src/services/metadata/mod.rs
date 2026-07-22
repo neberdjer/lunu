@@ -113,15 +113,22 @@ impl MetadataService {
 
 		let mut last_error = None;
 		for provider in providers {
-			if let Some(hit) = self.read_cache::<T>(provider.id(), kind, key).await? {
-				return Ok(Some(hit));
+			if let Some(hit) = self
+				.read_cache::<Option<T>>(provider.id(), kind, key)
+				.await?
+			{
+				match hit {
+					Some(value) => return Ok(Some(value)),
+					None => continue,
+				}
 			}
 			match call(Arc::clone(provider)).await {
-				Ok(Some(value)) => {
-					self.write_cache(provider.id(), kind, key, &value).await?;
-					return Ok(Some(value));
+				Ok(found) => {
+					self.write_cache(provider.id(), kind, key, &found).await?;
+					if found.is_some() {
+						return Ok(found);
+					}
 				}
-				Ok(None) => {}
 				Err(error) => last_error = Some(error),
 			}
 		}

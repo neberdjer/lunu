@@ -21,3 +21,7 @@ pub const DEFAULT_SCHEDULES: &[(JobType, i64)] = &[
 	(JobType::SessionCleanup, SESSION_CLEANUP_INTERVAL_SECS),
 	(JobType::JobCleanup, JOB_CLEANUP_INTERVAL_SECS),
 ];
+
+pub const MIN_JOB_RUNTIME_THREADS: usize = 2;
+
+pub const DEFAULT_MEDIA_WORKER_COUNT: usize = 1;

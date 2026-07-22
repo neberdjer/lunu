@@ -25,3 +25,4 @@ CREATE TABLE work_external_ids (
 	PRIMARY KEY (scheme, value)
 );
 CREATE INDEX idx_work_external_ids_work ON work_external_ids (work_id);
+CREATE INDEX idx_metadata_cache_kind_key ON metadata_cache (kind, key);

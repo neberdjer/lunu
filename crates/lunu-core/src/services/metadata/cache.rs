@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use super::MetadataService;
-use crate::consts::metadata::METADATA_CACHE_TTL_DAYS;
+use crate::consts::metadata::{METADATA_CACHE_TTL_DAYS, METADATA_MISS_TTL_HOURS};
 use crate::models::MetadataCacheEntry;
 use crate::{Error, Result};
 
@@ -18,7 +18,7 @@ impl MetadataService {
 			return Ok(None);
 		};
 
-		if is_stale(entry.fetched_at) {
+		if is_stale(entry.fetched_at, entry.payload == MISS_PAYLOAD) {
 			return Ok(None);
 		}
 
@@ -49,6 +49,13 @@ impl MetadataService {
 	}
 }
 
-fn is_stale(fetched_at: DateTime<Utc>) -> bool {
-	Utc::now() - fetched_at > Duration::days(METADATA_CACHE_TTL_DAYS)
+const MISS_PAYLOAD: &str = "null";
+
+fn is_stale(fetched_at: DateTime<Utc>, miss: bool) -> bool {
+	let ttl = if miss {
+		Duration::hours(METADATA_MISS_TTL_HOURS)
+	} else {
+		Duration::days(METADATA_CACHE_TTL_DAYS)
+	};
+	Utc::now() - fetched_at > ttl
 }

@@ -28,11 +28,10 @@ pub async fn list(
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let pagination = Pagination::resolve(query.page, query.limit);
-	let invites = state
-		.invites
-		.list_page(pagination.limit, pagination.offset)
-		.await?;
-	let total = state.invites.count().await?;
+	let (invites, total) = tokio::try_join!(
+		state.invites.list_page(pagination.limit, pagination.offset),
+		state.invites.count()
+	)?;
 	let items: Vec<InviteResponse> = invites.iter().map(InviteResponse::from).collect();
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }

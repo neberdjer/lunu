@@ -9,7 +9,7 @@ use lunu_core::traits::DownloadClient;
 use lunu_core::{Error, Result};
 use serde::Deserialize;
 
-use crate::http::{get_json, send_with_retry};
+use crate::http::{get_json, send_write};
 use crate::{integration_error, required_setting};
 
 const PROVIDER_ID: &str = lunu_core::consts::settings::SABNZBD;
@@ -161,7 +161,7 @@ impl SabnzbdClient {
 		api_key: &str,
 		params: &[(&str, &str)],
 	) -> Result<()> {
-		let response = send_with_retry(|| {
+		let response = send_write(|| {
 			self.http
 				.get(format!("{base_url}/api"))
 				.query(params)

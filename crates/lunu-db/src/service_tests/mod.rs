@@ -54,6 +54,7 @@ mod monitor_removal;
 mod oidc;
 mod pipeline;
 mod repos;
+mod repos_jobs;
 mod requests;
 mod reset;
 mod scheduler;

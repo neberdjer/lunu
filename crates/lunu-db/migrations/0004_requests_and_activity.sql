@@ -18,8 +18,10 @@ CREATE TABLE requests (
 );
 CREATE UNIQUE INDEX idx_requests_active ON requests (user_id, work_id, format)
 	WHERE status NOT IN ('declined', 'failed');
-CREATE INDEX idx_requests_user_id ON requests (user_id);
 CREATE INDEX idx_requests_user_work ON requests (user_id, work_id);
+CREATE INDEX idx_requests_created_at ON requests (created_at);
+CREATE INDEX idx_requests_status_created_at ON requests (status, created_at);
+CREATE INDEX idx_requests_user_created_at ON requests (user_id, created_at);
 
 CREATE TABLE activity (
 	id TEXT PRIMARY KEY,
@@ -32,4 +34,3 @@ CREATE TABLE activity (
 );
 CREATE INDEX idx_activity_at ON activity (at);
 CREATE INDEX idx_activity_request_id ON activity (request_id);
-CREATE INDEX idx_activity_media_id ON activity (media_id);

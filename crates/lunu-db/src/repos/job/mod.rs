@@ -1,3 +1,5 @@
+mod claim;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use lunu_core::Result;
@@ -24,6 +26,7 @@ impl SqlxJobRepo {
 			.bind(&job.id)
 			.bind(job.job_type.as_str())
 			.bind(job.request_id.as_deref())
+			.bind(job.dedupe_key.as_deref())
 			.bind(&job.payload)
 			.bind(job.status.as_str())
 			.bind(job.attempts)
@@ -42,8 +45,9 @@ impl SqlxJobRepo {
 }
 
 const INSERT_JOB: &str = "INSERT INTO jobs \
-	 (id, job_type, request_id, payload, status, attempts, max_attempts, run_after, locked_by, locked_at, last_error, created_at, updated_at) \
-	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)";
+	 (id, job_type, request_id, dedupe_key, payload, status, attempts, max_attempts, run_after, \
+	 locked_by, locked_at, last_error, created_at, updated_at) \
+	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)";
 
 fn map_job(row: &AnyRow) -> Result<Job> {
 	let job_type: String = row.try_get("job_type").map_err(db_error)?;
@@ -57,6 +61,7 @@ fn map_job(row: &AnyRow) -> Result<Job> {
 		id: row.try_get("id").map_err(db_error)?,
 		job_type: parse_enum::<JobType>(&job_type)?,
 		request_id: row.try_get("request_id").map_err(db_error)?,
+		dedupe_key: row.try_get("dedupe_key").map_err(db_error)?,
 		payload: row.try_get("payload").map_err(db_error)?,
 		status: parse_enum::<JobStatus>(&status)?,
 		attempts: row.try_get("attempts").map_err(db_error)?,
@@ -72,6 +77,15 @@ fn map_job(row: &AnyRow) -> Result<Job> {
 
 #[async_trait]
 impl JobRepo for SqlxJobRepo {
+	async fn claim_next(
+		&self,
+		worker_id: &str,
+		now: DateTime<Utc>,
+		lane: &[JobType],
+	) -> Result<Option<Job>> {
+		claim::claim_next(&self.db, worker_id, now, lane).await
+	}
+
 	async fn create(&self, job: &Job) -> Result<()> {
 		self.insert_job(INSERT_JOB, job).await?;
 		Ok(())
@@ -82,6 +96,17 @@ impl JobRepo for SqlxJobRepo {
 			.insert_job(&format!("{INSERT_JOB} ON CONFLICT DO NOTHING"), job)
 			.await?;
 		Ok(inserted > 0)
+	}
+
+	async fn find_active_by_dedupe(&self, key: &str) -> Result<Option<Job>> {
+		let row = sqlx::query(
+			"SELECT * FROM jobs WHERE dedupe_key = $1 AND status IN ('pending', 'running') LIMIT 1",
+		)
+		.bind(key)
+		.fetch_optional(&self.db)
+		.await
+		.map_err(db_error)?;
+		map_row_opt(row, map_job)
 	}
 
 	async fn find_by_id(&self, id: &str) -> Result<Option<Job>> {
@@ -143,45 +168,6 @@ impl JobRepo for SqlxJobRepo {
 		.await
 		.map_err(db_error)?;
 		Ok(row.is_some())
-	}
-
-	async fn claim_next(&self, worker_id: &str, now: DateTime<Utc>) -> Result<Option<Job>> {
-		let now = format_dt(now);
-		loop {
-			let row = sqlx::query(
-				"SELECT id FROM jobs WHERE status = 'pending' AND run_after <= $1 \
-				 ORDER BY run_after LIMIT 1",
-			)
-			.bind(&now)
-			.fetch_optional(&self.db)
-			.await
-			.map_err(db_error)?;
-
-			let Some(row) = row else {
-				return Ok(None);
-			};
-			let id: String = row.try_get("id").map_err(db_error)?;
-
-			let claimed = sqlx::query(
-				"UPDATE jobs SET status = 'running', locked_by = $1, locked_at = $2, \
-				 attempts = attempts + 1, updated_at = $3 \
-				 WHERE id = $4 AND status = 'pending' AND run_after <= $5",
-			)
-			.bind(worker_id)
-			.bind(&now)
-			.bind(&now)
-			.bind(&id)
-			.bind(&now)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
-
-			if claimed.rows_affected() == 0 {
-				continue;
-			}
-
-			return self.find_by_id(&id).await;
-		}
 	}
 
 	async fn renew_lease(&self, id: &str, locked_by: &str, now: DateTime<Utc>) -> Result<bool> {

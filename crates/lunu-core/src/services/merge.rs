@@ -87,7 +87,7 @@ impl MergeService {
 		};
 		Ok(self
 			.jobs
-			.enqueue_detached_with(job_type, &payload)
+			.enqueue_unique_with(job_type, &payload, &format!("{job_type}:{media_id}"))
 			.await?
 			.id)
 	}

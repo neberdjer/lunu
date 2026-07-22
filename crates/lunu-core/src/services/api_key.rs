@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use crate::consts::auth::API_KEY_TOUCH_INTERVAL_SECS;
 use crate::consts::auth::{API_KEY_DISPLAY_LEN, API_KEY_PREFIX, KNOWN_API_KEY_SCOPES};
 use crate::consts::reasons;
 use crate::crypto::{generate_token, hash_token};
 use crate::models::ApiKey;
 use crate::repo::ApiKeyRepo;
 use crate::services::new_id;
+use crate::services::stale;
 use crate::{Error, Result};
 
 pub struct IssuedApiKey {
@@ -81,7 +83,9 @@ impl ApiKeyService {
 			return Ok(None);
 		}
 
-		self.keys.touch_last_used(&key.id, now).await?;
+		if stale(key.last_used_at, now, API_KEY_TOUCH_INTERVAL_SECS) {
+			self.keys.touch_last_used(&key.id, now).await?;
+		}
 		Ok(Some(key))
 	}
 

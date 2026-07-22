@@ -237,6 +237,14 @@ impl MediaRepo for SqlxMediaRepo {
 			.collect()
 	}
 
+	async fn all(&self) -> Result<Vec<Media>> {
+		let rows = sqlx::query("SELECT * FROM media")
+			.fetch_all(&self.db)
+			.await
+			.map_err(db_error)?;
+		map_rows(rows, map_media)
+	}
+
 	async fn list_page(&self, filter: MediaFilter, limit: i64, offset: i64) -> Result<Vec<Media>> {
 		let sql = format!(
 			"SELECT * FROM media {} ORDER BY created_at DESC LIMIT $1 OFFSET $2",

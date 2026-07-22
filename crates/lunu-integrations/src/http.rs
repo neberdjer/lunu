@@ -14,13 +14,28 @@ pub(crate) async fn send_with_retry<F>(build: F) -> Result<reqwest::Response>
 where
 	F: Fn() -> reqwest::RequestBuilder,
 {
+	send_retrying(build, true).await
+}
+
+pub(crate) async fn send_write<F>(build: F) -> Result<reqwest::Response>
+where
+	F: Fn() -> reqwest::RequestBuilder,
+{
+	send_retrying(build, false).await
+}
+
+async fn send_retrying<F>(build: F, replayable: bool) -> Result<reqwest::Response>
+where
+	F: Fn() -> reqwest::RequestBuilder,
+{
 	let mut attempt: u32 = 0;
 
 	loop {
 		match build().send().await {
 			Ok(response) => {
 				let status = response.status();
-				let retryable = status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error();
+				let retryable = replayable
+					&& (status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error());
 				if retryable && attempt < MAX_RETRIES {
 					let wait = retry_after(&response).unwrap_or_else(|| backoff(attempt));
 					sleep(wait).await;
@@ -42,7 +57,16 @@ where
 }
 
 fn backoff(attempt: u32) -> Duration {
-	Duration::from_millis(RETRY_BASE_MS << attempt)
+	let base = RETRY_BASE_MS << attempt;
+	let spread = base / 4;
+	Duration::from_millis(base.saturating_sub(spread) + jitter(spread * 2 + 1))
+}
+
+fn jitter(range: u64) -> u64 {
+	std::time::SystemTime::now()
+		.duration_since(std::time::UNIX_EPOCH)
+		.map(|since| u64::from(since.subsec_nanos()) % range)
+		.unwrap_or(0)
 }
 
 fn retry_after(response: &reqwest::Response) -> Option<Duration> {

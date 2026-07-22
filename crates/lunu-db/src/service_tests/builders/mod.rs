@@ -234,6 +234,7 @@ pub(super) fn pending_job(id: &str, at: chrono::DateTime<Utc>) -> Job {
 		id: id.to_string(),
 		job_type: JobType::Grab,
 		request_id: None,
+		dedupe_key: None,
 		payload: "{\"request\":\"r1\"}".to_string(),
 		status: JobStatus::Pending,
 		attempts: 0,

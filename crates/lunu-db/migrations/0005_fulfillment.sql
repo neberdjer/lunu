@@ -36,7 +36,8 @@ CREATE TABLE downloads (
 	client_ref TEXT,
 	progress BIGINT NOT NULL DEFAULT 0
 );
-CREATE INDEX idx_downloads_request_id ON downloads (request_id);
+CREATE INDEX idx_downloads_request_created ON downloads (request_id, created_at);
+CREATE INDEX idx_downloads_created_at ON downloads (created_at);
 
 CREATE TABLE blocklist (
 	id TEXT PRIMARY KEY,
