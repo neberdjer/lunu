@@ -18,6 +18,7 @@ use crate::state::AppState;
 mod bulk;
 mod manual;
 
+pub(crate) use bulk::MAX_BULK_ITEMS;
 pub use bulk::{bulk_approve, bulk_create, bulk_decline};
 pub use manual::create_manual;
 

@@ -7,7 +7,7 @@ use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::state::AppState;
 
-const MAX_BULK_ITEMS: usize = 100;
+pub(crate) const MAX_BULK_ITEMS: usize = 100;
 
 fn ensure_within_limit(len: usize) -> Result<(), ApiError> {
 	if len == 0 {

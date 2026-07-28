@@ -5,12 +5,11 @@ pub mod oidc;
 use lunu_core::Error;
 use lunu_core::consts::auth::SESSION_COOKIE;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use lunu_core::services::{Authenticated, LoginOutcome, Registration};
 
 use crate::cookie::{authenticated_response, clear_session_cookie};
-use crate::dto::{SessionResponse, UserResponse};
+use crate::dto::{SessionResponse, StatusResponse, UserResponse};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, accept_language, user_agent};
 use crate::pagination::{Page, PageParams, Pagination};
@@ -62,7 +61,7 @@ pub struct UpdateProfileRequest {
 	locale: Option<String>,
 }
 
-#[utoipa::path(tag = "auth", security(()), request_body = LoginRequest, responses((status = 200, description = "Authenticated, session cookie set", body = UserResponse), (status = 401, description = "Invalid credentials")))]
+#[utoipa::path(tag = "auth", security(()), request_body = LoginRequest, responses((status = 200, description = "Authenticated (session cookie set), or an MFA challenge if a second factor is enabled", body = LoginResponse), (status = 401, description = "Invalid credentials")))]
 #[post("/auth/login")]
 pub async fn login(
 	req: HttpRequest,
@@ -105,6 +104,14 @@ pub struct MfaChallengeResponse {
 	mfa_required: bool,
 	ticket: String,
 	method: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(untagged)]
+#[allow(dead_code)]
+pub enum LoginResponse {
+	Authenticated(UserResponse),
+	MfaRequired(MfaChallengeResponse),
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -169,7 +176,7 @@ pub async fn register(
 	}
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Session cleared")))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Session cleared", body = StatusResponse)))]
 #[post("/auth/logout")]
 pub async fn logout(
 	req: HttpRequest,
@@ -180,7 +187,7 @@ pub async fn logout(
 	}
 	Ok(HttpResponse::Ok()
 		.cookie(clear_session_cookie(&state.config))
-		.json(json!({ "status": "ok" })))
+		.json(crate::dto::StatusResponse::new("ok")))
 }
 
 #[utoipa::path(tag = "auth", responses((status = 200, body = UserResponse)))]

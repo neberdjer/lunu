@@ -71,6 +71,7 @@ struct SeriesRequestResult {
 	requested: Vec<String>,
 	already_present: usize,
 	failed: Vec<FailedRequest>,
+	truncated: bool,
 }
 
 #[utoipa::path(tag = "metadata", params(SearchQuery), responses((status = 200, description = "Search results, each with the caller request status", body = Vec<SearchResult>)))]
@@ -150,6 +151,7 @@ pub async fn series_request(
 	let mut requested = Vec::new();
 	let mut already_present = 0;
 	let mut failed = Vec::new();
+	let mut truncated = false;
 	for book in books {
 		let Some(asin) = book.asin().map(str::to_string) else {
 			continue;
@@ -157,6 +159,10 @@ pub async fn series_request(
 		if presence.status_for(&book).is_some() || presence.available(&book) {
 			already_present += 1;
 			continue;
+		}
+		if requested.len() + failed.len() >= crate::v1::requests::MAX_BULK_ITEMS {
+			truncated = true;
+			break;
 		}
 		let input = NewRequest {
 			id: ExternalId::asin(&asin),
@@ -176,6 +182,7 @@ pub async fn series_request(
 		requested,
 		already_present,
 		failed,
+		truncated,
 	}))
 }
 

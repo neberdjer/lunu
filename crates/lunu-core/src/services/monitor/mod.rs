@@ -14,6 +14,9 @@ use crate::repo::DownloadRepo;
 use crate::services::{ClientRoster, JobService, RequestService, SettingsService};
 use crate::traits::EventPublisher;
 
+mod content_path;
+use content_path::is_safe_content_path;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Removal {
 	Allowed,
@@ -104,10 +107,20 @@ impl MonitorService {
 		{
 			let _ = client.remove(client_ref, true).await;
 		}
-		self.requests
-			.mark_failed(&download.request_id, Some(reason))
-			.await?;
+		if self.is_current(download).await? {
+			self.requests
+				.mark_failed(&download.request_id, Some(reason))
+				.await?;
+		}
 		Ok(())
+	}
+
+	async fn is_current(&self, download: &Download) -> Result<bool> {
+		Ok(self
+			.downloads
+			.find_by_request(&download.request_id)
+			.await?
+			.is_some_and(|latest| latest.id == download.id))
 	}
 
 	async fn may_remove(&self, protocol: Protocol, progress: i64) -> bool {
@@ -213,6 +226,9 @@ impl MonitorService {
 				)
 				.await;
 		}
+		if !self.is_current(download).await? {
+			return Ok(());
+		}
 		if let Some(request) = self.requests.get(&download.request_id).await?
 			&& request.status == RequestStatus::Available
 		{
@@ -253,48 +269,5 @@ impl MonitorService {
 			.enqueue_for_at(JobType::MonitorDownload, &payload, request_id, run_after)
 			.await?;
 		Ok(())
-	}
-}
-
-fn is_safe_content_path(path: &str) -> bool {
-	let trimmed = path.trim();
-	if trimmed.is_empty() {
-		return false;
-	}
-
-	let mut normal = 0;
-	for component in std::path::Path::new(trimmed).components() {
-		match component {
-			std::path::Component::Normal(_) => normal += 1,
-			std::path::Component::ParentDir => return false,
-			_ => {}
-		}
-	}
-	normal >= 2
-}
-
-#[cfg(test)]
-mod tests {
-	use super::is_safe_content_path;
-
-	#[test]
-	fn accepts_a_real_download_path() {
-		assert!(is_safe_content_path("/downloads/lunu/The Hobbit"));
-		assert!(is_safe_content_path("/data/dl/book.m4b"));
-	}
-
-	#[test]
-	fn rejects_empty_and_shallow_paths() {
-		assert!(!is_safe_content_path(""));
-		assert!(!is_safe_content_path("   "));
-		assert!(!is_safe_content_path("/"));
-		assert!(!is_safe_content_path("/downloads"));
-	}
-
-	#[test]
-	fn rejects_parent_traversal() {
-		assert!(!is_safe_content_path("/downloads/../../etc/passwd"));
-		assert!(!is_safe_content_path("/downloads/lunu/../../../root/.ssh"));
-		assert!(!is_safe_content_path("../../etc/shadow"));
 	}
 }

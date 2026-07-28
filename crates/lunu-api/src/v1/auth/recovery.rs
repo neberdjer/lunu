@@ -1,7 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse, post, web};
 use serde::Deserialize;
-use serde_json::json;
 
+use crate::dto::StatusResponse;
 use crate::error::ApiError;
 use crate::extract::accept_language;
 use crate::state::AppState;
@@ -31,7 +31,7 @@ pub struct ResendVerificationRequest {
 	email: String,
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If the address matches a local account, a reset email is sent")))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If the address matches a local account, a reset email is sent", body = StatusResponse)))]
 #[post("/auth/forgot")]
 pub async fn forgot_password(
 	req: HttpRequest,
@@ -51,10 +51,10 @@ pub async fn forgot_password(
 			tracing::warn!(?error, "password reset request failed");
 		}
 	});
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+	Ok(HttpResponse::Ok().json(StatusResponse::new("ok")))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Password reset"), (status = 400, description = "Invalid or expired token")))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Password reset", body = StatusResponse), (status = 400, description = "Invalid or expired token")))]
 #[post("/auth/reset")]
 pub async fn reset_password(
 	req: HttpRequest,
@@ -66,10 +66,10 @@ pub async fn reset_password(
 		.auth
 		.reset_password(&body.email, &body.code, &body.password)
 		.await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+	Ok(HttpResponse::Ok().json(StatusResponse::new("ok")))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Email verified"), (status = 400, description = "Invalid or expired code")))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "Email verified", body = StatusResponse), (status = 400, description = "Invalid or expired code")))]
 #[post("/auth/verify")]
 pub async fn verify_email(
 	req: HttpRequest,
@@ -78,10 +78,10 @@ pub async fn verify_email(
 ) -> Result<HttpResponse, ApiError> {
 	enforce_auth_rate_limit(&req, &state)?;
 	state.auth.verify_email(&body.email, &body.code).await?;
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+	Ok(HttpResponse::Ok().json(StatusResponse::new("ok")))
 }
 
-#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If verification is enabled and the address is unverified, a new code is sent")))]
+#[utoipa::path(tag = "auth", security(()), responses((status = 200, description = "If verification is enabled and the address is unverified, a new code is sent", body = StatusResponse)))]
 #[post("/auth/verify/resend")]
 pub async fn resend_verification(
 	req: HttpRequest,
@@ -101,5 +101,5 @@ pub async fn resend_verification(
 			tracing::warn!(?error, "resend verification failed");
 		}
 	});
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+	Ok(HttpResponse::Ok().json(StatusResponse::new("ok")))
 }

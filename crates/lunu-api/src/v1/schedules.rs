@@ -1,9 +1,8 @@
 use actix_web::{HttpResponse, get, patch, post, web};
 use lunu_core::Error;
 use serde::Deserialize;
-use serde_json::json;
 
-use crate::dto::ScheduleResponse;
+use crate::dto::{EnqueuedResponse, ScheduleResponse, StatusResponse};
 use crate::error::ApiError;
 use crate::extract::AdminUser;
 use crate::state::AppState;
@@ -22,7 +21,7 @@ pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpR
 	Ok(HttpResponse::Ok().json(items))
 }
 
-#[utoipa::path(tag = "schedules", params(("kind" = String, Path, description = "Schedule kind")), request_body = ConfigureScheduleBody, responses((status = 200, description = "Schedule updated"), (status = 404, description = "Unknown schedule")))]
+#[utoipa::path(tag = "schedules", params(("kind" = String, Path, description = "Schedule kind")), request_body = ConfigureScheduleBody, responses((status = 200, description = "Schedule updated", body = StatusResponse), (status = 404, description = "Unknown schedule")))]
 #[patch("/admin/schedules/{kind}")]
 pub async fn configure(
 	_admin: AdminUser,
@@ -39,15 +38,15 @@ pub async fn configure(
 	if !updated {
 		return Err(Error::NotFound(format!("schedule {kind}")).into());
 	}
-	Ok(HttpResponse::Ok().json(json!({ "status": "ok" })))
+	Ok(HttpResponse::Ok().json(StatusResponse::new("ok")))
 }
 
-#[utoipa::path(tag = "schedules", responses((status = 202, description = "Due schedules run now")))]
+#[utoipa::path(tag = "schedules", responses((status = 202, description = "Due schedules run now", body = EnqueuedResponse)))]
 #[post("/admin/schedules/run")]
 pub async fn run_now(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let enqueued = state.scheduler.run_due().await?;
-	Ok(HttpResponse::Accepted().json(json!({ "enqueued": enqueued })))
+	Ok(HttpResponse::Accepted().json(EnqueuedResponse { enqueued }))
 }

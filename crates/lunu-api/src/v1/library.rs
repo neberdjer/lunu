@@ -1,9 +1,10 @@
 use actix_web::{HttpResponse, get, post, web};
 use lunu_core::models::{JobType, MediaFilter};
 use serde::Deserialize;
-use serde_json::json;
 
-use crate::dto::{MediaResponse, MergePreviewResponse};
+use crate::dto::{
+	JobQueuedResponse, MediaResponse, MergeAllResponse, MergePreviewResponse, StatusResponse,
+};
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser};
 use crate::pagination::{Page, Pagination};
@@ -44,7 +45,7 @@ pub async fn list(
 	Ok(HttpResponse::Ok().json(Page::new(items, &pagination, total)))
 }
 
-#[utoipa::path(tag = "library", responses((status = 202, description = "Audiobookshelf library sync enqueued")))]
+#[utoipa::path(tag = "library", responses((status = 202, description = "Audiobookshelf library sync enqueued", body = StatusResponse)))]
 #[post("/admin/abs/sync")]
 pub async fn sync(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let enqueued = state.jobs.enqueue_detached(JobType::LibrarySync).await?;
@@ -53,7 +54,7 @@ pub async fn sync(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpR
 	} else {
 		"already_running"
 	};
-	Ok(HttpResponse::Accepted().json(json!({ "status": status })))
+	Ok(HttpResponse::Accepted().json(StatusResponse::new(status)))
 }
 
 #[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), request_body = MatchBody, responses((status = 200, description = "ASIN matched; metadata refreshed from the provider", body = MediaResponse), (status = 404, description = "Unknown media item")))]
@@ -71,7 +72,7 @@ pub async fn match_media(
 	Ok(HttpResponse::Ok().json(MediaResponse::from(media)))
 }
 
-#[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), responses((status = 202, description = "Merge enqueued for an already imported item"), (status = 404, description = "Unknown media item"), (status = 400, description = "ffmpeg is not available")))]
+#[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), responses((status = 202, description = "Merge enqueued for an already imported item", body = JobQueuedResponse), (status = 404, description = "Unknown media item"), (status = 400, description = "ffmpeg is not available")))]
 #[post("/library/{id}/merge")]
 pub async fn merge(
 	_admin: AdminUser,
@@ -79,7 +80,7 @@ pub async fn merge(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	let job = state.merges.request(&id.into_inner()).await?;
-	Ok(HttpResponse::Accepted().json(json!({ "status": "queued", "job_id": job })))
+	Ok(HttpResponse::Accepted().json(JobQueuedResponse::queued(job)))
 }
 
 #[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), responses((status = 200, description = "What a merge would produce, without producing it", body = MergePreviewResponse), (status = 404, description = "Unknown media item"), (status = 400, description = "ffmpeg is not available, or the source action is misconfigured")))]
@@ -93,7 +94,7 @@ pub async fn merge_preview(
 	Ok(HttpResponse::Ok().json(MergePreviewResponse::from(preview)))
 }
 
-#[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), responses((status = 202, description = "Revert enqueued; shelved source files return and the m4b is removed"), (status = 404, description = "Unknown media item"), (status = 400, description = "Nothing to revert, since the sources were deleted or kept in place")))]
+#[utoipa::path(tag = "library", params(("id" = String, Path, description = "Media item id")), responses((status = 202, description = "Revert enqueued; shelved source files return and the m4b is removed", body = JobQueuedResponse), (status = 404, description = "Unknown media item"), (status = 400, description = "Nothing to revert, since the sources were deleted or kept in place")))]
 #[post("/library/{id}/revert")]
 pub async fn revert(
 	_admin: AdminUser,
@@ -101,19 +102,19 @@ pub async fn revert(
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
 	let job = state.merges.request_revert(&id.into_inner()).await?;
-	Ok(HttpResponse::Accepted().json(json!({ "status": "queued", "job_id": job })))
+	Ok(HttpResponse::Accepted().json(JobQueuedResponse::queued(job)))
 }
 
-#[utoipa::path(tag = "library", responses((status = 202, description = "Merge enqueued for every item not yet merged; safe to repeat, since merged items drop out of the filter"), (status = 400, description = "ffmpeg is not available")))]
+#[utoipa::path(tag = "library", responses((status = 202, description = "Merge enqueued for every item not yet merged; safe to repeat, since merged items drop out of the filter", body = MergeAllResponse), (status = 400, description = "ffmpeg is not available")))]
 #[post("/library/merge-all")]
 pub async fn merge_all(
 	_admin: AdminUser,
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let queued = state.merges.request_all().await?;
-	Ok(HttpResponse::Accepted().json(json!({
-		"status": "queued",
-		"queued": queued.queued,
-		"truncated": queued.truncated,
-	})))
+	Ok(HttpResponse::Accepted().json(MergeAllResponse {
+		status: "queued".to_string(),
+		queued: queued.queued,
+		truncated: queued.truncated,
+	}))
 }

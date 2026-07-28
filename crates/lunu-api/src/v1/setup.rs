@@ -1,9 +1,8 @@
 use actix_web::{HttpRequest, HttpResponse, get, post, web};
 use serde::Deserialize;
-use serde_json::json;
 
 use crate::cookie::authenticated_response;
-use crate::dto::UserResponse;
+use crate::dto::{SetupStatusResponse, UserResponse};
 use crate::error::ApiError;
 use crate::extract::user_agent;
 use crate::state::AppState;
@@ -23,7 +22,7 @@ pub struct SetupRequest {
 #[get("/setup")]
 pub async fn status(state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let needs_setup = state.auth.needs_setup().await?;
-	Ok(HttpResponse::Ok().json(json!({ "needs_setup": needs_setup })))
+	Ok(HttpResponse::Ok().json(SetupStatusResponse { needs_setup }))
 }
 
 #[utoipa::path(

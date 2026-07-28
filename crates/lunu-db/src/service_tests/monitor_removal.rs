@@ -1,6 +1,7 @@
 use super::builders::*;
 use super::monitor::FakeClient;
 use super::*;
+use lunu_core::services::ClientRoster;
 
 async fn poll_failed_at(db: &Db, progress: f64) -> Arc<FakeClient> {
 	seed_download(db, Utc::now()).await;
@@ -60,5 +61,68 @@ async fn an_operator_can_turn_client_removal_off_entirely() {
 	assert!(
 		client.removals().is_empty(),
 		"a tracker with strict rules must be able to opt out of automatic removal"
+	);
+}
+
+#[tokio::test]
+async fn a_stale_monitor_cannot_fail_a_request_that_was_re_attempted() {
+	let db = memory_db().await;
+	let base = Utc::now();
+	seed_download(&db, base).await;
+	let downloads = SqlxDownloadRepo::new(db.clone());
+
+	// a newer attempt supersedes d1
+	downloads
+		.create(&Download {
+			id: "d2".to_string(),
+			request_id: "r1".to_string(),
+			client: "qbittorrent".to_string(),
+			category: "lunu".to_string(),
+			release_title: "The Hobbit [M4B]".to_string(),
+			indexer: "MyTracker".to_string(),
+			download_url: "magnet:?xt=urn:btih:def".to_string(),
+			client_ref: Some("def".to_string()),
+			state: DownloadState::Downloading,
+			progress: 5,
+			created_at: base + chrono::Duration::seconds(60),
+			updated_at: base + chrono::Duration::seconds(60),
+		})
+		.await
+		.unwrap();
+
+	let jobs = Arc::new(JobService::new(Arc::new(SqlxJobRepo::new(db.clone()))));
+	let client = Arc::new(FakeClient::responding(Some(DownloadStatus {
+		state: DownloadState::Failed,
+		progress: 0.05,
+		content_path: None,
+	})));
+	let monitor = MonitorService::new(
+		Arc::new(SqlxDownloadRepo::new(db.clone())),
+		ClientRoster::new(vec![client]),
+		request_service(&db, jobs.clone()),
+		jobs.clone(),
+		Arc::new(NoopPublisher),
+		settings_service(&db),
+	);
+
+	// the stale d1 monitor fires and sees a failure
+	monitor
+		.poll(&MonitorPayload {
+			download_id: "d1".to_string(),
+			misses: 0,
+			stalls: 0,
+		})
+		.await
+		.unwrap();
+
+	assert_eq!(
+		SqlxRequestRepo::new(db.clone())
+			.find_by_id("r1")
+			.await
+			.unwrap()
+			.unwrap()
+			.status,
+		RequestStatus::Downloading,
+		"a monitor for a superseded download must not fail the request its retry is fulfilling"
 	);
 }

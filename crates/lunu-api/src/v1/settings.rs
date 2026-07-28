@@ -1,8 +1,10 @@
+use crate::dto::{
+	IntegrationOkResponse, SettingSpecResponse, SettingViewResponse, SettingsCatalogResponse,
+};
 use actix_web::{HttpResponse, delete, get, post, put, web};
 use lunu_core::Error;
 use lunu_core::consts::settings;
 use serde::Deserialize;
-use serde_json::json;
 
 use crate::error::ApiError;
 use crate::extract::AdminUser;
@@ -13,25 +15,23 @@ pub struct SetSettingRequest {
 	value: String,
 }
 
-#[utoipa::path(tag = "settings", responses((status = 200, description = "Set keys plus the settings catalog")))]
+#[utoipa::path(tag = "settings", responses((status = 200, description = "Set keys plus the settings catalog", body = SettingsCatalogResponse)))]
 #[get("/settings")]
 pub async fn list(_admin: AdminUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
 	let keys = state.settings.keys().await?;
-	let catalog: Vec<_> = settings::registry()
-		.map(|spec| {
-			json!({
-				"key": spec.key,
-				"kind": spec.kind.as_str(),
-				"choices": spec.kind.choices(),
-				"secret": spec.secret,
-				"default": spec.default,
-			})
+	let catalog: Vec<SettingSpecResponse> = settings::registry()
+		.map(|spec| SettingSpecResponse {
+			key: spec.key.to_string(),
+			kind: spec.kind.as_str().to_string(),
+			choices: spec.kind.choices().iter().map(|c| c.to_string()).collect(),
+			secret: spec.secret,
+			default: spec.default.map(str::to_string),
 		})
 		.collect();
-	Ok(HttpResponse::Ok().json(json!({ "keys": keys, "catalog": catalog })))
+	Ok(HttpResponse::Ok().json(SettingsCatalogResponse { keys, catalog }))
 }
 
-#[utoipa::path(tag = "settings", params(("key" = String, Path, description = "Setting key")), responses((status = 200, description = "Setting value (masked if secret)"), (status = 404, description = "Unknown key")))]
+#[utoipa::path(tag = "settings", params(("key" = String, Path, description = "Setting key")), responses((status = 200, description = "Setting value (masked if secret)", body = SettingViewResponse), (status = 404, description = "Unknown key")))]
 #[get("/settings/{key}")]
 pub async fn get(
 	_admin: AdminUser,
@@ -45,7 +45,11 @@ pub async fn get(
 		.await?
 		.ok_or_else(|| Error::NotFound(format!("setting {key}")))?;
 
-	Ok(HttpResponse::Ok().json(json!({ "key": key, "secret": view.secret, "value": view.value })))
+	Ok(HttpResponse::Ok().json(SettingViewResponse {
+		key,
+		secret: view.secret,
+		value: view.value,
+	}))
 }
 
 #[utoipa::path(tag = "settings", params(("key" = String, Path, description = "Setting key")), request_body = SetSettingRequest, responses((status = 204, description = "Setting stored")))]
@@ -71,7 +75,7 @@ pub async fn delete(
 	Ok(HttpResponse::NoContent().finish())
 }
 
-#[utoipa::path(tag = "settings", params(("integration" = String, Path, description = "Integration name")), responses((status = 200, description = "Integration reachable"), (status = 404, description = "Unknown integration")))]
+#[utoipa::path(tag = "settings", params(("integration" = String, Path, description = "Integration name")), responses((status = 200, description = "Integration reachable", body = IntegrationOkResponse), (status = 404, description = "Unknown integration")))]
 #[post("/settings/test/{integration}")]
 pub async fn test(
 	_admin: AdminUser,
@@ -84,5 +88,5 @@ pub async fn test(
 		settings::FFMPEG => state.merges.test().await,
 		_ => state.grabs.test_download(&integration).await,
 	}?;
-	Ok(HttpResponse::Ok().json(json!({ "ok": true })))
+	Ok(HttpResponse::Ok().json(IntegrationOkResponse { ok: true }))
 }
