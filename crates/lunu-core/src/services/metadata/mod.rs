@@ -5,10 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::consts::metadata::{
-	DEFAULT_METADATA_REGION, DEFAULT_PROVIDER_PRIORITY, METADATA_REGION_SETTING,
-	VALID_METADATA_REGIONS, provider_settings,
-};
+use crate::consts::metadata::{DEFAULT_PROVIDER_PRIORITY, provider_settings};
 use crate::consts::reasons;
 use crate::consts::settings::TOGGLE_ON;
 use crate::models::{Book, Chapters, ExternalId, IdScheme, SeriesSummary};
@@ -18,6 +15,7 @@ use crate::traits::MetadataProvider;
 use crate::{Error, Result};
 
 mod cache;
+mod region;
 
 const KIND_SEARCH: &str = "search";
 const KIND_BOOK: &str = "book";
@@ -242,7 +240,7 @@ impl MetadataService {
 	}
 
 	pub async fn get_book(&self, id: &ExternalId) -> Result<Option<Book>> {
-		let region = self.region().await?;
+		let region = self.region_for(id).await?;
 		let cache_key = format!("{region}:{id}");
 
 		let region = &region;
@@ -253,7 +251,7 @@ impl MetadataService {
 	}
 
 	pub async fn refresh_book(&self, id: &ExternalId) -> Result<Option<Book>> {
-		let region = self.region().await?;
+		let region = self.region_for(id).await?;
 		let key = format!("{region}:{id}");
 		self.cache.delete(KIND_BOOK, &key).await?;
 		self.cache.delete(KIND_CHAPTERS, &key).await?;
@@ -261,7 +259,7 @@ impl MetadataService {
 	}
 
 	pub async fn get_chapters(&self, id: &ExternalId) -> Result<Option<Chapters>> {
-		let region = self.region().await?;
+		let region = self.region_for(id).await?;
 		let cache_key = format!("{region}:{id}");
 
 		let region = &region;
@@ -269,21 +267,5 @@ impl MetadataService {
 			Box::pin(async move { provider.get_chapters(id, region).await })
 		})
 		.await
-	}
-
-	async fn region(&self) -> Result<String> {
-		let region = self
-			.settings
-			.get(METADATA_REGION_SETTING)
-			.await?
-			.map(|value| value.trim().to_ascii_lowercase())
-			.filter(|value| !value.is_empty())
-			.unwrap_or_else(|| DEFAULT_METADATA_REGION.to_string());
-
-		if !VALID_METADATA_REGIONS.contains(&region.as_str()) {
-			return Err(Error::Validation(reasons::INVALID_REGION.to_string()));
-		}
-
-		Ok(region)
 	}
 }

@@ -24,6 +24,7 @@ struct Snapshot {
 	cover_url: Option<String>,
 	series_name: Option<String>,
 	series_sequence: Option<String>,
+	metadata_region: Option<String>,
 }
 
 impl RequestService {
@@ -72,6 +73,15 @@ impl RequestService {
 
 		self.reject_duplicate(&user.id, &work_id).await?;
 
+		let metadata_region = if asin.is_some() {
+			Some(
+				self.metadata
+					.region_or_current(input.id.region.clone())
+					.await?,
+			)
+		} else {
+			None
+		};
 		let series = book.series.into_iter().next();
 		let snapshot = Snapshot {
 			work_id,
@@ -81,6 +91,7 @@ impl RequestService {
 			cover_url: book.cover_url,
 			series_name: series.as_ref().map(|entry| entry.name.clone()),
 			series_sequence: series.and_then(|entry| entry.position),
+			metadata_region,
 		};
 		self.finalize_snapshot(
 			user,
@@ -117,6 +128,7 @@ impl RequestService {
 			cover_url: snapshot.cover_url,
 			series_name: snapshot.series_name,
 			series_sequence: snapshot.series_sequence,
+			metadata_region: snapshot.metadata_region,
 			status,
 			approved_by: None,
 			notes: nonempty(notes),
@@ -144,6 +156,7 @@ impl RequestService {
 			cover_url: watch.cover_url,
 			series_name: watch.series_name,
 			series_sequence: watch.series_sequence,
+			metadata_region: watch.metadata_region,
 		};
 		self.finalize_snapshot(user, snapshot, owned.is_some(), None, None)
 			.await
@@ -167,6 +180,7 @@ impl RequestService {
 			cover_url: None,
 			series_name: None,
 			series_sequence: None,
+			metadata_region: None,
 		};
 		self.finalize_snapshot(user, snapshot, false, input.notes, input.quality_profile_id)
 			.await

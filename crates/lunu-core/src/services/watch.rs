@@ -43,6 +43,7 @@ impl WatchService {
 			.ok_or_else(|| Error::Validation(reasons::INVALID_ASIN.to_string()))?;
 
 		let asin = book.asin().map(str::to_string);
+		let metadata_region = Some(self.metadata.region_or_current(id.region.clone()).await?);
 		let series = book.series.into_iter().next();
 		let watch = Watch {
 			id: new_id(),
@@ -55,6 +56,7 @@ impl WatchService {
 			cover_url: book.cover_url,
 			series_name: series.as_ref().map(|entry| entry.name.clone()),
 			series_sequence: series.and_then(|entry| entry.position),
+			metadata_region,
 			created_at: Utc::now(),
 		};
 		self.watches.create(&watch).await?;

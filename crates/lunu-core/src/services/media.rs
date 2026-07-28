@@ -32,6 +32,7 @@ impl MediaService {
 				series_name: request.series_name.clone(),
 				series_sequence: request.series_sequence.clone(),
 				library_path: library_path.to_string(),
+				metadata_region: request.metadata_region.clone(),
 				..existing
 			};
 			self.media.update(&updated).await?;
@@ -56,6 +57,7 @@ impl MediaService {
 			source: MediaSource::Request,
 			overridden: false,
 			matched_by: None,
+			metadata_region: request.metadata_region.clone(),
 			request_id: Some(request.id.clone()),
 			created_at: Utc::now(),
 		};

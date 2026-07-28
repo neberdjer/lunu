@@ -13,6 +13,7 @@ pub(crate) fn request(id: &str) -> Request {
 		cover_url: None,
 		series_name: None,
 		series_sequence: None,
+		metadata_region: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
 		notes: None,
@@ -52,6 +53,7 @@ pub(crate) fn media(id: &str) -> Media {
 		source: MediaSource::Request,
 		overridden: false,
 		matched_by: None,
+		metadata_region: None,
 		request_id: None,
 		created_at: Utc::now(),
 	}

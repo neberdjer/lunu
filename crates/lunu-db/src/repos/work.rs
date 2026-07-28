@@ -44,10 +44,8 @@ fn map_work(row: &AnyRow) -> Result<Work> {
 
 fn map_external_id(row: &AnyRow) -> Result<ExternalId> {
 	let scheme: String = row.try_get("scheme").map_err(db_error)?;
-	Ok(ExternalId {
-		scheme: IdScheme::from_str(&scheme)?,
-		value: row.try_get("value").map_err(db_error)?,
-	})
+	let value: String = row.try_get("value").map_err(db_error)?;
+	Ok(ExternalId::new(IdScheme::from_str(&scheme)?, value))
 }
 
 #[async_trait]

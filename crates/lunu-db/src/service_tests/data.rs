@@ -17,6 +17,7 @@ async fn create_within_quota_enforces_limit() {
 		cover_url: None,
 		series_name: None,
 		series_sequence: None,
+		metadata_region: None,
 		status: RequestStatus::Pending,
 		approved_by: None,
 		notes: None,

@@ -20,7 +20,7 @@ impl SqlxWatchRepo {
 }
 
 const COLUMNS: &str = "id, user_id, work_id, format, asin, title, author, cover_url, \
-	series_name, series_sequence, created_at";
+	series_name, series_sequence, metadata_region, created_at";
 
 fn map_watch(row: &AnyRow) -> Result<Watch> {
 	let format: String = row.try_get("format").map_err(db_error)?;
@@ -37,6 +37,7 @@ fn map_watch(row: &AnyRow) -> Result<Watch> {
 		cover_url: row.try_get("cover_url").map_err(db_error)?,
 		series_name: row.try_get("series_name").map_err(db_error)?,
 		series_sequence: row.try_get("series_sequence").map_err(db_error)?,
+		metadata_region: row.try_get("metadata_region").map_err(db_error)?,
 		created_at: parse_dt(&created_at)?,
 	})
 }
@@ -46,7 +47,7 @@ impl WatchRepo for SqlxWatchRepo {
 	async fn create(&self, watch: &Watch) -> Result<()> {
 		sqlx::query(&format!(
 			"INSERT INTO watches ({COLUMNS}) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
 		))
 		.bind(&watch.id)
 		.bind(&watch.user_id)
@@ -58,6 +59,7 @@ impl WatchRepo for SqlxWatchRepo {
 		.bind(watch.cover_url.as_deref())
 		.bind(watch.series_name.as_deref())
 		.bind(watch.series_sequence.as_deref())
+		.bind(watch.metadata_region.as_deref())
 		.bind(format_dt(watch.created_at))
 		.execute(&self.db)
 		.await

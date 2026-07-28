@@ -29,9 +29,9 @@ impl SqlxRequestRepo {
 
 const REQUEST_COLUMNS: &str = "id, user_id, work_id, format, asin, title, author, cover_url, \
 	status, approved_by, notes, quality_profile_id, created_at, updated_at, series_name, \
-	series_sequence";
+	series_sequence, metadata_region";
 const REQUEST_PLACEHOLDERS: &str =
-	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16";
+	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17";
 
 fn bind_request<'q>(
 	query: Query<'q, Any, AnyArguments<'q>>,
@@ -54,6 +54,7 @@ fn bind_request<'q>(
 		.bind(format_dt(request.updated_at))
 		.bind(request.series_name.as_deref())
 		.bind(request.series_sequence.as_deref())
+		.bind(request.metadata_region.as_deref())
 }
 
 #[async_trait]
@@ -77,7 +78,7 @@ impl RequestRepo for SqlxRequestRepo {
 	) -> Result<bool> {
 		let sql = format!(
 			"INSERT INTO requests ({REQUEST_COLUMNS}) SELECT {REQUEST_PLACEHOLDERS} \
-			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $17) < $18"
+			 WHERE (SELECT COUNT(*) FROM requests WHERE user_id = $2 AND created_at >= $18) < $19"
 		);
 		let query = sqlx::query(&sql);
 		let result = bind_request(query, request)

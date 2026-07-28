@@ -119,3 +119,46 @@ async fn refresh_discards_the_cached_answer_and_asks_again() {
 		"the fresh answer is cached in turn"
 	);
 }
+
+#[tokio::test]
+async fn an_ids_own_region_is_honored_over_the_global_setting() {
+	let db = memory_db().await;
+	let provider = Arc::new(CountingProvider::returning("audnexus", &["Dune"]));
+	let service = service(&db, vec![provider.clone()]);
+
+	service
+		.get_book(&ExternalId::asin("B123").in_region(Some("de".to_string())))
+		.await
+		.unwrap();
+	assert_eq!(
+		provider.last_region().as_deref(),
+		Some("de"),
+		"an asin resolved under de must be re-fetched under de, not the current global region"
+	);
+
+	service.get_book(&ExternalId::asin("B999")).await.unwrap();
+	assert_eq!(
+		provider.last_region().as_deref(),
+		Some("us"),
+		"a region-less id still falls back to the global default"
+	);
+}
+
+#[tokio::test]
+async fn a_regional_id_caches_apart_from_the_global_region() {
+	let db = memory_db().await;
+	let provider = Arc::new(CountingProvider::returning("audnexus", &["Dune"]));
+	let service = service(&db, vec![provider.clone()]);
+
+	service.get_book(&ExternalId::asin("B123")).await.unwrap();
+	service
+		.get_book(&ExternalId::asin("B123").in_region(Some("de".to_string())))
+		.await
+		.unwrap();
+
+	assert_eq!(
+		provider.calls(),
+		2,
+		"the us copy and the de copy are different cache entries, so both are fetched"
+	);
+}

@@ -113,6 +113,7 @@ async fn status_by_works_scopes_to_user_and_keeps_newest() {
 				cover_url: None,
 				series_name: None,
 				series_sequence: None,
+				metadata_region: None,
 				status,
 				approved_by: None,
 				notes: None,

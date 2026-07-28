@@ -21,8 +21,8 @@ impl SqlxMediaRepo {
 
 const COLUMNS: &str = "id, work_id, format, asin, abs_item_id, title, author, cover_url, \
 	series_name, series_sequence, library_path, merged_path, merge_state, merge_detail, \
-	merge_backup_path, source, overridden, matched_by, request_id, created_at";
-const COLUMN_COUNT: usize = 20;
+	merge_backup_path, source, overridden, matched_by, request_id, created_at, metadata_region";
+const COLUMN_COUNT: usize = 21;
 
 fn list_filter(filter: MediaFilter) -> String {
 	match filter {
@@ -72,6 +72,7 @@ fn map_media(row: &AnyRow) -> Result<Media> {
 			.as_deref()
 			.map(parse_enum::<MatchedBy>)
 			.transpose()?,
+		metadata_region: row.try_get("metadata_region").map_err(db_error)?,
 		request_id: row.try_get("request_id").map_err(db_error)?,
 		created_at: parse_dt(&created_at)?,
 	})
@@ -99,6 +100,7 @@ async fn insert_media(db: &Db, sql: &str, media: &Media) -> Result<()> {
 		.bind(media.matched_by.map(|m| m.as_str()))
 		.bind(media.request_id.as_deref())
 		.bind(format_dt(media.created_at))
+		.bind(media.metadata_region.as_deref())
 		.execute(db)
 		.await
 		.map_err(map_write_error)?;
@@ -132,8 +134,8 @@ impl MediaRepo for SqlxMediaRepo {
 			"UPDATE media SET \
 			 work_id = $1, asin = $2, abs_item_id = $3, title = $4, author = $5, cover_url = $6, \
 			 series_name = $7, series_sequence = $8, library_path = $9, \
-			 overridden = $10, matched_by = $11 \
-			 WHERE id = $12",
+			 overridden = $10, matched_by = $11, metadata_region = $12 \
+			 WHERE id = $13",
 		)
 		.bind(media.work_id.as_deref())
 		.bind(media.asin.as_deref())
@@ -146,6 +148,7 @@ impl MediaRepo for SqlxMediaRepo {
 		.bind(&media.library_path)
 		.bind(bool_to_int(media.overridden))
 		.bind(media.matched_by.map(|m| m.as_str()))
+		.bind(media.metadata_region.as_deref())
 		.bind(&media.id)
 		.execute(&self.db)
 		.await

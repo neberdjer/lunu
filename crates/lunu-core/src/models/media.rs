@@ -3,7 +3,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 
 use crate::consts::reasons;
-use crate::models::Format;
+use crate::models::{ExternalId, Format};
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -178,6 +178,15 @@ pub struct Media {
 	pub source: MediaSource,
 	pub overridden: bool,
 	pub matched_by: Option<MatchedBy>,
+	pub metadata_region: Option<String>,
 	pub request_id: Option<String>,
 	pub created_at: DateTime<Utc>,
+}
+
+impl Media {
+	pub fn external_id(&self) -> Option<ExternalId> {
+		self.asin
+			.as_deref()
+			.map(|asin| ExternalId::asin_in_region(asin, self.metadata_region.clone()))
+	}
 }

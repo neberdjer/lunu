@@ -26,6 +26,7 @@ struct Identity {
 	asin: Option<String>,
 	work_id: Option<String>,
 	matched_by: Option<MatchedBy>,
+	region: Option<String>,
 }
 
 mod matching;
@@ -92,6 +93,7 @@ impl LibraryService {
 						series_name: item.series_name,
 						series_sequence: item.series_sequence,
 						library_path: item.library_path,
+						metadata_region: identity.region,
 						..media
 					};
 					self.media.update(&updated).await?;
@@ -122,6 +124,7 @@ impl LibraryService {
 						merge_backup_path: None,
 						source: MediaSource::Abs,
 						overridden: false,
+						metadata_region: identity.region,
 						request_id: None,
 						created_at: Utc::now(),
 					};
@@ -186,6 +189,7 @@ impl LibraryService {
 
 		media.work_id = self.works.for_book(&book).await?;
 		media.asin = book.asin().map(str::to_string);
+		media.metadata_region = Some(self.metadata.current_region().await?);
 		media.title = book.title;
 		media.author = book.authors.into_iter().next();
 		media.cover_url = book.cover_url;

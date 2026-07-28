@@ -6,93 +6,10 @@ use super::builders::*;
 use super::*;
 
 mod caching;
+mod provider;
 mod routing;
 
-struct CountingProvider {
-	id: &'static str,
-	books: Vec<Book>,
-	fails: bool,
-	schemes: Vec<IdScheme>,
-	calls: Mutex<usize>,
-}
-
-impl CountingProvider {
-	fn returning(id: &'static str, titles: &[&str]) -> Self {
-		Self {
-			id,
-			books: titles.iter().map(|title| book(title)).collect(),
-			fails: false,
-			schemes: vec![IdScheme::Asin],
-			calls: Mutex::new(0),
-		}
-	}
-
-	fn failing(id: &'static str) -> Self {
-		Self {
-			id,
-			books: Vec::new(),
-			fails: true,
-			schemes: vec![IdScheme::Asin],
-			calls: Mutex::new(0),
-		}
-	}
-
-	fn speaking(id: &'static str, schemes: &[IdScheme]) -> Self {
-		Self {
-			schemes: schemes.to_vec(),
-			..Self::returning(id, &["Dune"])
-		}
-	}
-
-	fn calls(&self) -> usize {
-		*self.calls.lock().unwrap()
-	}
-}
-
-#[async_trait]
-impl MetadataProvider for CountingProvider {
-	fn id(&self) -> &'static str {
-		self.id
-	}
-
-	fn accepts(&self) -> &[IdScheme] {
-		&self.schemes
-	}
-	async fn search(&self, _query: &str, _region: &str, _page: i64) -> CoreResult<Vec<Book>> {
-		*self.calls.lock().unwrap() += 1;
-		if self.fails {
-			return Err(Error::Integration("provider is down".to_string()));
-		}
-		Ok(self.books.clone())
-	}
-	async fn get_book(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Book>> {
-		*self.calls.lock().unwrap() += 1;
-		if self.fails {
-			return Err(Error::Integration("provider is down".to_string()));
-		}
-		Ok(self.books.first().cloned())
-	}
-	async fn get_chapters(&self, _id: &ExternalId, _region: &str) -> CoreResult<Option<Chapters>> {
-		Ok(None)
-	}
-	async fn similar(&self, _id: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-	async fn books_by_author(&self, _author: &ExternalId, _region: &str) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-	async fn search_series(&self, _query: &str, _region: &str) -> CoreResult<Vec<SeriesSummary>> {
-		Ok(Vec::new())
-	}
-	async fn series_books(
-		&self,
-		_name: &str,
-		_id: Option<&ExternalId>,
-		_region: &str,
-	) -> CoreResult<Vec<Book>> {
-		Ok(Vec::new())
-	}
-}
+use provider::CountingProvider;
 
 fn service(db: &Db, providers: Vec<Arc<dyn MetadataProvider>>) -> MetadataService {
 	MetadataService::new(

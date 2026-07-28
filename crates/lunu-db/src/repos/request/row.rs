@@ -23,6 +23,7 @@ pub(super) fn map_request(row: &AnyRow) -> Result<Request> {
 		cover_url: row.try_get("cover_url").map_err(db_error)?,
 		series_name: row.try_get("series_name").map_err(db_error)?,
 		series_sequence: row.try_get("series_sequence").map_err(db_error)?,
+		metadata_region: row.try_get("metadata_region").map_err(db_error)?,
 		status: parse_enum::<RequestStatus>(&status)?,
 		approved_by: row.try_get("approved_by").map_err(db_error)?,
 		notes: row.try_get("notes").map_err(db_error)?,

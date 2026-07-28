@@ -40,10 +40,27 @@ impl FromStr for IdScheme {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalId {
 	pub scheme: IdScheme,
 	pub value: String,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub region: Option<String>,
+}
+
+impl PartialEq for ExternalId {
+	fn eq(&self, other: &Self) -> bool {
+		self.scheme == other.scheme && self.value == other.value
+	}
+}
+
+impl Eq for ExternalId {}
+
+impl std::hash::Hash for ExternalId {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.scheme.hash(state);
+		self.value.hash(state);
+	}
 }
 
 impl ExternalId {
@@ -51,6 +68,7 @@ impl ExternalId {
 		Self {
 			scheme,
 			value: value.into(),
+			region: None,
 		}
 	}
 
@@ -60,6 +78,15 @@ impl ExternalId {
 
 	pub fn isbn(value: impl Into<String>) -> Self {
 		Self::new(IdScheme::Isbn, value)
+	}
+
+	pub fn asin_in_region(value: impl Into<String>, region: Option<String>) -> Self {
+		Self::asin(value).in_region(region)
+	}
+
+	pub fn in_region(mut self, region: Option<String>) -> Self {
+		self.region = region.filter(|value| !value.trim().is_empty());
+		self
 	}
 
 	pub fn is(&self, scheme: IdScheme) -> bool {
@@ -111,6 +138,16 @@ mod tests {
 	fn display_is_qualified_so_a_log_line_says_which_dialect() {
 		assert_eq!(ExternalId::asin("B123").to_string(), "asin:B123");
 		assert_eq!(ExternalId::isbn("978").to_string(), "isbn:978");
+	}
+
+	#[test]
+	fn the_region_is_provenance_not_identity() {
+		assert_eq!(
+			ExternalId::asin("B123"),
+			ExternalId::asin_in_region("B123", Some("de".to_string())),
+			"the same asin is the same book regardless of which region resolved it, or work \
+			 lookups keyed on the id miss whenever a region is stamped on"
+		);
 	}
 
 	#[test]

@@ -20,6 +20,7 @@ impl LibraryService {
 				asin: Some(asin),
 				work_id: Some(work_id),
 				matched_by: Some(MatchedBy::Asin),
+				region: None,
 			});
 		}
 
@@ -33,6 +34,7 @@ impl LibraryService {
 				asin: None,
 				work_id: Some(work_id),
 				matched_by: Some(MatchedBy::Isbn),
+				region: None,
 			});
 		}
 
@@ -43,16 +45,23 @@ impl LibraryService {
 				asin: media.asin.clone(),
 				work_id: media.work_id.clone(),
 				matched_by: media.matched_by,
+				region: media.metadata_region.clone(),
 			});
 		}
 
 		let Some((book, matched_by)) = self.search_match(item).await else {
 			return Ok(Identity::default());
 		};
+		let asin = book.asin().map(str::to_string);
+		let region = match &asin {
+			Some(_) => Some(self.metadata.current_region().await?),
+			None => None,
+		};
 		Ok(Identity {
-			asin: book.asin().map(str::to_string),
+			asin,
 			work_id: self.works.for_book(&book).await?,
 			matched_by: Some(matched_by),
+			region,
 		})
 	}
 

@@ -35,6 +35,7 @@ async fn seed_request(db: &Db, id: &str, user_id: &str, work_id: &str, status: R
 			cover_url: None,
 			series_name: None,
 			series_sequence: None,
+			metadata_region: None,
 			status,
 			approved_by: None,
 			notes: None,
