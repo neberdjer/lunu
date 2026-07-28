@@ -274,6 +274,7 @@ mod mail;
 mod merge;
 mod rows;
 mod sidecar;
+mod watch;
 
 pub(super) use mail::{NoopMailer, RecordingMailer};
 pub(super) use merge::{
@@ -282,3 +283,4 @@ pub(super) use merge::{
 };
 pub(super) use rows::{hobbit, media, request, request_status};
 pub(super) use sidecar::RecordingSidecar;
+pub(super) use watch::watch_service;

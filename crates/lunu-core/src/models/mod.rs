@@ -25,6 +25,7 @@ pub mod settings;
 mod user;
 pub mod user_notification;
 pub mod user_settings;
+mod watch;
 pub mod work;
 
 pub use activity::{Activity, ActivityTarget};
@@ -54,4 +55,5 @@ pub use settings::Setting;
 pub use user::{AuthSource, Role, User};
 pub use user_notification::UserNotification;
 pub use user_settings::UserSettings;
+pub use watch::Watch;
 pub use work::Work;

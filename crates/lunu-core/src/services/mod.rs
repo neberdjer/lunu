@@ -21,6 +21,7 @@ mod request;
 mod scheduler;
 mod settings;
 mod user;
+mod watch;
 mod work;
 
 pub use activity::ActivityService;
@@ -49,6 +50,7 @@ pub use request::{ManualRequest, NewRequest, RequestService};
 pub use scheduler::SchedulerService;
 pub use settings::{SettingView, SettingsService};
 pub use user::UserService;
+pub use watch::WatchService;
 pub use work::WorkService;
 
 use chrono::Utc;

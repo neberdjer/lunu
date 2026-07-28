@@ -18,6 +18,7 @@ pub mod settings;
 pub mod user;
 pub mod user_notification;
 pub mod user_settings;
+mod watch;
 pub mod work;
 
 pub use activity::ActivityRepo;
@@ -40,4 +41,5 @@ pub use settings::SettingsRepo;
 pub use user::UserRepo;
 pub use user_notification::UserNotificationRepo;
 pub use user_settings::UserSettingsRepo;
+pub use watch::WatchRepo;
 pub use work::WorkRepo;

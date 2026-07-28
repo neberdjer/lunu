@@ -16,6 +16,16 @@ pub struct ManualRequest {
 
 type Approval = (RequestStatus, Option<(i64, DateTime<Utc>)>);
 
+struct Snapshot {
+	work_id: String,
+	asin: Option<String>,
+	title: String,
+	author: Option<String>,
+	cover_url: Option<String>,
+	series_name: Option<String>,
+	series_sequence: Option<String>,
+}
+
 impl RequestService {
 	async fn reject_duplicate(&self, user_id: &str, work_id: &str) -> Result<()> {
 		match self
@@ -62,34 +72,81 @@ impl RequestService {
 
 		self.reject_duplicate(&user.id, &work_id).await?;
 
-		let (status, quota_guard) = if owned.is_some() {
-			(RequestStatus::Available, None)
-		} else {
-			self.approval(user).await?
-		};
-
 		let series = book.series.into_iter().next();
-		let now = Utc::now();
-		let request = Request {
-			id: new_id(),
-			user_id: user.id.clone(),
+		let snapshot = Snapshot {
 			work_id,
-			format: Format::Audiobook,
 			asin,
 			title: book.title,
 			author: book.authors.into_iter().next(),
 			cover_url: book.cover_url,
 			series_name: series.as_ref().map(|entry| entry.name.clone()),
 			series_sequence: series.and_then(|entry| entry.position),
+		};
+		self.finalize_snapshot(
+			user,
+			snapshot,
+			owned.is_some(),
+			input.notes,
+			input.quality_profile_id,
+		)
+		.await
+	}
+
+	async fn finalize_snapshot(
+		&self,
+		user: &User,
+		snapshot: Snapshot,
+		owned: bool,
+		notes: Option<String>,
+		quality_profile_id: Option<String>,
+	) -> Result<Request> {
+		let (status, quota_guard) = if owned {
+			(RequestStatus::Available, None)
+		} else {
+			self.approval(user).await?
+		};
+		let now = Utc::now();
+		let request = Request {
+			id: new_id(),
+			user_id: user.id.clone(),
+			work_id: snapshot.work_id,
+			format: Format::Audiobook,
+			asin: snapshot.asin,
+			title: snapshot.title,
+			author: snapshot.author,
+			cover_url: snapshot.cover_url,
+			series_name: snapshot.series_name,
+			series_sequence: snapshot.series_sequence,
 			status,
 			approved_by: None,
-			notes: nonempty(input.notes),
-			quality_profile_id: input.quality_profile_id,
+			notes: nonempty(notes),
+			quality_profile_id,
 			created_at: now,
 			updated_at: now,
 		};
-
 		self.finalize(request, quota_guard).await
+	}
+
+	pub async fn create_from_watch(
+		&self,
+		user: &User,
+		watch: crate::models::Watch,
+	) -> Result<Request> {
+		let (_, owned) = tokio::try_join!(
+			self.reject_duplicate(&user.id, &watch.work_id),
+			self.owned_media(watch.asin.as_deref())
+		)?;
+		let snapshot = Snapshot {
+			work_id: watch.work_id,
+			asin: watch.asin,
+			title: watch.title,
+			author: watch.author,
+			cover_url: watch.cover_url,
+			series_name: watch.series_name,
+			series_sequence: watch.series_sequence,
+		};
+		self.finalize_snapshot(user, snapshot, owned.is_some(), None, None)
+			.await
 	}
 
 	pub async fn create_manual(&self, user: &User, input: ManualRequest) -> Result<Request> {
@@ -102,29 +159,17 @@ impl RequestService {
 			.for_unidentified(&title, author.as_deref())
 			.await?;
 		self.reject_duplicate(&user.id, &work_id).await?;
-		let (status, quota_guard) = self.approval(user).await?;
-
-		let now = Utc::now();
-		let request = Request {
-			id: new_id(),
-			user_id: user.id.clone(),
+		let snapshot = Snapshot {
 			work_id,
-			format: Format::Audiobook,
 			asin: None,
 			title,
 			author,
 			cover_url: None,
 			series_name: None,
 			series_sequence: None,
-			status,
-			approved_by: None,
-			notes: nonempty(input.notes),
-			quality_profile_id: input.quality_profile_id,
-			created_at: now,
-			updated_at: now,
 		};
-
-		self.finalize(request, quota_guard).await
+		self.finalize_snapshot(user, snapshot, false, input.notes, input.quality_profile_id)
+			.await
 	}
 
 	async fn approval(&self, user: &User) -> Result<Approval> {

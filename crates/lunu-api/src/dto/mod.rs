@@ -4,6 +4,7 @@ mod metadata;
 mod release;
 mod request;
 mod system;
+mod watch;
 
 pub(crate) use account::{
 	ApiKeyResponse, InviteResponse, IssuedApiKeyResponse, IssuedInviteResponse, SessionResponse,
@@ -16,3 +17,4 @@ pub(crate) use request::{
 	ActivityResponse, BlocklistResponse, DownloadResponse, QualityProfileResponse, RequestResponse,
 };
 pub(crate) use system::{IssueResponse, JobResponse, NotificationResponse, ScheduleResponse};
+pub(crate) use watch::WatchResponse;

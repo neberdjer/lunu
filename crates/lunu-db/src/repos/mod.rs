@@ -18,6 +18,7 @@ mod settings;
 mod user;
 mod user_notification;
 mod user_settings;
+mod watch;
 mod work;
 
 pub use activity::SqlxActivityRepo;
@@ -40,6 +41,7 @@ pub use settings::SqlxSettingsRepo;
 pub use user::SqlxUserRepo;
 pub use user_notification::SqlxUserNotificationRepo;
 pub use user_settings::SqlxUserSettingsRepo;
+pub use watch::SqlxWatchRepo;
 pub use work::SqlxWorkRepo;
 
 use lunu_core::Result;

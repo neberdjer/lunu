@@ -13,7 +13,7 @@ use lunu_core::services::{
 	IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
 	MetadataService, MonitorService, NotificationInboxService, NotificationService,
 	QualityProfileService, ReleaseService, RequestService, SchedulerService, SettingsService,
-	UserService, WorkService,
+	UserService, WatchService, WorkService,
 };
 use lunu_core::traits::Mailer;
 use lunu_db::Db;
@@ -22,7 +22,7 @@ use lunu_db::repos::{
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
 	SqlxMetadataCacheRepo, SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo,
 	SqlxRequestRepo, SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo,
-	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
+	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo, SqlxWatchRepo, SqlxWorkRepo,
 };
 
 use crate::hub::EventHub;
@@ -73,6 +73,7 @@ pub struct AppState {
 	pub settings: Arc<SettingsService>,
 	pub metadata: Arc<MetadataService>,
 	pub requests: Arc<RequestService>,
+	pub watches: Arc<WatchService>,
 	pub works: Arc<WorkService>,
 	pub releases: Arc<ReleaseService>,
 	pub quality_profiles: Arc<QualityProfileService>,
@@ -189,6 +190,13 @@ impl AppState {
 			works.clone(),
 		));
 
+		let watches = Arc::new(WatchService::new(
+			Arc::new(SqlxWatchRepo::new(db.clone())),
+			metadata.clone(),
+			works.clone(),
+			requests.clone(),
+		));
+
 		let indexer = Arc::new(ProwlarrClient::new(settings.clone()));
 		let releases = Arc::new(ReleaseService::new(
 			indexer,
@@ -265,6 +273,7 @@ impl AppState {
 			settings,
 			metadata,
 			requests,
+			watches,
 			works,
 			releases,
 			quality_profiles,

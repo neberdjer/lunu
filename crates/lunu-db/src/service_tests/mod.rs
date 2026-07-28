@@ -3,7 +3,7 @@ use crate::repos::{
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
 	SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
 	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo,
-	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWorkRepo,
+	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWatchRepo, SqlxWorkRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
@@ -60,6 +60,7 @@ mod reset;
 mod scheduler;
 mod stubs;
 mod verification;
+mod watch;
 mod works;
 
 static SCHEMA_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

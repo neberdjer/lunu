@@ -17,6 +17,7 @@ mod settings;
 mod setup;
 mod system;
 mod users;
+mod watches;
 mod ws;
 
 use utoipa_actix_web::service_config::ServiceConfig;
@@ -50,6 +51,10 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(metadata::series_search)
 		.service(metadata::series_books)
 		.service(metadata::series_request)
+		.service(watches::create)
+		.service(watches::list)
+		.service(watches::delete)
+		.service(watches::promote)
 		.service(library::list)
 		.service(library::sync)
 		.service(library::match_media)
