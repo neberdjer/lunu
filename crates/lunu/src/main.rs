@@ -9,7 +9,7 @@ use lunu_core::services::LogBuffer;
 use lunu_jobs::{PipelineHandler, SchedulerPool, WorkerConfig, WorkerPool};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, reload};
+use tracing_subscriber::{EnvFilter, Layer, reload};
 use utoipa::OpenApi;
 use utoipa_actix_web::{AppExt, scope};
 
@@ -34,9 +34,18 @@ fn init_tracing() -> (Arc<LogBuffer>, Arc<LogControl>) {
 	let (filter, handle) = reload::Layer::new(filter);
 	let buffer = Arc::new(LogBuffer::new(LOG_BUFFER_CAPACITY));
 
+	let json_logs = std::env::var(lunu_config::ENV_LOG_FORMAT)
+		.map(|value| value.trim().eq_ignore_ascii_case("json"))
+		.unwrap_or(false);
+	let fmt_layer = if json_logs {
+		tracing_subscriber::fmt::layer().json().boxed()
+	} else {
+		tracing_subscriber::fmt::layer().boxed()
+	};
+
 	tracing_subscriber::registry()
 		.with(filter)
-		.with(tracing_subscriber::fmt::layer())
+		.with(fmt_layer)
 		.with(log::BufferLayer::new(buffer.clone()))
 		.init();
 
@@ -123,6 +132,7 @@ async fn main() -> ExitCode {
 
 	let state = web::Data::new(state);
 	let hsts = state.config.secure_cookies;
+	let shutdown_timeout = state.config.shutdown_timeout_secs;
 	let api_scope = format!("{}{}", state.config.url_base, lunu_api::API_PREFIX);
 	let docs_path = format!("{}/api-docs/openapi.json", state.config.url_base);
 
@@ -159,6 +169,7 @@ async fn main() -> ExitCode {
 		)
 	})
 	.workers(workers)
+	.shutdown_timeout(shutdown_timeout)
 	.bind(&bind);
 
 	let server = match server {

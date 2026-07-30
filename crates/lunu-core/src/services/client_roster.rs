@@ -13,6 +13,10 @@ impl ClientRoster {
 		Self(clients)
 	}
 
+	pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn DownloadClient>> {
+		self.0.iter()
+	}
+
 	pub fn by_id(&self, client_id: &str) -> Result<&Arc<dyn DownloadClient>> {
 		self.0
 			.iter()

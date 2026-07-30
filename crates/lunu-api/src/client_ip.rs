@@ -61,6 +61,7 @@ mod tests {
 			url_base: String::new(),
 			forward_auth_header: None,
 			forward_auth_proxies: Vec::new(),
+			shutdown_timeout_secs: 30,
 		}
 	}
 

@@ -200,6 +200,7 @@ mod tests {
 			url_base: String::new(),
 			forward_auth_header: header.map(str::to_string),
 			forward_auth_proxies: proxies.to_vec(),
+			shutdown_timeout_secs: 30,
 		}
 	}
 

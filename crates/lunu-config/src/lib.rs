@@ -10,6 +10,10 @@ pub const ENV_SECURE_COOKIES: &str = "LUNU_SECURE_COOKIES";
 pub const ENV_URL_BASE: &str = "LUNU_URL_BASE";
 pub const ENV_FORWARD_AUTH_HEADER: &str = "LUNU_FORWARD_AUTH_HEADER";
 pub const ENV_FORWARD_AUTH_PROXIES: &str = "LUNU_FORWARD_AUTH_PROXIES";
+pub const ENV_LOG_FORMAT: &str = "LUNU_LOG_FORMAT";
+pub const ENV_SHUTDOWN_TIMEOUT: &str = "LUNU_SHUTDOWN_TIMEOUT";
+
+pub const DEFAULT_SHUTDOWN_TIMEOUT_SECS: u64 = 30;
 
 pub const DEFAULT_BIND: &str = "127.0.0.1:8080";
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/lunu.db?mode=rwc";
@@ -28,6 +32,7 @@ pub struct BootstrapConfig {
 	pub url_base: String,
 	pub forward_auth_header: Option<String>,
 	pub forward_auth_proxies: Vec<std::net::IpAddr>,
+	pub shutdown_timeout_secs: u64,
 }
 
 impl BootstrapConfig {
@@ -142,6 +147,10 @@ impl BootstrapConfig {
 				url_base,
 				forward_auth_header,
 				forward_auth_proxies,
+				shutdown_timeout_secs: env_u64_or(
+					ENV_SHUTDOWN_TIMEOUT,
+					DEFAULT_SHUTDOWN_TIMEOUT_SECS,
+				),
 			})
 		} else {
 			Err(ConfigError { issues })
@@ -223,6 +232,13 @@ fn env_usize(key: &str) -> usize {
 		.unwrap_or(0)
 }
 
+fn env_u64_or(key: &str, default: u64) -> u64 {
+	std::env::var(key)
+		.ok()
+		.and_then(|value| value.trim().parse::<u64>().ok())
+		.unwrap_or(default)
+}
+
 fn env_optional(key: &str) -> Option<String> {
 	std::env::var(key)
 		.ok()
@@ -248,42 +264,4 @@ fn default_workers() -> usize {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn a_url_base_is_normalized_to_one_leading_slash() {
-		assert_eq!(normalize_url_base("lunu"), "/lunu");
-		assert_eq!(normalize_url_base("/lunu/"), "/lunu");
-		assert_eq!(normalize_url_base("//lunu//"), "/lunu");
-		assert_eq!(normalize_url_base("/apps/lunu"), "/apps/lunu");
-	}
-
-	#[test]
-	fn an_empty_or_root_url_base_means_no_prefix() {
-		assert_eq!(normalize_url_base(""), "");
-		assert_eq!(normalize_url_base("/"), "");
-		assert_eq!(normalize_url_base("  "), "");
-	}
-
-	#[test]
-	fn url_base_segments_are_limited_to_unreserved_characters() {
-		assert!(is_valid_url_base(""));
-		assert!(is_valid_url_base("/lunu"));
-		assert!(is_valid_url_base("/apps/lunu-2.0_beta~1"));
-		assert!(
-			!is_valid_url_base("/lunu{x}"),
-			"braces are actix route metacharacters and must not reach scope()"
-		);
-		assert!(!is_valid_url_base("/lu nu"));
-		assert!(
-			!is_valid_url_base("/lunu;v=1"),
-			"a semicolon corrupts the cookie path attribute"
-		);
-		assert!(!is_valid_url_base("/lunu?x"));
-		assert!(
-			!is_valid_url_base("/apps//lunu"),
-			"an empty segment is a dead mount"
-		);
-	}
-}
+mod tests;

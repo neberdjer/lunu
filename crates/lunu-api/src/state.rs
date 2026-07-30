@@ -9,8 +9,8 @@ use lunu_core::consts::auth::{
 use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT};
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
-	ActivityService, ApiKeyService, AuthService, GrabService, ImportService, InviteService,
-	IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
+	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
+	InviteService, IssueService, JobService, LibraryService, LogBuffer, MediaService, MergeService,
 	MetadataService, MonitorService, NotificationInboxService, NotificationService,
 	QualityProfileService, ReleaseService, RequestService, SchedulerService, SettingsService,
 	UserService, WatchService, WorkService,
@@ -78,6 +78,7 @@ pub struct AppState {
 	pub releases: Arc<ReleaseService>,
 	pub quality_profiles: Arc<QualityProfileService>,
 	pub grabs: Arc<GrabService>,
+	pub download_clients: ClientRoster,
 	pub jobs: Arc<JobService>,
 	pub scheduler: Arc<SchedulerService>,
 	pub monitor: Arc<MonitorService>,
@@ -219,7 +220,7 @@ impl AppState {
 			downloads_repo.clone(),
 			requests.clone(),
 			releases.clone(),
-			download_clients,
+			download_clients.clone(),
 			jobs.clone(),
 		));
 		let issues = Arc::new(IssueService::new(
@@ -278,6 +279,7 @@ impl AppState {
 			releases,
 			quality_profiles,
 			grabs,
+			download_clients,
 			jobs,
 			monitor,
 			imports,

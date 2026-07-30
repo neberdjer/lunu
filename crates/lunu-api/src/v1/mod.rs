@@ -101,6 +101,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
 		.service(downloads::list)
 		.service(activity::list)
 		.service(system::overview)
+		.service(system::readiness)
 		.service(system::logs)
 		.service(system::log_level)
 		.service(system::set_log_level)
