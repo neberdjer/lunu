@@ -74,8 +74,11 @@ impl InviteService {
 			.await
 			.ok()
 			.flatten();
+		let expires_on = invite
+			.expires_at
+			.map(|expiry| expiry.format("%B %-d, %Y").to_string());
 		let locale = lunu_i18n::default_locale();
-		let rendered = crate::email::invite(&locale, code, link.as_deref());
+		let rendered = crate::email::invite(&locale, code, link.as_deref(), expires_on.as_deref());
 		let _ = self.mailer.send(&to, &rendered).await;
 	}
 

@@ -33,7 +33,6 @@ pub const MERGE_UNAVAILABLE: &str = "merge-unavailable";
 pub const MERGE_SOURCE_ACTION_UNKNOWN: &str = "merge-source-action-unknown";
 pub const MERGE_BACKUP_NOT_CONFIGURED: &str = "merge-backup-not-configured";
 pub const MFA_METHOD_UNKNOWN: &str = "mfa-method-unknown";
-pub const MFA_REQUIRED: &str = "mfa-required";
 pub const MFA_TICKET_INVALID: &str = "mfa-ticket-invalid";
 pub const MFA_CODE_INVALID: &str = "mfa-code-invalid";
 pub const MFA_ALREADY_ENABLED: &str = "mfa-already-enabled";
@@ -122,7 +121,6 @@ pub const ALL: &[&str] = &[
 	MERGE_SOURCE_ACTION_UNKNOWN,
 	MERGE_BACKUP_NOT_CONFIGURED,
 	MFA_METHOD_UNKNOWN,
-	MFA_REQUIRED,
 	MFA_TICKET_INVALID,
 	MFA_CODE_INVALID,
 	MFA_ALREADY_ENABLED,

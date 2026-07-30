@@ -65,8 +65,8 @@ impl EmailNotifier {
 		};
 
 		let locale = lunu_i18n::negotiate(None, user.locale.as_deref());
-		let summary = lunu_i18n::t(&locale, &format!("notification-{}", event.kind.as_str()));
-		let rendered = lunu_core::email::notification(&locale, &summary, &event.title, link);
+		let rendered =
+			lunu_core::email::notification(&locale, event.kind.as_str(), &event.title, link);
 		let unsubscribe = self.unsubscribe_link(&user.id).await?;
 		self.mailer
 			.send_bulk(to, &rendered, unsubscribe.as_deref())

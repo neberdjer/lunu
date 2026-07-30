@@ -55,13 +55,13 @@ struct InviteBody<'a> {
 	code: &'a str,
 	link: Option<&'a str>,
 	accept_label: String,
+	expiry: Option<&'a str>,
 }
 
 #[derive(Template)]
 #[template(path = "email/notification.html")]
 struct NotificationBody<'a> {
-	summary: &'a str,
-	title: &'a str,
+	message: &'a str,
 	link: Option<&'a str>,
 	link_label: String,
 }
@@ -185,33 +185,54 @@ pub fn mfa_code(locale: &LanguageIdentifier, code: &str, minutes: i64) -> Render
 	}
 }
 
-pub fn invite(locale: &LanguageIdentifier, code: &str, link: Option<&str>) -> RenderedEmail {
+pub fn invite(
+	locale: &LanguageIdentifier,
+	code: &str,
+	link: Option<&str>,
+	expires_on: Option<&str>,
+) -> RenderedEmail {
 	let intro = lunu_i18n::t(locale, "email-invite-intro");
+	let expiry =
+		expires_on.map(|date| lunu_i18n::t_vars(locale, "email-invite-expiry", &[("date", date)]));
 	let body = InviteBody {
 		intro: &intro,
 		code,
 		link,
 		accept_label: lunu_i18n::t(locale, "email-invite-accept"),
+		expiry: expiry.as_deref(),
 	}
 	.render()
 	.expect("invite email template renders");
 
 	RenderedEmail {
 		subject: lunu_i18n::t(locale, "email-invite-subject"),
-		text: wrap_text(locale, &[&intro, code, link.unwrap_or_default()]),
+		text: wrap_text(
+			locale,
+			&[
+				&intro,
+				code,
+				link.unwrap_or_default(),
+				expiry.as_deref().unwrap_or_default(),
+			],
+		),
 		html: wrap(locale, &body),
 	}
 }
 
 pub fn notification(
 	locale: &LanguageIdentifier,
-	summary: &str,
+	kind: &str,
 	title: &str,
 	link: Option<&str>,
 ) -> RenderedEmail {
+	let summary = lunu_i18n::t(locale, &format!("notification-{kind}"));
+	let message = lunu_i18n::t_vars(
+		locale,
+		&format!("email-notification-{kind}"),
+		&[("title", title)],
+	);
 	let body = NotificationBody {
-		summary,
-		title,
+		message: &message,
 		link,
 		link_label: link
 			.map(|_| lunu_i18n::t(locale, "email-view-request"))
@@ -222,7 +243,7 @@ pub fn notification(
 
 	RenderedEmail {
 		subject: format!("{summary}: {title}"),
-		text: wrap_text(locale, &[summary, title, link.unwrap_or_default()]),
+		text: wrap_text(locale, &[&message, link.unwrap_or_default()]),
 		html: wrap(locale, &body),
 	}
 }
