@@ -127,7 +127,7 @@ async fn auth_setup_login_validate_logout() {
 async fn register_with_invite_then_exhausted() {
 	let db = memory_db().await;
 	let auth = auth_service(&db);
-	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+	let invites = invite_service(&db);
 
 	let admin = auth
 		.setup_first_admin("admin", "password123", None)
@@ -200,7 +200,7 @@ async fn change_password_rotates_sessions_and_rejects_wrong_current() {
 async fn weak_password_does_not_burn_single_use_invite() {
 	let db = memory_db().await;
 	let auth = auth_service(&db);
-	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+	let invites = invite_service(&db);
 
 	let admin = auth
 		.setup_first_admin("admin", "password123", None)

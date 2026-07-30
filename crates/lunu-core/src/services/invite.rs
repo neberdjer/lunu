@@ -6,7 +6,8 @@ use crate::consts::reasons;
 use crate::crypto::{generate_token, hash_token};
 use crate::models::{Invite, Role};
 use crate::repo::InviteRepo;
-use crate::services::new_id;
+use crate::services::{SettingsService, new_id, nonempty};
+use crate::traits::Mailer;
 use crate::{Error, Result};
 
 pub struct IssuedInvite {
@@ -16,11 +17,21 @@ pub struct IssuedInvite {
 
 pub struct InviteService {
 	invites: Arc<dyn InviteRepo>,
+	mailer: Arc<dyn Mailer>,
+	settings: Arc<SettingsService>,
 }
 
 impl InviteService {
-	pub fn new(invites: Arc<dyn InviteRepo>) -> Self {
-		Self { invites }
+	pub fn new(
+		invites: Arc<dyn InviteRepo>,
+		mailer: Arc<dyn Mailer>,
+		settings: Arc<SettingsService>,
+	) -> Self {
+		Self {
+			invites,
+			mailer,
+			settings,
+		}
 	}
 
 	pub async fn create(
@@ -49,7 +60,23 @@ impl InviteService {
 		};
 
 		self.invites.create(&invite).await?;
+		self.deliver(&invite, &code).await;
 		Ok(IssuedInvite { invite, code })
+	}
+
+	async fn deliver(&self, invite: &Invite, code: &str) {
+		let Some(to) = nonempty(invite.email.clone()) else {
+			return;
+		};
+		let link = self
+			.settings
+			.app_link(&format!("invite/{code}"))
+			.await
+			.ok()
+			.flatten();
+		let locale = lunu_i18n::default_locale();
+		let rendered = crate::email::invite(&locale, code, link.as_deref());
+		let _ = self.mailer.send(&to, &rendered).await;
 	}
 
 	pub async fn list_page(&self, limit: i64, offset: i64) -> Result<Vec<Invite>> {

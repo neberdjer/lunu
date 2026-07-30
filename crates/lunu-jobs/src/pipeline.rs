@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use lunu_core::Result;
 use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MergePayload, MonitorPayload, NotificationEvent,
 };
@@ -10,6 +9,7 @@ use lunu_core::services::{
 	MonitorService, NotificationService, RequestService,
 };
 use lunu_core::traits::{JobHandler, MergeOutcome};
+use lunu_core::{Error, Result};
 
 pub struct PipelineHandler {
 	grabs: Arc<GrabService>,
@@ -49,21 +49,19 @@ impl PipelineHandler {
 		}
 	}
 
-	async fn notify(&self, payload: &str) -> Result<()> {
+	async fn notify(&self, job_id: &str, payload: &str) -> Result<()> {
 		let event: NotificationEvent = serde_json::from_str(payload)?;
-		let report = self.notifications.dispatch(&event).await?;
+		let report = self.notifications.dispatch(job_id, &event).await?;
 		if report.failed > 0 {
 			tracing::warn!(
 				delivered = report.delivered,
 				failed = report.failed,
 				kind = %event.kind,
-				"notification dispatch had failures"
+				"notification dispatch had failures; retrying the undelivered channels"
 			);
-		}
-		if report.total_failure()
-			&& let Some(error) = report.last_error
-		{
-			return Err(error);
+			return Err(report.last_error.unwrap_or_else(|| {
+				Error::Internal("notification delivery incomplete".to_string())
+			}));
 		}
 		Ok(())
 	}
@@ -121,6 +119,13 @@ impl PipelineHandler {
 		if pruned > 0 {
 			tracing::info!(pruned, "pruned finished jobs past the retention window");
 		}
+		let orphaned = self.notifications.prune_orphaned_deliveries().await?;
+		if orphaned > 0 {
+			tracing::info!(
+				orphaned,
+				"pruned notification deliveries for jobs that no longer exist"
+			);
+		}
 		Ok(())
 	}
 
@@ -147,7 +152,7 @@ impl JobHandler for PipelineHandler {
 			JobType::Import => self.import(&job.payload).await,
 			JobType::Merge => self.merge(&job.payload).await,
 			JobType::MergeRevert => self.revert_merge(&job.payload).await,
-			JobType::Notify => self.notify(&job.payload).await,
+			JobType::Notify => self.notify(&job.id, &job.payload).await,
 			JobType::LibrarySync => self.library_sync().await,
 			JobType::SessionCleanup => self.auth.cleanup_expired_sessions().await,
 			JobType::JobCleanup => self.job_cleanup().await,

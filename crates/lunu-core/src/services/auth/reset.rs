@@ -50,10 +50,7 @@ impl AuthService {
 
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
 		let rendered = email::password_reset(&locale, &code, PASSWORD_RESET_TTL_MINUTES);
-		let _ = self
-			.mailer
-			.send(&email, &rendered.subject, &rendered.html)
-			.await;
+		let _ = self.mailer.send(&email, &rendered).await;
 		Ok(())
 	}
 

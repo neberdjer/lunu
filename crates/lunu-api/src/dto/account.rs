@@ -12,6 +12,7 @@ pub(crate) struct UserResponse {
 	pub role: String,
 	pub auth_source: String,
 	pub enabled: bool,
+	pub notify_email: bool,
 	pub created_at: DateTime<Utc>,
 }
 
@@ -26,6 +27,7 @@ impl From<&User> for UserResponse {
 			role: user.role.to_string(),
 			auth_source: user.auth_source.to_string(),
 			enabled: user.enabled,
+			notify_email: user.notify_email,
 			created_at: user.created_at,
 		}
 	}

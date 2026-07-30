@@ -86,6 +86,7 @@ pub async fn test(
 	match integration.as_str() {
 		settings::PROWLARR => state.releases.test_indexer().await,
 		settings::FFMPEG => state.merges.test().await,
+		settings::SMTP => state.mailer.test_connection().await,
 		_ => state.grabs.test_download(&integration).await,
 	}?;
 	Ok(HttpResponse::Ok().json(IntegrationOkResponse { ok: true }))

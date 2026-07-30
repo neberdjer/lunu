@@ -95,6 +95,7 @@ pub struct User {
 	pub oidc_subject: Option<String>,
 	pub enabled: bool,
 	pub email_verified: bool,
+	pub notify_email: bool,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
 }

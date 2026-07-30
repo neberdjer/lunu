@@ -2,18 +2,17 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use lunu_core::Result;
-use lunu_core::consts::settings::BASE_URL;
+use lunu_core::crypto::Encryptor;
 use lunu_core::models::NotificationEvent;
 use lunu_core::repo::UserRepo;
 use lunu_core::services::{SettingsService, resolve_recipients};
 use lunu_core::traits::{Mailer, Notifier};
 
-use crate::optional_setting;
-
 pub struct EmailNotifier {
 	mailer: Arc<dyn Mailer>,
 	users: Arc<dyn UserRepo>,
 	settings: Arc<SettingsService>,
+	unsubscribe: Encryptor,
 }
 
 impl EmailNotifier {
@@ -21,23 +20,27 @@ impl EmailNotifier {
 		mailer: Arc<dyn Mailer>,
 		users: Arc<dyn UserRepo>,
 		settings: Arc<SettingsService>,
+		unsubscribe: Encryptor,
 	) -> Self {
 		Self {
 			mailer,
 			users,
 			settings,
+			unsubscribe,
 		}
 	}
 
 	async fn request_link(&self, event: &NotificationEvent) -> Result<Option<String>> {
-		let Some(base) = optional_setting(&self.settings, BASE_URL).await? else {
-			return Ok(None);
-		};
-		Ok(Some(format!(
-			"{}/requests/{}",
-			base.trim_end_matches('/'),
-			event.request_id
-		)))
+		self.settings
+			.app_link(&format!("requests/{}", event.request_id))
+			.await
+	}
+
+	async fn unsubscribe_link(&self, user_id: &str) -> Result<Option<String>> {
+		let token = self.unsubscribe.encrypt_token(user_id)?;
+		self.settings
+			.app_link(&format!("api/v1/unsubscribe/{token}"))
+			.await
 	}
 
 	async fn send_to(
@@ -49,6 +52,9 @@ impl EmailNotifier {
 		let Some(user) = self.users.find_by_id(user_id).await? else {
 			return Ok(());
 		};
+		if !user.notify_email {
+			return Ok(());
+		}
 		let Some(to) = user
 			.email
 			.as_deref()
@@ -61,8 +67,9 @@ impl EmailNotifier {
 		let locale = lunu_i18n::negotiate(None, user.locale.as_deref());
 		let summary = lunu_i18n::t(&locale, &format!("notification-{}", event.kind.as_str()));
 		let rendered = lunu_core::email::notification(&locale, &summary, &event.title, link);
+		let unsubscribe = self.unsubscribe_link(&user.id).await?;
 		self.mailer
-			.send(to, &rendered.subject, &rendered.html)
+			.send_bulk(to, &rendered, unsubscribe.as_deref())
 			.await
 	}
 }

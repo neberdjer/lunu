@@ -16,6 +16,7 @@ pub const PROWLARR_UNAUTHORIZED: &str = "prowlarr-unauthorized";
 pub const QBITTORRENT_NOT_CONFIGURED: &str = "qbittorrent-not-configured";
 pub const QBITTORRENT_AUTH_FAILED: &str = "qbittorrent-auth-failed";
 pub const SABNZBD_NOT_CONFIGURED: &str = "sabnzbd-not-configured";
+pub const SMTP_NOT_CONFIGURED: &str = "smtp-not-configured";
 pub const TRANSMISSION_NOT_CONFIGURED: &str = "transmission-not-configured";
 pub const NO_CLIENT_FOR_PROTOCOL: &str = "no-client-for-protocol";
 pub const INVALID_REGION: &str = "invalid-region";
@@ -68,6 +69,7 @@ pub const USERNAME_INVALID: &str = "username-invalid";
 pub const DOWNLOAD_IN_PROGRESS: &str = "download-in-progress";
 pub const PROFILE_NAME_REQUIRED: &str = "profile-name-required";
 pub const RESET_TOKEN_INVALID: &str = "reset-token-invalid";
+pub const UNSUBSCRIBE_TOKEN_INVALID: &str = "unsubscribe-token-invalid";
 pub const EMAIL_NOT_VERIFIED: &str = "email-not-verified";
 pub const VERIFICATION_INVALID: &str = "verification-invalid";
 pub const MEDIA_FILTER_UNKNOWN: &str = "media-filter-unknown";
@@ -103,6 +105,7 @@ pub const ALL: &[&str] = &[
 	QBITTORRENT_NOT_CONFIGURED,
 	QBITTORRENT_AUTH_FAILED,
 	SABNZBD_NOT_CONFIGURED,
+	SMTP_NOT_CONFIGURED,
 	TRANSMISSION_NOT_CONFIGURED,
 	NO_CLIENT_FOR_PROTOCOL,
 	INVALID_REGION,
@@ -155,6 +158,7 @@ pub const ALL: &[&str] = &[
 	DOWNLOAD_IN_PROGRESS,
 	PROFILE_NAME_REQUIRED,
 	RESET_TOKEN_INVALID,
+	UNSUBSCRIBE_TOKEN_INVALID,
 	EMAIL_NOT_VERIFIED,
 	VERIFICATION_INVALID,
 	MEDIA_FILTER_UNKNOWN,

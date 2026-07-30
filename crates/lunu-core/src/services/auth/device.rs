@@ -47,10 +47,7 @@ impl AuthService {
 
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
 		let rendered = email::new_device(&locale, user_agent);
-		let _ = self
-			.mailer
-			.send(&recipient, &rendered.subject, &rendered.html)
-			.await;
+		let _ = self.mailer.send(&recipient, &rendered).await;
 		Ok(())
 	}
 }

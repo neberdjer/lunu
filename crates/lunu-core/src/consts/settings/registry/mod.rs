@@ -5,8 +5,9 @@ use super::{
 	OIDC_ISSUER_URL, OIDC_SCOPES, PROWLARR_API_KEY, PROWLARR_URL, QBITTORRENT_API_KEY,
 	QBITTORRENT_PASSWORD, QBITTORRENT_URL, QBITTORRENT_USERNAME, REQUIRE_EMAIL_VERIFICATION,
 	SABNZBD_API_KEY, SABNZBD_URL, SLACK_WEBHOOK_URL, SMTP_ENCRYPTION, SMTP_ENCRYPTION_MODES,
-	SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME, SettingKind, SettingSpec,
-	TOGGLE_MODES, TOGGLE_ON, TRANSMISSION_PASSWORD, TRANSMISSION_URL, TRANSMISSION_USERNAME,
+	SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_REPLY_TO, SMTP_USERNAME, SettingKind,
+	SettingSpec, TOGGLE_MODES, TOGGLE_ON, TRANSMISSION_PASSWORD, TRANSMISSION_URL,
+	TRANSMISSION_USERNAME,
 };
 use crate::consts::download::SETTING_REMOVE_FAILED_DOWNLOADS;
 use crate::consts::library::{
@@ -29,8 +30,10 @@ use crate::consts::metadata::{
 };
 
 mod metadata;
+mod smtp;
 
 use metadata::METADATA_SETTINGS;
+use smtp::SMTP_SETTINGS;
 
 const CORE_SETTINGS: &[SettingSpec] = &[
 	SettingSpec {
@@ -244,42 +247,6 @@ const CORE_SETTINGS: &[SettingSpec] = &[
 		default: None,
 	},
 	SettingSpec {
-		key: SMTP_HOST,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_PORT,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_USERNAME,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_PASSWORD,
-		kind: SettingKind::Text,
-		secret: true,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_FROM,
-		kind: SettingKind::Text,
-		secret: false,
-		default: None,
-	},
-	SettingSpec {
-		key: SMTP_ENCRYPTION,
-		kind: SettingKind::Enum(SMTP_ENCRYPTION_MODES),
-		secret: false,
-		default: Some(DEFAULT_SMTP_ENCRYPTION),
-	},
-	SettingSpec {
 		key: REQUIRE_EMAIL_VERIFICATION,
 		kind: SettingKind::Enum(TOGGLE_MODES),
 		secret: false,
@@ -288,7 +255,10 @@ const CORE_SETTINGS: &[SettingSpec] = &[
 ];
 
 pub fn registry() -> impl Iterator<Item = &'static SettingSpec> {
-	CORE_SETTINGS.iter().chain(METADATA_SETTINGS.iter())
+	CORE_SETTINGS
+		.iter()
+		.chain(SMTP_SETTINGS.iter())
+		.chain(METADATA_SETTINGS.iter())
 }
 
 pub fn lookup(key: &str) -> Option<&'static SettingSpec> {

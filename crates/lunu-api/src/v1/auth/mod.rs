@@ -59,6 +59,8 @@ pub struct UpdateProfileRequest {
 	display_name: Option<String>,
 	#[serde(default)]
 	locale: Option<String>,
+	#[serde(default)]
+	notify_email: Option<bool>,
 }
 
 #[utoipa::path(tag = "auth", security(()), request_body = LoginRequest, responses((status = 200, description = "Authenticated (session cookie set), or an MFA challenge if a second factor is enabled", body = LoginResponse), (status = 401, description = "Invalid credentials")))]
@@ -206,7 +208,13 @@ pub async fn update_me(
 	let body = body.into_inner();
 	let updated = state
 		.users
-		.update_profile(&user.0.id, body.email, body.display_name, body.locale)
+		.update_profile(
+			&user.0.id,
+			body.email,
+			body.display_name,
+			body.locale,
+			body.notify_email,
+		)
 		.await?;
 	Ok(HttpResponse::Ok().json(UserResponse::from(&updated)))
 }

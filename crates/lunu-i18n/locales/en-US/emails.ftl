@@ -14,3 +14,6 @@ email-new-device-warning = If this was not you, change your password right away.
 email-password-reset-subject = Reset your Lunu password
 email-password-reset-intro = We received a request to reset your Lunu password. Your reset code is below.
 email-password-reset-expiry = This code expires in { $minutes } minutes. If you did not request this, you can ignore this email.
+email-invite-subject = You are invited to Lunu
+email-invite-intro = You have been invited to Lunu. Use the code below to create your account.
+email-invite-accept = Accept invitation

@@ -120,10 +120,7 @@ impl AuthService {
 
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
 		let rendered = email::verification(&locale, &code, EMAIL_VERIFICATION_TTL_MINUTES);
-		let _ = self
-			.mailer
-			.send(&address, &rendered.subject, &rendered.html)
-			.await;
+		let _ = self.mailer.send(&address, &rendered).await;
 		Ok(())
 	}
 
@@ -133,9 +130,6 @@ impl AuthService {
 		};
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
 		let rendered = email::welcome(&locale, &user.username);
-		let _ = self
-			.mailer
-			.send(&address, &rendered.subject, &rendered.html)
-			.await;
+		let _ = self.mailer.send(&address, &rendered).await;
 	}
 }

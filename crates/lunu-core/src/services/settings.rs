@@ -74,6 +74,14 @@ impl SettingsService {
 		Ok(Some(self.plain_value(setting)?))
 	}
 
+	pub async fn app_link(&self, path: &str) -> Result<Option<String>> {
+		let Some(base) = self.get(settings::BASE_URL).await? else {
+			return Ok(None);
+		};
+		let base = base.trim().trim_end_matches('/');
+		Ok((!base.is_empty()).then(|| format!("{base}/{}", path.trim_start_matches('/'))))
+	}
+
 	fn plain_value(&self, setting: &Setting) -> Result<String> {
 		if setting.encrypted {
 			self.encryptor.decrypt(&setting.value)

@@ -1,9 +1,10 @@
 use crate::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxJobRepo, SqlxMediaRepo, SqlxMetadataCacheRepo,
-	SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo,
-	SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo,
-	SqlxUserRepo, SqlxUserSettingsRepo, SqlxWatchRepo, SqlxWorkRepo,
+	SqlxMfaRecoveryCodeRepo, SqlxNotificationDeliveryRepo, SqlxPasswordResetRepo,
+	SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo,
+	SqlxUserMfaRepo, SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo, SqlxWatchRepo,
+	SqlxWorkRepo,
 };
 use crate::{Db, run_migrations};
 use async_trait::async_trait;
@@ -20,7 +21,8 @@ use lunu_core::models::{
 };
 use lunu_core::repo::{
 	ActivityRepo, DownloadRepo, EmailVerificationRepo, JobRepo, MetadataCacheRepo,
-	PasswordResetRepo, QualityProfileRepo, RequestRepo, SettingsRepo, UserRepo, UserSettingsRepo,
+	NotificationDeliveryRepo, PasswordResetRepo, QualityProfileRepo, RequestRepo, SettingsRepo,
+	UserRepo, UserSettingsRepo,
 };
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ImportService, InviteService, JobService,
@@ -44,6 +46,7 @@ mod concurrency;
 mod data;
 mod grab;
 mod import;
+mod invite;
 mod library;
 mod merge;
 mod metadata;
@@ -51,6 +54,7 @@ mod mfa;
 mod monitor;
 mod monitor_complete;
 mod monitor_removal;
+mod notify;
 mod oidc;
 mod pipeline;
 mod repos;

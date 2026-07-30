@@ -1,7 +1,7 @@
 use aes_gcm::aead::Aead;
 use aes_gcm::{AeadCore, Aes256Gcm, Key, KeyInit, Nonce};
 use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use hkdf::Hkdf;
 use rand::rngs::OsRng;
 use sha2::Sha256;
@@ -30,8 +30,29 @@ impl Encryptor {
 	}
 
 	pub fn encrypt(&self, plaintext: &str) -> Result<String> {
-		let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+		Ok(STANDARD.encode(self.seal(plaintext)?))
+	}
 
+	pub fn decrypt(&self, encoded: &str) -> Result<String> {
+		let combined = STANDARD
+			.decode(encoded)
+			.map_err(|error| Error::Internal(format!("invalid ciphertext encoding: {error}")))?;
+		self.open(&combined)
+	}
+
+	pub fn encrypt_token(&self, plaintext: &str) -> Result<String> {
+		Ok(URL_SAFE_NO_PAD.encode(self.seal(plaintext)?))
+	}
+
+	pub fn decrypt_token(&self, encoded: &str) -> Result<String> {
+		let combined = URL_SAFE_NO_PAD
+			.decode(encoded)
+			.map_err(|error| Error::Internal(format!("invalid token encoding: {error}")))?;
+		self.open(&combined)
+	}
+
+	fn seal(&self, plaintext: &str) -> Result<Vec<u8>> {
+		let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
 		let ciphertext = self
 			.cipher
 			.encrypt(&nonce, plaintext.as_bytes())
@@ -40,14 +61,10 @@ impl Encryptor {
 		let mut combined = Vec::with_capacity(NONCE_LEN + ciphertext.len());
 		combined.extend_from_slice(nonce.as_slice());
 		combined.extend_from_slice(&ciphertext);
-		Ok(STANDARD.encode(combined))
+		Ok(combined)
 	}
 
-	pub fn decrypt(&self, encoded: &str) -> Result<String> {
-		let combined = STANDARD
-			.decode(encoded)
-			.map_err(|error| Error::Internal(format!("invalid ciphertext encoding: {error}")))?;
-
+	fn open(&self, combined: &[u8]) -> Result<String> {
 		if combined.len() <= NONCE_LEN {
 			return Err(Error::Internal("ciphertext is too short".to_string()));
 		}
@@ -76,6 +93,20 @@ mod tests {
 		let encrypted = encryptor.encrypt(secret).unwrap();
 		assert_ne!(encrypted, secret);
 		assert_eq!(encryptor.decrypt(&encrypted).unwrap(), secret);
+	}
+
+	#[test]
+	fn a_token_round_trips_and_is_url_safe() {
+		let encryptor = Encryptor::new("a-sufficiently-long-master-key", b"unsubscribe").unwrap();
+		let token = encryptor.encrypt_token("user-abc-123").unwrap();
+		assert!(
+			token
+				.chars()
+				.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+			"a token must be safe to drop into a url path: {token}"
+		);
+		assert_eq!(encryptor.decrypt_token(&token).unwrap(), "user-abc-123");
+		assert!(encryptor.decrypt_token("tampered").is_err());
 	}
 
 	#[test]

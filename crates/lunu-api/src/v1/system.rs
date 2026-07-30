@@ -252,6 +252,7 @@ pub async fn readiness(
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
 	let prowlarr_configured = is_set(&state, PROWLARR_URL).await?;
+	let email_configured = state.mailer.is_configured().await?;
 	let merge_enabled = state
 		.settings
 		.toggle(SETTING_MERGE_ENABLED)
@@ -266,7 +267,7 @@ pub async fn readiness(
 		client_probes.push(probe(client.id(), configured, client.test_connection()));
 	}
 
-	let (database, prowlarr, ffmpeg, clients) = tokio::join!(
+	let (database, prowlarr, ffmpeg, email, clients) = tokio::join!(
 		lunu_db::ping(&state.db),
 		probe(
 			"prowlarr",
@@ -274,13 +275,12 @@ pub async fn readiness(
 			state.releases.test_indexer()
 		),
 		probe("ffmpeg", merge_enabled, state.merges.test()),
+		probe("email", email_configured, state.mailer.test_connection()),
 		futures_util::future::join_all(client_probes),
 	);
 
-	let mut integrations = Vec::with_capacity(clients.len() + 2);
-	integrations.push(prowlarr);
+	let mut integrations = vec![prowlarr, ffmpeg, email];
 	integrations.extend(clients);
-	integrations.push(ffmpeg);
 
 	let readiness = Readiness {
 		database: if database.is_ok() { "up" } else { "down" },

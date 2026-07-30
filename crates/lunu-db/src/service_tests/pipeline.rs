@@ -52,46 +52,6 @@ async fn marking_available_enqueues_a_notification() {
 	assert!(notifies[0].payload.contains("The Hobbit"));
 }
 
-#[derive(Default)]
-struct RecordingNotifier {
-	events: std::sync::Mutex<Vec<String>>,
-}
-
-#[async_trait]
-impl Notifier for RecordingNotifier {
-	fn id(&self) -> &'static str {
-		"recording"
-	}
-	async fn deliver(&self, event: &NotificationEvent) -> CoreResult<()> {
-		self.events.lock().unwrap().push(event.message());
-		Ok(())
-	}
-}
-
-#[tokio::test]
-async fn notification_service_dispatches_to_every_notifier() {
-	let a = Arc::new(RecordingNotifier::default());
-	let b = Arc::new(RecordingNotifier::default());
-	let service = NotificationService::new(vec![a.clone(), b.clone()]);
-
-	let event = NotificationEvent {
-		kind: NotificationKind::RequestAvailable,
-		request_id: "r1".to_string(),
-		title: "Dune".to_string(),
-		user_id: "u1".to_string(),
-	};
-	service.dispatch(&event).await.unwrap();
-
-	assert_eq!(
-		a.events.lock().unwrap().as_slice(),
-		&["Now available: Dune"]
-	);
-	assert_eq!(
-		b.events.lock().unwrap().as_slice(),
-		&["Now available: Dune"]
-	);
-}
-
 #[tokio::test]
 async fn request_transitions_record_activity() {
 	let db = memory_db().await;

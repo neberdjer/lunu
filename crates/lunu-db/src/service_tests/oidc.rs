@@ -76,6 +76,7 @@ async fn seed_local_user(db: &Db, username: &str, email: &str) {
 			oidc_subject: None,
 			enabled: true,
 			email_verified: true,
+			notify_email: true,
 			created_at: now,
 			updated_at: now,
 		})

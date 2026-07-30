@@ -2,6 +2,7 @@ use crate::consts::reasons;
 
 pub const FFMPEG: &str = "ffmpeg";
 pub const PROWLARR: &str = "prowlarr";
+pub const SMTP: &str = "smtp";
 pub const QBITTORRENT: &str = "qbittorrent";
 pub const SABNZBD: &str = "sabnzbd";
 pub const TRANSMISSION: &str = "transmission";
@@ -37,6 +38,7 @@ pub const SMTP_PORT: &str = "smtp_port";
 pub const SMTP_USERNAME: &str = "smtp_username";
 pub const SMTP_PASSWORD: &str = "smtp_password";
 pub const SMTP_FROM: &str = "smtp_from";
+pub const SMTP_REPLY_TO: &str = "smtp_reply_to";
 pub const SMTP_ENCRYPTION: &str = "smtp_encryption";
 
 pub const SMTP_ENCRYPTION_STARTTLS: &str = "starttls";

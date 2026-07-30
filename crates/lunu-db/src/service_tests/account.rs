@@ -9,15 +9,17 @@ async fn update_email_validates_and_normalizes() {
 		.setup_first_admin("admin", "password123", None)
 		.await
 		.unwrap();
-	let users = UserService::new(
-		Arc::new(SqlxUserRepo::new(db.clone())),
-		Arc::new(SqlxSessionRepo::new(db.clone())),
-		Arc::new(SqlxUserSettingsRepo::new(db.clone())),
-	);
+	let users = user_service(&db);
 
 	assert!(matches!(
 		users
-			.update_profile(&admin.user.id, Some("not-an-email".to_string()), None, None)
+			.update_profile(
+				&admin.user.id,
+				Some("not-an-email".to_string()),
+				None,
+				None,
+				None
+			)
 			.await,
 		Err(Error::Validation(_))
 	));
@@ -28,6 +30,7 @@ async fn update_email_validates_and_normalizes() {
 			Some("  me@example.com  ".to_string()),
 			None,
 			Some("en".to_string()),
+			None,
 		)
 		.await
 		.unwrap();
@@ -35,11 +38,48 @@ async fn update_email_validates_and_normalizes() {
 	assert_eq!(updated.locale.as_deref(), Some("en-US"));
 
 	let cleared = users
-		.update_profile(&admin.user.id, None, None, None)
+		.update_profile(&admin.user.id, None, None, None, None)
 		.await
 		.unwrap();
 	assert_eq!(cleared.email, None);
 	assert_eq!(cleared.locale, None);
+}
+
+#[tokio::test]
+async fn notify_email_opt_out_persists_and_defaults_on() {
+	let db = memory_db().await;
+	let auth = auth_service(&db);
+	let admin = auth
+		.setup_first_admin("admin", "password123", None)
+		.await
+		.unwrap();
+	let users = user_service(&db);
+
+	assert!(admin.user.notify_email, "notification email defaults on");
+
+	let opted_out = users
+		.update_profile(&admin.user.id, None, None, None, Some(false))
+		.await
+		.unwrap();
+	assert!(!opted_out.notify_email);
+	assert!(
+		!users
+			.get(&admin.user.id)
+			.await
+			.unwrap()
+			.unwrap()
+			.notify_email,
+		"the opt-out is persisted, not just returned"
+	);
+
+	let unchanged = users
+		.update_profile(&admin.user.id, None, Some("Admin".to_string()), None, None)
+		.await
+		.unwrap();
+	assert!(
+		!unchanged.notify_email,
+		"omitting notify_email leaves the prior choice intact"
+	);
 }
 
 #[tokio::test]
@@ -189,6 +229,7 @@ async fn duplicate_username_is_conflict_not_db_error() {
 		locale: None,
 		enabled: true,
 		email_verified: true,
+		notify_email: true,
 		created_at: now,
 		updated_at: now,
 	};

@@ -86,6 +86,14 @@ pub(super) fn user_service(db: &Db) -> UserService {
 	)
 }
 
+pub(super) fn invite_service(db: &Db) -> InviteService {
+	InviteService::new(
+		Arc::new(SqlxInviteRepo::new(db.clone())),
+		Arc::new(NoopMailer),
+		settings_service(db),
+	)
+}
+
 pub(super) fn caller(id: &str, role: Role) -> User {
 	let now = Utc::now();
 	User {
@@ -100,6 +108,7 @@ pub(super) fn caller(id: &str, role: Role) -> User {
 		locale: None,
 		enabled: true,
 		email_verified: true,
+		notify_email: true,
 		created_at: now,
 		updated_at: now,
 	}

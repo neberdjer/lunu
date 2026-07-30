@@ -160,6 +160,7 @@ async fn sessions_page_and_count_scope_to_the_user() {
 				oidc_subject: None,
 				enabled: true,
 				email_verified: false,
+				notify_email: true,
 				created_at: now,
 				updated_at: now,
 			})

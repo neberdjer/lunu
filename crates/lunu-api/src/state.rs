@@ -6,7 +6,9 @@ use lunu_core::consts::auth::{
 	AUTH_RATE_LIMIT_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECS, METADATA_RATE_LIMIT_ATTEMPTS,
 	METADATA_RATE_LIMIT_WINDOW_SECS,
 };
-use lunu_core::consts::crypto::{MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT};
+use lunu_core::consts::crypto::{
+	MFA_ENCRYPTION_CONTEXT, SETTINGS_ENCRYPTION_CONTEXT, UNSUBSCRIBE_ENCRYPTION_CONTEXT,
+};
 use lunu_core::crypto::Encryptor;
 use lunu_core::services::{
 	ActivityService, ApiKeyService, AuthService, ClientRoster, GrabService, ImportService,
@@ -20,12 +22,14 @@ use lunu_db::Db;
 use lunu_db::repos::{
 	SqlxActivityRepo, SqlxApiKeyRepo, SqlxBlocklistRepo, SqlxDownloadRepo,
 	SqlxEmailVerificationRepo, SqlxInviteRepo, SqlxIssueRepo, SqlxJobRepo, SqlxMediaRepo,
-	SqlxMetadataCacheRepo, SqlxMfaRecoveryCodeRepo, SqlxPasswordResetRepo, SqlxQualityProfileRepo,
-	SqlxRequestRepo, SqlxScheduleRepo, SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo,
-	SqlxUserNotificationRepo, SqlxUserRepo, SqlxUserSettingsRepo, SqlxWatchRepo, SqlxWorkRepo,
+	SqlxMetadataCacheRepo, SqlxMfaRecoveryCodeRepo, SqlxNotificationDeliveryRepo,
+	SqlxPasswordResetRepo, SqlxQualityProfileRepo, SqlxRequestRepo, SqlxScheduleRepo,
+	SqlxSessionRepo, SqlxSettingsRepo, SqlxUserMfaRepo, SqlxUserNotificationRepo, SqlxUserRepo,
+	SqlxUserSettingsRepo, SqlxWatchRepo, SqlxWorkRepo,
 };
 
 use crate::hub::EventHub;
+use crate::log_control::LogControl;
 use crate::rate_limit::RateLimiter;
 use crate::rosters;
 use lunu_integrations::audio::FfmpegMerger;
@@ -33,32 +37,6 @@ use lunu_integrations::auth::{AudiobookshelfProvider, OidcClient};
 use lunu_integrations::indexer::ProwlarrClient;
 use lunu_integrations::library::{AbsLibrary, FileSidecarWriter, HardlinkImporter};
 use lunu_integrations::notify::{EmailNotifier, NtfyChannel, SmtpMailer, WebhookChannel};
-
-pub struct LogControl {
-	setter: Box<dyn Fn(&str) -> bool + Send + Sync>,
-	current: std::sync::RwLock<String>,
-}
-
-impl LogControl {
-	pub fn new(initial: &str, setter: Box<dyn Fn(&str) -> bool + Send + Sync>) -> Self {
-		Self {
-			setter,
-			current: std::sync::RwLock::new(initial.to_string()),
-		}
-	}
-
-	pub fn set(&self, level: &str) -> bool {
-		let applied = (self.setter)(level);
-		if applied {
-			*self.current.write().expect("log level lock") = level.to_string();
-		}
-		applied
-	}
-
-	pub fn current(&self) -> String {
-		self.current.read().expect("log level lock").clone()
-	}
-}
 
 pub struct AppState {
 	pub db: Db,
@@ -79,6 +57,8 @@ pub struct AppState {
 	pub quality_profiles: Arc<QualityProfileService>,
 	pub grabs: Arc<GrabService>,
 	pub download_clients: ClientRoster,
+	pub mailer: Arc<dyn Mailer>,
+	pub unsubscribe: Encryptor,
 	pub jobs: Arc<JobService>,
 	pub scheduler: Arc<SchedulerService>,
 	pub monitor: Arc<MonitorService>,
@@ -144,7 +124,11 @@ impl AppState {
 			user_settings_repo.clone(),
 		));
 		let api_keys = Arc::new(ApiKeyService::new(api_keys_repo));
-		let invites = Arc::new(InviteService::new(invites_repo));
+		let invites = Arc::new(InviteService::new(
+			invites_repo,
+			mailer.clone(),
+			settings.clone(),
+		));
 
 		let metadata = Arc::new(MetadataService::new(
 			rosters::metadata_providers(&settings),
@@ -248,18 +232,23 @@ impl AppState {
 			Arc::new(FileSidecarWriter::new()),
 		));
 
-		let notifications = Arc::new(NotificationService::new(vec![
-			Arc::new(WebhookChannel::generic(settings.clone())),
-			Arc::new(WebhookChannel::discord(settings.clone())),
-			Arc::new(WebhookChannel::slack(settings.clone())),
-			Arc::new(WebhookChannel::apprise(settings.clone())),
-			Arc::new(NtfyChannel::new(settings.clone())),
-			Arc::new(EmailNotifier::new(
-				mailer.clone(),
-				users_repo,
-				settings.clone(),
-			)),
-		]));
+		let unsubscribe = Encryptor::new(&config.master_key, UNSUBSCRIBE_ENCRYPTION_CONTEXT)?;
+		let notifications = Arc::new(NotificationService::new(
+			vec![
+				Arc::new(WebhookChannel::generic(settings.clone())),
+				Arc::new(WebhookChannel::discord(settings.clone())),
+				Arc::new(WebhookChannel::slack(settings.clone())),
+				Arc::new(WebhookChannel::apprise(settings.clone())),
+				Arc::new(NtfyChannel::new(settings.clone())),
+				Arc::new(EmailNotifier::new(
+					mailer.clone(),
+					users_repo,
+					settings.clone(),
+					unsubscribe.clone(),
+				)),
+			],
+			Arc::new(SqlxNotificationDeliveryRepo::new(db.clone())),
+		));
 
 		Ok(Self {
 			db,
@@ -280,6 +269,8 @@ impl AppState {
 			quality_profiles,
 			grabs,
 			download_clients,
+			mailer,
+			unsubscribe,
 			jobs,
 			monitor,
 			imports,

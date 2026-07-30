@@ -156,6 +156,7 @@ pub(crate) fn build_provisioned_user(user: ProvisionedUser, role: Role) -> User 
 		oidc_subject: user.oidc_subject,
 		enabled: true,
 		email_verified: true,
+		notify_email: true,
 		created_at: now,
 		updated_at: now,
 	}
@@ -196,6 +197,7 @@ pub(crate) async fn build_local_user(
 		oidc_subject: None,
 		enabled: true,
 		email_verified: false,
+		notify_email: true,
 		created_at: now,
 		updated_at: now,
 	})

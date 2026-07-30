@@ -91,6 +91,7 @@ impl UserService {
 		email: Option<String>,
 		display_name: Option<String>,
 		locale: Option<String>,
+		notify_email: Option<bool>,
 	) -> Result<User> {
 		let mut user = require_user(self.users.as_ref(), id).await?;
 
@@ -101,6 +102,9 @@ impl UserService {
 		user.email = new_email;
 		user.display_name = nonempty(display_name);
 		user.locale = validate_locale(locale)?;
+		if let Some(notify_email) = notify_email {
+			user.notify_email = notify_email;
+		}
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 		Ok(user)
@@ -108,6 +112,13 @@ impl UserService {
 
 	pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<User> {
 		self.admin_update(id, Some(enabled), None, None, None).await
+	}
+
+	pub async fn set_notify_email(&self, id: &str, notify_email: bool) -> Result<()> {
+		let mut user = require_user(self.users.as_ref(), id).await?;
+		user.notify_email = notify_email;
+		user.updated_at = Utc::now();
+		self.users.update(&user).await
 	}
 
 	pub async fn admin_update(

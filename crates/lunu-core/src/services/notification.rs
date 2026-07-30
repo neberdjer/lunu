@@ -1,7 +1,8 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::models::{NotificationEvent, NotificationKind};
-use crate::repo::UserRepo;
+use crate::repo::{NotificationDeliveryRepo, UserRepo};
 use crate::traits::Notifier;
 use crate::{Error, Result};
 
@@ -22,39 +23,58 @@ pub struct DispatchReport {
 	pub last_error: Option<Error>,
 }
 
-impl DispatchReport {
-	pub fn total_failure(&self) -> bool {
-		self.delivered == 0 && self.failed > 0
-	}
-}
-
 pub struct NotificationService {
 	notifiers: Vec<Arc<dyn Notifier>>,
+	deliveries: Arc<dyn NotificationDeliveryRepo>,
 }
 
 impl NotificationService {
-	pub fn new(notifiers: Vec<Arc<dyn Notifier>>) -> Self {
-		Self { notifiers }
+	pub fn new(
+		notifiers: Vec<Arc<dyn Notifier>>,
+		deliveries: Arc<dyn NotificationDeliveryRepo>,
+	) -> Self {
+		Self {
+			notifiers,
+			deliveries,
+		}
 	}
 
-	pub async fn dispatch(&self, event: &NotificationEvent) -> Result<DispatchReport> {
+	pub async fn dispatch(
+		&self,
+		job_id: &str,
+		event: &NotificationEvent,
+	) -> Result<DispatchReport> {
+		let already: HashSet<String> = self
+			.deliveries
+			.delivered_channels(job_id)
+			.await?
+			.into_iter()
+			.collect();
 		let mut report = DispatchReport {
-			delivered: 0,
+			delivered: already.len(),
 			failed: 0,
 			last_error: None,
 		};
 
 		let mut sending = tokio::task::JoinSet::new();
 		for notifier in &self.notifiers {
+			if already.contains(notifier.id()) {
+				continue;
+			}
 			let notifier = notifier.clone();
 			let event = event.clone();
-			sending.spawn(async move { notifier.deliver(&event).await });
+			let channel = notifier.id().to_string();
+			sending.spawn(async move { (channel, notifier.deliver(&event).await) });
 		}
 
+		let mut delivered = Vec::new();
 		while let Some(finished) = sending.join_next().await {
 			match finished {
-				Ok(Ok(())) => report.delivered += 1,
-				Ok(Err(error)) => {
+				Ok((channel, Ok(()))) => {
+					report.delivered += 1;
+					delivered.push(channel);
+				}
+				Ok((_, Err(error))) => {
 					report.failed += 1;
 					report.last_error = Some(error);
 				}
@@ -66,6 +86,18 @@ impl NotificationService {
 				}
 			}
 		}
+
+		if report.failed > 0 {
+			for channel in delivered {
+				self.deliveries.record(job_id, &channel).await?;
+			}
+		} else if !already.is_empty() {
+			self.deliveries.clear(job_id).await?;
+		}
 		Ok(report)
+	}
+
+	pub async fn prune_orphaned_deliveries(&self) -> Result<u64> {
+		self.deliveries.prune_orphaned().await
 	}
 }

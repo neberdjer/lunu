@@ -174,10 +174,7 @@ impl AuthService {
 		};
 		let locale = lunu_i18n::negotiate(accept_language, user.locale.as_deref());
 		let rendered = email::mfa_code(&locale, code, MFA_TICKET_TTL_MINUTES);
-		let _ = self
-			.mailer
-			.send(&address, &rendered.subject, &rendered.html)
-			.await;
+		let _ = self.mailer.send(&address, &rendered).await;
 		Ok(())
 	}
 }

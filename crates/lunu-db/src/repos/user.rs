@@ -39,6 +39,7 @@ fn map_user(row: &AnyRow) -> Result<User> {
 		oidc_subject: row.try_get("oidc_subject").map_err(db_error)?,
 		enabled: int_to_bool(enabled),
 		email_verified: int_to_bool(email_verified),
+		notify_email: int_to_bool(row.try_get("notify_email").map_err(db_error)?),
 		created_at: parse_dt(&created_at)?,
 		updated_at: parse_dt(&updated_at)?,
 	})
@@ -49,8 +50,8 @@ impl UserRepo for SqlxUserRepo {
 	async fn create(&self, user: &User) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, locale, password_hash, role, auth_source, oidc_subject, enabled, email_verified, created_at, updated_at) \
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, oidc_subject, enabled, email_verified, notify_email, created_at, updated_at) \
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
 		)
 		.bind(&user.id)
 		.bind(&user.username)
@@ -63,6 +64,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.oidc_subject.as_deref())
 		.bind(bool_to_int(user.enabled))
 		.bind(bool_to_int(user.email_verified))
+		.bind(bool_to_int(user.notify_email))
 		.bind(format_dt(user.created_at))
 		.bind(format_dt(user.updated_at))
 		.execute(&self.db)
@@ -74,8 +76,8 @@ impl UserRepo for SqlxUserRepo {
 	async fn create_initial_admin(&self, user: &User) -> Result<bool> {
 		let result = sqlx::query(
 			"INSERT INTO users \
-			 (id, username, email, display_name, locale, password_hash, role, auth_source, oidc_subject, enabled, email_verified, created_at, updated_at) \
-			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 \
+			 (id, username, email, display_name, locale, password_hash, role, auth_source, oidc_subject, enabled, email_verified, notify_email, created_at, updated_at) \
+			 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 \
 			 WHERE NOT EXISTS (SELECT 1 FROM users)",
 		)
 		.bind(&user.id)
@@ -89,6 +91,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.oidc_subject.as_deref())
 		.bind(bool_to_int(user.enabled))
 		.bind(bool_to_int(user.email_verified))
+		.bind(bool_to_int(user.notify_email))
 		.bind(format_dt(user.created_at))
 		.bind(format_dt(user.updated_at))
 		.execute(&self.db)
@@ -116,7 +119,7 @@ impl UserRepo for SqlxUserRepo {
 			"UPDATE users SET \
 			 username = $1, email = $2, display_name = $3, locale = $4, password_hash = $5, \
 			 role = $6, auth_source = $7, oidc_subject = $8, enabled = $9, email_verified = $10, \
-			 updated_at = $11 WHERE id = $12",
+			 notify_email = $11, updated_at = $12 WHERE id = $13",
 		)
 		.bind(&user.username)
 		.bind(user.email.as_deref())
@@ -128,6 +131,7 @@ impl UserRepo for SqlxUserRepo {
 		.bind(user.oidc_subject.as_deref())
 		.bind(bool_to_int(user.enabled))
 		.bind(bool_to_int(user.email_verified))
+		.bind(bool_to_int(user.notify_email))
 		.bind(format_dt(user.updated_at))
 		.bind(&user.id)
 		.execute(&self.db)
@@ -251,6 +255,7 @@ mod tests {
 			oidc_subject: None,
 			enabled: true,
 			email_verified: true,
+			notify_email: true,
 			created_at: now,
 			updated_at: now,
 		}

@@ -1,5 +1,5 @@
 use lunu_core::consts::settings::REQUIRE_EMAIL_VERIFICATION;
-use lunu_core::services::{InviteService, Registration};
+use lunu_core::services::Registration;
 
 use super::builders::*;
 use super::*;
@@ -90,7 +90,7 @@ async fn register_with_gate_pends_and_sends_welcome_and_verification() {
 		.setup_first_admin("admin", "password123", None)
 		.await
 		.unwrap();
-	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+	let invites = invite_service(&db);
 	let issued = invites
 		.create(
 			&admin.user.id,
@@ -120,7 +120,7 @@ async fn disabled_gate_registers_active_with_welcome_only() {
 		.setup_first_admin("admin", "password123", None)
 		.await
 		.unwrap();
-	let invites = InviteService::new(Arc::new(SqlxInviteRepo::new(db.clone())));
+	let invites = invite_service(&db);
 	let issued = invites
 		.create(
 			&admin.user.id,
@@ -185,7 +185,13 @@ async fn changing_email_resets_verified_flag() {
 		.unwrap();
 
 	let updated = users
-		.update_profile(&user.id, Some("b@example.com".to_string()), None, None)
+		.update_profile(
+			&user.id,
+			Some("b@example.com".to_string()),
+			None,
+			None,
+			None,
+		)
 		.await
 		.unwrap();
 	assert!(!updated.email_verified);

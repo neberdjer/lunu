@@ -16,6 +16,7 @@ mod schedules;
 mod settings;
 mod setup;
 mod system;
+mod unsubscribe;
 mod users;
 mod watches;
 mod ws;
@@ -26,6 +27,7 @@ pub fn configure(cfg: &mut ServiceConfig) {
 	cfg.service(health::health)
 		.service(setup::status)
 		.service(setup::create)
+		.service(unsubscribe::unsubscribe)
 		.service(auth::login)
 		.service(auth::mfa_verify)
 		.service(auth::mfa::status)
