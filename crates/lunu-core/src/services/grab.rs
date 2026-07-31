@@ -101,7 +101,13 @@ impl GrabService {
 			created_at: now,
 			updated_at: now,
 		};
-		self.downloads.create(&download).await?;
+		self.downloads
+			.create(&download)
+			.await
+			.map_err(|error| match error {
+				Error::Conflict(_) => Error::Conflict(reasons::DOWNLOAD_IN_PROGRESS.to_string()),
+				other => other,
+			})?;
 
 		self.finalize(request_id, download).await
 	}

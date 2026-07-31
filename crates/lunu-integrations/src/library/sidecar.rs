@@ -6,6 +6,9 @@ use lunu_core::Result;
 use lunu_core::consts::library::{COVER_FILE, METADATA_OPF_FILE};
 use lunu_core::traits::{Sidecar, SidecarWriter};
 
+use crate::guard::{
+	MAX_FETCH_BYTES, bounded_bytes, guarded_redirect, public_only_dns, url_is_allowed,
+};
 use crate::http::send_with_retry;
 use crate::integration_error;
 
@@ -25,19 +28,27 @@ impl Default for FileSidecarWriter {
 impl FileSidecarWriter {
 	pub fn new() -> Self {
 		Self {
+			// Cover URLs come from community-editable metadata, so the fetch is guarded against
+			// SSRF (blocks internal/reserved addresses, even across redirects) and capped in size.
 			client: crate::http_client_builder(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+				.redirect(guarded_redirect(3))
+				.dns_resolver(public_only_dns())
 				.build()
 				.expect("reqwest client builds with static configuration"),
 		}
 	}
 
 	async fn cover(&self, url: &str) -> Result<Vec<u8>> {
+		let parsed =
+			reqwest::Url::parse(url).map_err(|_| integration_error("invalid cover url"))?;
+		if !url_is_allowed(&parsed) {
+			return Err(integration_error("cover url points at a blocked address"));
+		}
 		let response = send_with_retry(|| self.client.get(url))
 			.await?
 			.error_for_status()
 			.map_err(integration_error)?;
-		let bytes = response.bytes().await.map_err(integration_error)?;
-		Ok(bytes.to_vec())
+		bounded_bytes(response, MAX_FETCH_BYTES).await
 	}
 }
 
@@ -72,7 +83,24 @@ async fn exists(path: &Path) -> bool {
 }
 
 fn replace(target: &Path, body: &[u8]) -> Result<()> {
+	use std::io::Write;
 	let staging = target.with_extension(STAGING_SUFFIX);
-	std::fs::write(&staging, body).map_err(integration_error)?;
+	let mut file = match std::fs::OpenOptions::new()
+		.write(true)
+		.create_new(true)
+		.open(&staging)
+	{
+		Ok(file) => file,
+		Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+			std::fs::remove_file(&staging).map_err(integration_error)?;
+			std::fs::OpenOptions::new()
+				.write(true)
+				.create_new(true)
+				.open(&staging)
+				.map_err(integration_error)?
+		}
+		Err(error) => return Err(integration_error(error)),
+	};
+	file.write_all(body).map_err(integration_error)?;
 	std::fs::rename(&staging, target).map_err(integration_error)
 }

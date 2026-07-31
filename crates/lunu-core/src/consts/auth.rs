@@ -2,6 +2,7 @@ pub const SESSION_TTL_DAYS: i64 = 30;
 pub const SESSION_COOKIE: &str = "lunu_session";
 
 pub const PASSWORD_MIN_LEN: usize = 8;
+pub const PASSWORD_MAX_LEN: usize = 1024;
 pub const USERNAME_MAX_LEN: usize = 64;
 pub const PASSWORD_RESET_TTL_MINUTES: i64 = 15;
 pub const PASSWORD_RESET_CODE_DIGITS: u32 = 6;
@@ -13,8 +14,10 @@ pub const EMAIL_VERIFICATION_CODE_DIGITS: u32 = 6;
 pub const EMAIL_VERIFICATION_MAX_ATTEMPTS: i64 = 5;
 pub const EMAIL_VERIFICATION_COOLDOWN_SECONDS: i64 = 120;
 
+pub const SCOPE_READ: &str = "read";
+pub const SCOPE_WRITE: &str = "write";
 pub const SCOPE_ADMIN: &str = "admin";
-pub const KNOWN_API_KEY_SCOPES: &[&str] = &[SCOPE_ADMIN];
+pub const KNOWN_API_KEY_SCOPES: &[&str] = &[SCOPE_READ, SCOPE_WRITE, SCOPE_ADMIN];
 
 pub const API_KEY_PREFIX: &str = "lunu";
 pub const API_KEY_DISPLAY_LEN: usize = 12;

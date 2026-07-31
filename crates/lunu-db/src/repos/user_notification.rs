@@ -122,4 +122,13 @@ impl UserNotificationRepo for SqlxUserNotificationRepo {
 		.map_err(db_error)?;
 		Ok(result.rows_affected())
 	}
+
+	async fn delete_before(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+		let result = sqlx::query("DELETE FROM user_notifications WHERE created_at < $1")
+			.bind(format_dt(cutoff))
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected())
+	}
 }

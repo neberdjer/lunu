@@ -1,10 +1,11 @@
 use actix_web::{HttpResponse, delete, get, post, web};
-use lunu_core::consts::auth::KNOWN_API_KEY_SCOPES;
+use lunu_core::Error;
+use lunu_core::consts::auth::{KNOWN_API_KEY_SCOPES, SCOPE_ADMIN};
 use serde::{Deserialize, Serialize};
 
 use crate::dto::{ApiKeyResponse, IssuedApiKeyResponse};
 use crate::error::ApiError;
-use crate::extract::AuthUser;
+use crate::extract::SessionUser;
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
@@ -26,7 +27,7 @@ struct ApiKeyList {
 #[utoipa::path(tag = "api-keys", params(PageParams), responses((status = 200, description = "Keys plus allowed scopes", body = ApiKeyList)))]
 #[get("/api-keys")]
 pub async fn list(
-	user: AuthUser,
+	user: SessionUser,
 	query: web::Query<PageParams>,
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
@@ -46,10 +47,13 @@ pub async fn list(
 #[utoipa::path(tag = "api-keys", request_body = CreateApiKeyRequest, responses((status = 201, description = "Key created; secret shown once", body = IssuedApiKeyResponse)))]
 #[post("/api-keys")]
 pub async fn create(
-	user: AuthUser,
+	user: SessionUser,
 	state: web::Data<AppState>,
 	body: web::Json<CreateApiKeyRequest>,
 ) -> Result<HttpResponse, ApiError> {
+	if body.scopes.iter().any(|scope| scope == SCOPE_ADMIN) && !user.role.is_admin() {
+		return Err(Error::Forbidden.into());
+	}
 	let expires_at = crate::expiry::resolve(body.expires_in_days)?;
 
 	let issued = state
@@ -66,7 +70,7 @@ pub async fn create(
 #[utoipa::path(tag = "api-keys", params(("id" = String, Path, description = "API key id")), responses((status = 204, description = "Key revoked")))]
 #[delete("/api-keys/{id}")]
 pub async fn delete(
-	user: AuthUser,
+	user: SessionUser,
 	state: web::Data<AppState>,
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {

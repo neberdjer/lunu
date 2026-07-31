@@ -34,7 +34,7 @@ pub async fn connect(database_url: &str) -> Result<Db> {
 	ensure_sqlite_parent(database_url)?;
 
 	let is_sqlite = is_sqlite_url(database_url);
-	AnyPoolOptions::new()
+	let pool = AnyPoolOptions::new()
 		.max_connections(DEFAULT_MAX_CONNECTIONS)
 		.after_connect(move |conn, _meta| {
 			Box::pin(async move {
@@ -46,7 +46,13 @@ pub async fn connect(database_url: &str) -> Result<Db> {
 		})
 		.connect(database_url)
 		.await
-		.map_err(db_error)
+		.map_err(db_error)?;
+
+	if let Some(path) = sqlite_path(database_url) {
+		harden_sqlite_permissions(&path);
+	}
+
+	Ok(pool)
 }
 
 async fn apply_sqlite_pragmas(conn: &mut sqlx::AnyConnection) -> sqlx::Result<()> {
@@ -93,25 +99,56 @@ fn is_sqlite_url(database_url: &str) -> bool {
 	database_url.starts_with("sqlite:")
 }
 
-fn ensure_sqlite_parent(database_url: &str) -> Result<()> {
+fn sqlite_path(database_url: &str) -> Option<String> {
 	if !is_sqlite_url(database_url) {
-		return Ok(());
+		return None;
 	}
 	let rest = database_url
 		.strip_prefix("sqlite://")
 		.or_else(|| database_url.strip_prefix("sqlite:"))
 		.unwrap_or_default();
-
 	let path_part = rest.split('?').next().unwrap_or(rest);
 	if path_part.is_empty() || path_part == ":memory:" {
-		return Ok(());
+		return None;
 	}
+	Some(path_part.to_string())
+}
 
-	if let Some(parent) = Path::new(path_part).parent()
+fn ensure_sqlite_parent(database_url: &str) -> Result<()> {
+	let Some(path_part) = sqlite_path(database_url) else {
+		return Ok(());
+	};
+
+	if let Some(parent) = Path::new(&path_part).parent()
 		&& !parent.as_os_str().is_empty()
 	{
 		std::fs::create_dir_all(parent).map_err(db_error)?;
+		restrict(parent, 0o700);
 	}
 
 	Ok(())
+}
+
+#[cfg(unix)]
+fn restrict(path: &Path, mode: u32) {
+	use std::os::unix::fs::PermissionsExt;
+	if let Err(error) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)) {
+		tracing::warn!(?path, %error, "could not restrict permissions on database file");
+	}
+}
+
+#[cfg(not(unix))]
+fn restrict(_path: &Path, _mode: u32) {}
+
+fn harden_sqlite_permissions(path_part: &str) {
+	let base = Path::new(path_part);
+	restrict(base, 0o600);
+	for suffix in ["-wal", "-shm"] {
+		let mut sidecar = base.as_os_str().to_owned();
+		sidecar.push(suffix);
+		let sidecar = Path::new(&sidecar);
+		if sidecar.exists() {
+			restrict(sidecar, 0o600);
+		}
+	}
 }

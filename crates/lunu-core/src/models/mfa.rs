@@ -32,7 +32,7 @@ impl FromStr for MfaMethod {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct UserMfa {
 	pub user_id: String,
 	pub method: MfaMethod,
@@ -41,6 +41,20 @@ pub struct UserMfa {
 	pub last_totp_step: i64,
 	pub created_at: DateTime<Utc>,
 	pub updated_at: DateTime<Utc>,
+}
+
+impl std::fmt::Debug for UserMfa {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("UserMfa")
+			.field("user_id", &self.user_id)
+			.field("method", &self.method)
+			.field("secret", &self.secret.as_ref().map(|_| "<redacted>"))
+			.field("confirmed", &self.confirmed)
+			.field("last_totp_step", &self.last_totp_step)
+			.field("created_at", &self.created_at)
+			.field("updated_at", &self.updated_at)
+			.finish()
+	}
 }
 
 #[derive(Debug, Clone)]

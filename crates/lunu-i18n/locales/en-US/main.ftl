@@ -63,6 +63,7 @@ error-library-not-configured = No library directory is configured. Set the libra
 error-last-admin = You cannot disable or delete the last remaining admin.
 error-unknown-scope = That API key scope is not recognized.
 error-password-too-short = Your new password must be at least 8 characters.
+error-password-too-long = Your new password is too long. Use at most 1024 characters.
 error-password-not-local = This account does not use a local password.
 error-email-invalid = Enter a valid email address.
 error-unknown-setting = That setting is not recognized.
@@ -105,6 +106,7 @@ merge-skip-no-library-path = Lunu has no library path for this item, so there ar
 merge-skip-already-merged = This item was already merged, and the merged file is still in place.
 merge-skip-output-exists = A file of that name already exists, so Lunu left it alone.
 merge-skip-not-multi-file = This item is a single file already, so there is nothing to merge.
+merge-skip-too-many-sources = This item has too many files to merge safely, so Lunu left it alone.
 
 notification-request-pending = New request pending approval
 notification-request-approved = Request approved

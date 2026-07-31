@@ -71,7 +71,16 @@ async fn a_stale_monitor_cannot_fail_a_request_that_was_re_attempted() {
 	seed_download(&db, base).await;
 	let downloads = SqlxDownloadRepo::new(db.clone());
 
-	// a newer attempt supersedes d1
+	downloads
+		.update_status(
+			"d1",
+			DownloadState::Failed,
+			10,
+			base + chrono::Duration::seconds(30),
+		)
+		.await
+		.unwrap();
+
 	downloads
 		.create(&Download {
 			id: "d2".to_string(),

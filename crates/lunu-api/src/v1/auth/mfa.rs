@@ -1,10 +1,18 @@
 use actix_web::{HttpRequest, HttpResponse, delete, get, post, web};
+use lunu_core::consts::auth::SESSION_COOKIE;
 use lunu_core::models::MfaMethod;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
 use crate::extract::{AdminUser, AuthUser, accept_language};
 use crate::state::AppState;
+
+async fn current_session(req: &HttpRequest, state: &AppState) -> Result<Option<String>, ApiError> {
+	match req.cookie(SESSION_COOKIE) {
+		Some(cookie) => Ok(state.auth.current_session_id(cookie.value()).await?),
+		None => Ok(None),
+	}
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct EnrollRequest {
@@ -72,13 +80,15 @@ pub async fn enroll(
 #[utoipa::path(tag = "auth", request_body = ConfirmRequest, responses((status = 200, description = "Two-factor enabled, recovery codes issued", body = RecoveryCodesResponse)))]
 #[post("/auth/mfa/confirm")]
 pub async fn confirm(
+	req: HttpRequest,
 	user: AuthUser,
 	state: web::Data<AppState>,
 	body: web::Json<ConfirmRequest>,
 ) -> Result<HttpResponse, ApiError> {
+	let current = current_session(&req, &state).await?;
 	let recovery_codes = state
 		.auth
-		.mfa_confirm_enrollment(&user.0, &body.code)
+		.mfa_confirm_enrollment(&user.0, &body.code, current.as_deref())
 		.await?;
 	Ok(HttpResponse::Ok().json(RecoveryCodesResponse { recovery_codes }))
 }
@@ -95,8 +105,13 @@ pub async fn regenerate_recovery_codes(
 
 #[utoipa::path(tag = "auth", responses((status = 204, description = "Two-factor disabled")))]
 #[delete("/auth/mfa")]
-pub async fn disable(user: AuthUser, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-	state.auth.mfa_disable(&user.0).await?;
+pub async fn disable(
+	req: HttpRequest,
+	user: AuthUser,
+	state: web::Data<AppState>,
+) -> Result<HttpResponse, ApiError> {
+	let current = current_session(&req, &state).await?;
+	state.auth.mfa_disable(&user.0, current.as_deref()).await?;
 	Ok(HttpResponse::NoContent().finish())
 }
 

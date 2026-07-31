@@ -129,7 +129,7 @@ impl TransmissionClient {
 		}
 		let response = response.error_for_status().map_err(integration_error)?;
 
-		let parsed: RpcResponse = response.json().await.map_err(integration_error)?;
+		let parsed: RpcResponse = crate::http::bounded_json(response).await?;
 		if parsed.result != "success" {
 			return Err(Error::Integration(format!(
 				"transmission rejected the call: {}",

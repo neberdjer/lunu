@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use crate::Result;
+use crate::consts::jobs::ACTIVITY_RETENTION_DAYS;
 use crate::models::{Activity, ActivityTarget, LiveEvent};
 use crate::repo::ActivityRepo;
 use crate::services::new_id;
@@ -57,5 +58,10 @@ impl ActivityService {
 
 	pub async fn delete_for_request(&self, request_id: &str) -> Result<()> {
 		self.activity.delete_for_request(request_id).await
+	}
+
+	pub async fn prune_old(&self) -> Result<u64> {
+		let cutoff = Utc::now() - Duration::days(ACTIVITY_RETENTION_DAYS);
+		self.activity.delete_before(cutoff).await
 	}
 }

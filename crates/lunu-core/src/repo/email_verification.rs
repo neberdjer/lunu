@@ -7,7 +7,7 @@ use crate::models::EmailVerificationToken;
 pub trait EmailVerificationRepo: Send + Sync {
 	async fn create(&self, token: &EmailVerificationToken) -> Result<()>;
 	async fn find_for_user(&self, user_id: &str) -> Result<Option<EmailVerificationToken>>;
-	async fn increment_attempts(&self, id: &str) -> Result<()>;
+	async fn claim_attempt(&self, id: &str, max_attempts: i64) -> Result<bool>;
 	async fn delete(&self, id: &str) -> Result<()>;
 	async fn delete_for_user(&self, user_id: &str) -> Result<()>;
 }

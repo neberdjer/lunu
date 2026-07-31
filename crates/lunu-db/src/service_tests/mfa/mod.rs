@@ -17,7 +17,7 @@ async fn confirmed_totp(db: &Db) -> (AuthService, lunu_core::models::User, Vec<S
 		.await
 		.unwrap();
 	let recovery = auth
-		.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+		.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 	(auth, user, recovery)
@@ -77,10 +77,14 @@ async fn totp_enrollment_requires_a_valid_code_and_then_gates_login() {
 			.starts_with("otpauth://totp/")
 	);
 
-	assert!(auth.mfa_confirm_enrollment(&user, "000000").await.is_err());
+	assert!(
+		auth.mfa_confirm_enrollment(&user, "000000", None)
+			.await
+			.is_err()
+	);
 	assert!(!auth.mfa_status(&user).await.unwrap().enabled);
 
-	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 	let status = auth.mfa_status(&user).await.unwrap();
@@ -123,7 +127,7 @@ async fn a_used_ticket_cannot_be_replayed() {
 		.mfa_begin_enrollment(&user, MfaMethod::Totp)
 		.await
 		.unwrap();
-	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 
@@ -197,11 +201,11 @@ async fn disabling_the_factor_reopens_direct_login() {
 		.mfa_begin_enrollment(&user, MfaMethod::Totp)
 		.await
 		.unwrap();
-	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 
-	auth.mfa_disable(&user).await.unwrap();
+	auth.mfa_disable(&user, None).await.unwrap();
 	assert!(!auth.mfa_status(&user).await.unwrap().enabled);
 	assert!(matches!(
 		auth.login("admin", "password123").await.unwrap(),

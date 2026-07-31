@@ -15,6 +15,7 @@ impl StubFlow {
 				subject: subject.to_string(),
 				username: Some("alice".to_string()),
 				email: email.map(str::to_string),
+				email_verified: true,
 				display_name: Some("Alice".to_string()),
 			},
 		})
@@ -128,7 +129,11 @@ async fn a_callback_provisions_once_and_reuses_by_subject() {
 	let first = auth.oidc_callback(&state, "code", &binding).await.unwrap();
 	assert_eq!(first.user.username, "alice");
 	assert_eq!(first.user.auth_source, AuthSource::Oidc);
-	assert_eq!(first.user.oidc_subject.as_deref(), Some("sub-1"));
+	assert_eq!(
+		first.user.oidc_subject.as_deref(),
+		Some("https://idp\nsub-1"),
+		"the stored subject is scoped by issuer so a sub cannot cross issuers"
+	);
 
 	let (state, binding) = started(&auth).await;
 	let again = auth.oidc_callback(&state, "code", &binding).await.unwrap();
@@ -170,6 +175,23 @@ async fn an_existing_email_refuses_silent_linking() {
 	let (state, binding) = started(&auth).await;
 	let Err(error) = auth.oidc_callback(&state, "code", &binding).await else {
 		panic!("an idp asserting a known email must not take over the local account");
+	};
+	assert!(matches!(error, Error::Conflict(reason) if reason == "oidc-account-conflict"));
+}
+
+#[tokio::test]
+async fn a_differently_cased_email_still_refuses_linking() {
+	let db = memory_db().await;
+	let auth = oidc_auth(
+		&db,
+		StubFlow::for_subject("sub-1", Some("Admin@Example.COM")),
+	)
+	.await;
+	seed_local_user(&db, "admin", "admin@example.com").await;
+
+	let (state, binding) = started(&auth).await;
+	let Err(error) = auth.oidc_callback(&state, "code", &binding).await else {
+		panic!("email matching must be case-insensitive so a cased email cannot spawn a duplicate");
 	};
 	assert!(matches!(error, Error::Conflict(reason) if reason == "oidc-account-conflict"));
 }

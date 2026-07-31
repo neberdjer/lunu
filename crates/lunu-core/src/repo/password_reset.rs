@@ -7,7 +7,7 @@ use crate::models::PasswordResetToken;
 pub trait PasswordResetRepo: Send + Sync {
 	async fn create(&self, token: &PasswordResetToken) -> Result<()>;
 	async fn find_for_user(&self, user_id: &str) -> Result<Option<PasswordResetToken>>;
-	async fn increment_attempts(&self, id: &str) -> Result<()>;
+	async fn claim_attempt(&self, id: &str, max_attempts: i64) -> Result<bool>;
 	async fn delete(&self, id: &str) -> Result<()>;
 	async fn delete_for_user(&self, user_id: &str) -> Result<()>;
 }

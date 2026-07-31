@@ -18,14 +18,8 @@ pub async fn unsubscribe(
 	state: web::Data<AppState>,
 	token: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-	let user_id = state
-		.unsubscribe
-		.decrypt_token(&token.into_inner())
-		.map_err(|_| {
-			lunu_core::Error::Validation(
-				lunu_core::consts::reasons::UNSUBSCRIBE_TOKEN_INVALID.to_string(),
-			)
-		})?;
+	let user_id =
+		lunu_core::crypto::verify_unsubscribe_token(&state.unsubscribe, &token.into_inner())?;
 	state.users.set_notify_email(&user_id, false).await?;
 	Ok(HttpResponse::Ok().json(StatusResponse::new("unsubscribed")))
 }

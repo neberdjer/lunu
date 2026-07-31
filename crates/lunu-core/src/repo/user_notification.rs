@@ -17,4 +17,5 @@ pub trait UserNotificationRepo: Send + Sync {
 	async fn unread_count(&self, user_id: &str) -> Result<i64>;
 	async fn mark_read(&self, user_id: &str, id: &str, at: DateTime<Utc>) -> Result<bool>;
 	async fn mark_all_read(&self, user_id: &str, at: DateTime<Utc>) -> Result<u64>;
+	async fn delete_before(&self, cutoff: DateTime<Utc>) -> Result<u64>;
 }

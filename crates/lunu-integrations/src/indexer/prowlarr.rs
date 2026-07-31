@@ -73,7 +73,7 @@ impl Indexer for ProwlarrClient {
 		.await?;
 
 		let response = self.check_response(response)?;
-		let results: Vec<ProwlarrRelease> = response.json().await.map_err(integration_error)?;
+		let results: Vec<ProwlarrRelease> = crate::http::bounded_json(response).await?;
 		Ok(results
 			.into_iter()
 			.filter_map(ProwlarrRelease::into_release)

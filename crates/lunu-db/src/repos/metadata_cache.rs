@@ -61,6 +61,15 @@ impl MetadataCacheRepo for SqlxMetadataCacheRepo {
 		Ok(())
 	}
 
+	async fn delete_before(&self, cutoff: chrono::DateTime<chrono::Utc>) -> Result<u64> {
+		let result = sqlx::query("DELETE FROM metadata_cache WHERE fetched_at < $1")
+			.bind(format_dt(cutoff))
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected())
+	}
+
 	async fn put(&self, entry: &MetadataCacheEntry) -> Result<()> {
 		sqlx::query(
 			"INSERT INTO metadata_cache (provider, kind, key, payload, fetched_at) \

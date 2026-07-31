@@ -113,6 +113,9 @@ async fn main() -> ExitCode {
 		state.library.clone(),
 		state.auth.clone(),
 		state.jobs.clone(),
+		state.metadata.clone(),
+		state.activity.clone(),
+		state.inbox.clone(),
 	));
 	let worker_config = WorkerConfig::default();
 	let job_runtime = match lunu_jobs::job_runtime(worker_config.workers) {
@@ -147,6 +150,7 @@ async fn main() -> ExitCode {
 					.wrap(actix_web::middleware::from_fn(move |req, next| {
 						lunu_api::security_headers(req, next, hsts)
 					}))
+					.app_data(web::JsonConfig::default().limit(lunu_api::MAX_JSON_BODY_BYTES))
 					.app_data(state.clone())
 			})
 			.service(scope(api_scope.as_str()).configure(lunu_api::configure))

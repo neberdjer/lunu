@@ -140,6 +140,16 @@ impl SessionRepo for SqlxSessionRepo {
 		Ok(())
 	}
 
+	async fn delete_for_user_except(&self, user_id: &str, keep_id: &str) -> Result<()> {
+		sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND id != $2")
+			.bind(user_id)
+			.bind(keep_id)
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(())
+	}
+
 	async fn delete_scoped(&self, user_id: &str, id: &str) -> Result<bool> {
 		let result = sqlx::query("DELETE FROM sessions WHERE id = $1 AND user_id = $2")
 			.bind(id)

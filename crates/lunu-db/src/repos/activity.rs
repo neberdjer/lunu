@@ -88,4 +88,13 @@ impl ActivityRepo for SqlxActivityRepo {
 			.map_err(db_error)?;
 		Ok(())
 	}
+
+	async fn delete_before(&self, cutoff: chrono::DateTime<chrono::Utc>) -> Result<u64> {
+		let result = sqlx::query("DELETE FROM activity WHERE at < $1")
+			.bind(format_dt(cutoff))
+			.execute(&self.db)
+			.await
+			.map_err(db_error)?;
+		Ok(result.rows_affected())
+	}
 }

@@ -68,7 +68,7 @@ async fn fetch(client: &reqwest::Client, region: &str, asin: &str) -> Result<Vec
 	}
 
 	let response = response.error_for_status().map_err(integration_error)?;
-	let body: RelationshipsResponse = response.json().await.map_err(integration_error)?;
+	let body: RelationshipsResponse = crate::http::bounded_json(response).await?;
 	Ok(body.product.relationships)
 }
 

@@ -67,4 +67,15 @@ impl AuthService {
 		}
 		Ok(())
 	}
+
+	pub(super) async fn revoke_other_sessions(
+		&self,
+		user_id: &str,
+		keep: Option<&str>,
+	) -> Result<()> {
+		match keep {
+			Some(id) => self.sessions.delete_for_user_except(user_id, id).await,
+			None => self.sessions.delete_for_user(user_id).await,
+		}
+	}
 }

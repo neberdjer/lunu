@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use crate::Result;
+use crate::consts::jobs::NOTIFICATION_RETENTION_DAYS;
 use crate::models::{LiveEvent, NotificationEvent, UserNotification};
 use crate::repo::{UserNotificationRepo, UserRepo};
 use crate::services::{new_id, resolve_recipients};
@@ -75,5 +76,10 @@ impl NotificationInboxService {
 
 	pub async fn mark_all_read(&self, user_id: &str) -> Result<u64> {
 		self.repo.mark_all_read(user_id, Utc::now()).await
+	}
+
+	pub async fn prune_old(&self) -> Result<u64> {
+		let cutoff = Utc::now() - Duration::days(NOTIFICATION_RETENTION_DAYS);
+		self.repo.delete_before(cutoff).await
 	}
 }

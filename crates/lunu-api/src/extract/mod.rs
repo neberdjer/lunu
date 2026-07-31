@@ -2,9 +2,12 @@ use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
 
+use actix_web::http::Method;
 use actix_web::http::header::{ACCEPT_LANGUAGE, AUTHORIZATION, USER_AGENT};
 use actix_web::{FromRequest, HttpRequest, dev::Payload, web};
-use lunu_core::consts::auth::{API_KEY_HEADER, BEARER_PREFIX, SCOPE_ADMIN, SESSION_COOKIE};
+use lunu_core::consts::auth::{
+	API_KEY_HEADER, BEARER_PREFIX, SCOPE_ADMIN, SCOPE_READ, SCOPE_WRITE, SESSION_COOKIE,
+};
 use lunu_core::models::User;
 use lunu_core::{Error, Result};
 
@@ -39,10 +42,23 @@ impl FromRequest for AuthUser {
 		let req = req.clone();
 		Box::pin(async move {
 			let state = app_state(&req);
-			let (user, _scopes) = resolve_identity(&req, &state).await?;
+			let (user, scopes) = resolve_identity(&req, &state).await?;
+			if let Some(scopes) = &scopes
+				&& !key_scope_permits(scopes, req.method())
+			{
+				return Err(Error::Forbidden.into());
+			}
 			Ok(AuthUser(user))
 		})
 	}
+}
+
+fn key_scope_permits(scopes: &[String], method: &Method) -> bool {
+	let holds = |wanted: &str| scopes.iter().any(|scope| scope == wanted);
+	scopes.is_empty()
+		|| holds(SCOPE_ADMIN)
+		|| holds(SCOPE_WRITE)
+		|| (method.is_safe() && holds(SCOPE_READ))
 }
 
 impl FromRequest for AdminUser {
@@ -63,6 +79,35 @@ impl FromRequest for AdminUser {
 				return Err(Error::Forbidden.into());
 			}
 			Ok(AdminUser(user))
+		})
+	}
+}
+
+pub struct SessionUser(pub User);
+
+impl Deref for SessionUser {
+	type Target = User;
+
+	fn deref(&self) -> &User {
+		&self.0
+	}
+}
+
+impl FromRequest for SessionUser {
+	type Error = ApiError;
+	type Future = Pin<Box<dyn Future<Output = std::result::Result<Self, Self::Error>>>>;
+
+	fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+		let req = req.clone();
+		Box::pin(async move {
+			let state = app_state(&req);
+			if let Some(user) = user_from_session(&req, &state).await? {
+				return Ok(SessionUser(user));
+			}
+			if let Some(user) = user_from_forward_auth(&req, &state).await? {
+				return Ok(SessionUser(user));
+			}
+			Err(Error::Unauthorized.into())
 		})
 	}
 }
@@ -180,75 +225,4 @@ fn api_key_from_headers(req: &HttpRequest) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-	use std::net::{IpAddr, Ipv4Addr};
-
-	use actix_web::http::header::HeaderMap;
-	use lunu_config::BootstrapConfig;
-
-	use super::forward_auth_username;
-
-	fn config(header: Option<&str>, proxies: &[IpAddr]) -> BootstrapConfig {
-		BootstrapConfig {
-			bind: "127.0.0.1:8080".to_string(),
-			database_url: "sqlite::memory:".to_string(),
-			master_key: "test-master-key-value".to_string(),
-			workers: 1,
-			trusted_proxy_hops: 0,
-			trusted_client_ip_header: None,
-			secure_cookies: false,
-			url_base: String::new(),
-			forward_auth_header: header.map(str::to_string),
-			forward_auth_proxies: proxies.to_vec(),
-			shutdown_timeout_secs: 30,
-		}
-	}
-
-	fn headers(name: &str, value: &str) -> HeaderMap {
-		let mut map = HeaderMap::new();
-		map.insert(name.parse().unwrap(), value.parse().unwrap());
-		map
-	}
-
-	const PROXY: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
-	const STRANGER: IpAddr = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
-
-	#[test]
-	fn the_header_is_trusted_only_from_a_listed_proxy() {
-		let config = config(Some("remote-user"), &[PROXY]);
-		let headers = headers("remote-user", "alice");
-
-		assert_eq!(
-			forward_auth_username(&config, Some(PROXY), &headers).as_deref(),
-			Some("alice")
-		);
-		assert_eq!(
-			forward_auth_username(&config, Some(STRANGER), &headers),
-			None,
-			"a spoofed header from any other address must never authenticate"
-		);
-		assert_eq!(forward_auth_username(&config, None, &headers), None);
-	}
-
-	#[test]
-	fn forward_auth_stays_off_unless_fully_configured() {
-		let headers = headers("remote-user", "alice");
-		assert_eq!(
-			forward_auth_username(&config(None, &[PROXY]), Some(PROXY), &headers),
-			None
-		);
-		assert_eq!(
-			forward_auth_username(&config(Some("remote-user"), &[]), Some(PROXY), &headers),
-			None
-		);
-	}
-
-	#[test]
-	fn a_blank_asserted_username_is_ignored() {
-		let config = config(Some("remote-user"), &[PROXY]);
-		assert_eq!(
-			forward_auth_username(&config, Some(PROXY), &headers("remote-user", "  ")),
-			None
-		);
-	}
-}
+mod tests;

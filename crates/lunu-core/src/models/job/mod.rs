@@ -7,7 +7,9 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::consts::jobs::{RETRY_BASE_SECS, RETRY_MAX_SECS};
+use crate::consts::jobs::{
+	NOTIFY_MAX_ATTEMPTS, RETRY_BASE_SECS, RETRY_MAX_SECS, TRANSIENT_MAX_ATTEMPTS,
+};
 use crate::consts::reasons;
 use crate::{Error, Result};
 
@@ -111,6 +113,13 @@ impl JobType {
 			self,
 			JobType::LibrarySync | JobType::SessionCleanup | JobType::JobCleanup
 		)
+	}
+
+	pub fn transient_max_attempts(&self) -> i64 {
+		match self {
+			JobType::Notify => NOTIFY_MAX_ATTEMPTS,
+			_ => TRANSIENT_MAX_ATTEMPTS,
+		}
 	}
 
 	pub fn media_subject(&self) -> bool {

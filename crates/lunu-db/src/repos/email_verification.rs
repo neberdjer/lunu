@@ -62,13 +62,17 @@ impl EmailVerificationRepo for SqlxEmailVerificationRepo {
 		map_row_opt(row, map_token)
 	}
 
-	async fn increment_attempts(&self, id: &str) -> Result<()> {
-		sqlx::query("UPDATE email_verification_tokens SET attempts = attempts + 1 WHERE id = $1")
-			.bind(id)
-			.execute(&self.db)
-			.await
-			.map_err(db_error)?;
-		Ok(())
+	async fn claim_attempt(&self, id: &str, max_attempts: i64) -> Result<bool> {
+		let result = sqlx::query(
+			"UPDATE email_verification_tokens SET attempts = attempts + 1 \
+			 WHERE id = $1 AND attempts < $2",
+		)
+		.bind(id)
+		.bind(max_attempts)
+		.execute(&self.db)
+		.await
+		.map_err(db_error)?;
+		Ok(result.rows_affected() > 0)
 	}
 
 	async fn delete(&self, id: &str) -> Result<()> {

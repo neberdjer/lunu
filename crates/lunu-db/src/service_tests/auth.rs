@@ -90,6 +90,56 @@ async fn abs_credentials_cannot_unlock_local_account() {
 }
 
 #[tokio::test]
+async fn abs_credentials_cannot_log_in_an_oidc_account() {
+	let db = memory_db().await;
+	let mut oidc_user = caller("alice", Role::User);
+	oidc_user.auth_source = AuthSource::Oidc;
+	oidc_user.oidc_subject = Some("sub-alice".to_string());
+	SqlxUserRepo::new(db.clone())
+		.create(&oidc_user)
+		.await
+		.unwrap();
+
+	let provider = Arc::new(FakeAuthProvider {
+		username: "alice".to_string(),
+		password: "abspass".to_string(),
+		identity: ExternalIdentity {
+			username: "alice".to_string(),
+			email: None,
+		},
+	});
+	let auth = auth_service_with_provider(&db, provider);
+
+	assert!(
+		matches!(
+			auth.login("alice", "abspass").await,
+			Err(Error::Unauthorized)
+		),
+		"an ABS password must never authenticate an account owned by another provider"
+	);
+}
+
+#[tokio::test]
+async fn forward_auth_cannot_adopt_a_non_proxy_account() {
+	let db = memory_db().await;
+	SqlxUserRepo::new(db.clone())
+		.create(&caller("admin", Role::Admin))
+		.await
+		.unwrap();
+	let auth = auth_service(&db);
+
+	assert!(
+		matches!(auth.proxy_user("admin").await, Err(Error::Unauthorized)),
+		"a proxy-asserted username must not adopt an existing local/admin account"
+	);
+
+	let provisioned = auth.proxy_user("bob").await.unwrap();
+	assert_eq!(provisioned.auth_source, AuthSource::Proxy);
+	let again = auth.proxy_user("bob").await.unwrap();
+	assert_eq!(again.id, provisioned.id, "an existing proxy user is reused");
+}
+
+#[tokio::test]
 async fn auth_setup_login_validate_logout() {
 	let db = memory_db().await;
 	let auth = auth_service(&db);

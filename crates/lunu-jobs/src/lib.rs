@@ -7,7 +7,6 @@ use chrono::Utc;
 use lunu_core::consts::jobs::{
 	DEFAULT_MEDIA_WORKER_COUNT, DEFAULT_WORKER_COUNT, LEASE_RENEW_SECS, LEASE_TIMEOUT_SECS,
 	MAX_JOB_SECS, MIN_JOB_RUNTIME_THREADS, POLL_INTERVAL_MS, SCHEDULER_TICK_SECS,
-	TRANSIENT_MAX_ATTEMPTS,
 };
 use lunu_core::models::{Job, JobType};
 use lunu_core::repo::JobRepo;
@@ -121,7 +120,7 @@ async fn run_job(jobs: &Arc<dyn JobRepo>, handler: &Arc<dyn JobHandler>, mut job
 		Ok(()) => jobs.complete(&job.id, locked_by, now).await,
 		Err(error) => {
 			if error.is_transient() {
-				job.max_attempts = job.max_attempts.max(TRANSIENT_MAX_ATTEMPTS);
+				job.max_attempts = job.max_attempts.max(job.job_type.transient_max_attempts());
 			}
 			let error = error.to_string();
 			if job.should_retry() {

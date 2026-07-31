@@ -241,6 +241,7 @@ pub fn notification(
 	.render()
 	.expect("notification email template renders");
 
+	let title = title.replace(['\r', '\n'], " ");
 	RenderedEmail {
 		subject: format!("{summary}: {title}"),
 		text: wrap_text(locale, &[&message, link.unwrap_or_default()]),

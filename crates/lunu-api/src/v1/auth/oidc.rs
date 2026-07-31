@@ -1,6 +1,6 @@
 use actix_web::cookie::Cookie;
 use actix_web::cookie::time::Duration;
-use actix_web::{HttpRequest, HttpResponse, get, web};
+use actix_web::{HttpRequest, HttpResponse, ResponseError, get, web};
 use lunu_core::Error;
 use lunu_core::consts::auth::OIDC_STATE_TTL_MINS;
 use lunu_core::consts::reasons;
@@ -49,11 +49,15 @@ pub async fn callback(
 		.cookie(BINDING_COOKIE)
 		.map(|cookie| cookie.value().to_string())
 		.ok_or_else(|| Error::Validation(reasons::OIDC_STATE_INVALID.to_string()))?;
-	let authenticated = state
+	let cleared = binding_cookie(String::new(), &state, Duration::ZERO);
+	let mut response = match state
 		.auth
 		.oidc_callback(&query.state, &query.code, &binding)
-		.await?;
-	let mut response = authenticated_response_redirect(&authenticated, &state.config);
-	let _ = response.add_cookie(&binding_cookie(String::new(), &state, Duration::ZERO));
+		.await
+	{
+		Ok(authenticated) => authenticated_response_redirect(&authenticated, &state.config),
+		Err(error) => ApiError::from(error).error_response(),
+	};
+	let _ = response.add_cookie(&cleared);
 	Ok(response)
 }

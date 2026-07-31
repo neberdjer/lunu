@@ -63,7 +63,7 @@ impl DownloadRepo for SqlxDownloadRepo {
 		.bind(format_dt(download.updated_at))
 		.execute(&self.db)
 		.await
-		.map_err(db_error)?;
+		.map_err(crate::map_write_error)?;
 		Ok(())
 	}
 

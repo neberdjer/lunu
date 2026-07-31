@@ -7,7 +7,7 @@ use crate::consts::auth::{
 };
 use crate::consts::reasons;
 use crate::consts::settings::REQUIRE_EMAIL_VERIFICATION;
-use crate::crypto::{generate_numeric_code, hash_token};
+use crate::crypto::{constant_time_eq, generate_numeric_code, hash_token};
 use crate::email;
 use crate::models::{AuthSource, EmailVerificationToken, User};
 use crate::services::{new_id, nonempty, normalize_email};
@@ -78,13 +78,14 @@ impl AuthService {
 			self.email_verifications.delete(&record.id).await?;
 			return Err(invalid());
 		}
-		if record.attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS {
+		if !self
+			.email_verifications
+			.claim_attempt(&record.id, EMAIL_VERIFICATION_MAX_ATTEMPTS)
+			.await?
+		{
 			return Err(invalid());
 		}
-		if record.code_hash != hash_token(code) {
-			self.email_verifications
-				.increment_attempts(&record.id)
-				.await?;
+		if !constant_time_eq(&record.code_hash, &hash_token(code)) {
 			return Err(invalid());
 		}
 

@@ -21,5 +21,6 @@ pub trait SessionRepo: Send + Sync {
 	async fn delete(&self, id: &str) -> Result<()>;
 	async fn delete_scoped(&self, user_id: &str, id: &str) -> Result<bool>;
 	async fn delete_for_user(&self, user_id: &str) -> Result<()>;
+	async fn delete_for_user_except(&self, user_id: &str, keep_id: &str) -> Result<()>;
 	async fn delete_expired(&self, now: DateTime<Utc>) -> Result<()>;
 }

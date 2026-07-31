@@ -80,7 +80,7 @@ async fn disabling_the_factor_clears_its_recovery_codes() {
 	let db = memory_db().await;
 	let (auth, user, recovery) = confirmed_totp(&db).await;
 
-	auth.mfa_disable(&user).await.unwrap();
+	auth.mfa_disable(&user, None).await.unwrap();
 	let status = auth.mfa_status(&user).await.unwrap();
 	assert!(!status.enabled);
 	assert_eq!(
@@ -92,7 +92,7 @@ async fn disabling_the_factor_clears_its_recovery_codes() {
 		.mfa_begin_enrollment(&user, MfaMethod::Totp)
 		.await
 		.unwrap();
-	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 	let ticket = login_ticket(&auth).await;
@@ -132,7 +132,7 @@ async fn a_totp_code_cannot_be_replayed_on_a_second_login() {
 		.mfa_begin_enrollment(&user, MfaMethod::Totp)
 		.await
 		.unwrap();
-	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment))
+	auth.mfa_confirm_enrollment(&user, &current_totp(&enrollment), None)
 		.await
 		.unwrap();
 	let secret = enrollment.secret.as_deref().unwrap();

@@ -55,7 +55,7 @@ pub use work::WorkService;
 
 use chrono::Utc;
 
-use crate::consts::auth::{PASSWORD_MIN_LEN, USERNAME_MAX_LEN};
+use crate::consts::auth::{PASSWORD_MAX_LEN, PASSWORD_MIN_LEN, USERNAME_MAX_LEN};
 use crate::consts::reasons;
 use crate::crypto::hash_password_async;
 use crate::models::{AuthSource, Role, User};
@@ -66,6 +66,9 @@ use crate::{Error, Result};
 pub(crate) fn validate_password(password: &str) -> Result<()> {
 	if password.len() < PASSWORD_MIN_LEN {
 		return Err(Error::Validation(reasons::PASSWORD_TOO_SHORT.to_string()));
+	}
+	if password.len() > PASSWORD_MAX_LEN {
+		return Err(Error::Validation(reasons::PASSWORD_TOO_LONG.to_string()));
 	}
 	Ok(())
 }
@@ -98,7 +101,7 @@ pub(crate) fn normalize_email(email: Option<String>) -> Result<Option<String>> {
 	if !valid {
 		return Err(Error::Validation(reasons::EMAIL_INVALID.to_string()));
 	}
-	Ok(Some(trimmed.to_string()))
+	Ok(Some(trimmed.to_ascii_lowercase()))
 }
 
 pub fn new_id() -> String {
@@ -137,6 +140,7 @@ pub(crate) async fn require_user(users: &dyn UserRepo, id: &str) -> Result<User>
 pub(crate) struct ProvisionedUser {
 	pub username: String,
 	pub email: Option<String>,
+	pub email_verified: bool,
 	pub display_name: Option<String>,
 	pub auth_source: AuthSource,
 	pub oidc_subject: Option<String>,
@@ -155,11 +159,18 @@ pub(crate) fn build_provisioned_user(user: ProvisionedUser, role: Role) -> User 
 		auth_source: user.auth_source,
 		oidc_subject: user.oidc_subject,
 		enabled: true,
-		email_verified: true,
+		email_verified: user.email_verified,
 		notify_email: true,
 		created_at: now,
 		updated_at: now,
 	}
+}
+
+pub(crate) fn adopt_existing(user: User, expected: AuthSource) -> Result<User> {
+	if user.auth_source != expected {
+		return Err(Error::Unauthorized);
+	}
+	Ok(user)
 }
 
 pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> User {
@@ -167,6 +178,7 @@ pub(crate) fn build_external_user(identity: ExternalIdentity, role: Role) -> Use
 		ProvisionedUser {
 			username: identity.username,
 			email: identity.email,
+			email_verified: false,
 			display_name: None,
 			auth_source: AuthSource::Abs,
 			oidc_subject: None,

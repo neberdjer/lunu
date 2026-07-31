@@ -37,7 +37,7 @@ impl EmailNotifier {
 	}
 
 	async fn unsubscribe_link(&self, user_id: &str) -> Result<Option<String>> {
-		let token = self.unsubscribe.encrypt_token(user_id)?;
+		let token = lunu_core::crypto::mint_unsubscribe_token(&self.unsubscribe, user_id)?;
 		self.settings
 			.app_link(&format!("api/v1/unsubscribe/{token}"))
 			.await

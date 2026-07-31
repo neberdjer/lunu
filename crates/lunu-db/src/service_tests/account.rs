@@ -191,7 +191,7 @@ async fn api_key_issue_verify_revoke() {
 		.unwrap();
 
 	assert!(matches!(
-		keys.issue("user-1", "bad", vec!["read".to_string()], None)
+		keys.issue("user-1", "bad", vec!["superuser".to_string()], None)
 			.await,
 		Err(Error::Validation(_))
 	));

@@ -11,7 +11,7 @@ use lunu_core::services::{Authenticated, LoginOutcome, Registration};
 use crate::cookie::{authenticated_response, clear_session_cookie};
 use crate::dto::{SessionResponse, StatusResponse, UserResponse};
 use crate::error::ApiError;
-use crate::extract::{AuthUser, accept_language, user_agent};
+use crate::extract::{AuthUser, SessionUser, accept_language, user_agent};
 use crate::pagination::{Page, PageParams, Pagination};
 use crate::state::AppState;
 
@@ -201,7 +201,7 @@ pub async fn me(user: AuthUser) -> HttpResponse {
 #[utoipa::path(tag = "auth", request_body = UpdateProfileRequest, responses((status = 200, description = "Email updated", body = UserResponse)))]
 #[patch("/auth/me")]
 pub async fn update_me(
-	user: AuthUser,
+	user: SessionUser,
 	state: web::Data<AppState>,
 	body: web::Json<UpdateProfileRequest>,
 ) -> Result<HttpResponse, ApiError> {
@@ -223,7 +223,7 @@ pub async fn update_me(
 #[post("/auth/password")]
 pub async fn change_password(
 	req: HttpRequest,
-	user: AuthUser,
+	user: SessionUser,
 	state: web::Data<AppState>,
 	body: web::Json<ChangePasswordRequest>,
 ) -> Result<HttpResponse, ApiError> {
@@ -248,7 +248,7 @@ pub async fn change_password(
 #[get("/auth/sessions")]
 pub async fn sessions(
 	req: HttpRequest,
-	user: AuthUser,
+	user: SessionUser,
 	query: web::Query<PageParams>,
 	state: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
@@ -273,7 +273,7 @@ pub async fn sessions(
 #[utoipa::path(tag = "auth", params(("id" = String, Path, description = "Session id")), responses((status = 204, description = "Session revoked"), (status = 404, description = "Not found")))]
 #[delete("/auth/sessions/{id}")]
 pub async fn revoke_session(
-	user: AuthUser,
+	user: SessionUser,
 	state: web::Data<AppState>,
 	id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {

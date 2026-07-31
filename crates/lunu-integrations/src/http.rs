@@ -96,11 +96,23 @@ where
 	json_response(send_write(build).await?).await
 }
 
-async fn json_response<T: serde::de::DeserializeOwned>(response: reqwest::Response) -> Result<T> {
-	response
+pub(crate) async fn json_response<T: serde::de::DeserializeOwned>(
+	response: reqwest::Response,
+) -> Result<T> {
+	let response = response
 		.error_for_status()
-		.map_err(crate::integration_error)?
-		.json()
-		.await
-		.map_err(crate::integration_error)
+		.map_err(crate::integration_error)?;
+	bounded_json(response).await
+}
+
+pub(crate) async fn bounded_json<T: serde::de::DeserializeOwned>(
+	response: reqwest::Response,
+) -> Result<T> {
+	let body = crate::guard::bounded_bytes(response, crate::guard::MAX_FETCH_BYTES).await?;
+	serde_json::from_slice(&body).map_err(crate::integration_error)
+}
+
+pub(crate) async fn bounded_text(response: reqwest::Response) -> Result<String> {
+	let body = crate::guard::bounded_bytes(response, crate::guard::MAX_FETCH_BYTES).await?;
+	Ok(String::from_utf8_lossy(&body).into_owned())
 }

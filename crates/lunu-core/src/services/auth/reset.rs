@@ -6,7 +6,7 @@ use crate::consts::auth::{
 	PASSWORD_RESET_TTL_MINUTES,
 };
 use crate::consts::reasons;
-use crate::crypto::{generate_numeric_code, hash_password, hash_token};
+use crate::crypto::{constant_time_eq, generate_numeric_code, hash_password_async, hash_token};
 use crate::email;
 use crate::models::{AuthSource, PasswordResetToken};
 use crate::services::{new_id, normalize_email, validate_password};
@@ -70,11 +70,14 @@ impl AuthService {
 			self.reset_tokens.delete(&record.id).await?;
 			return Err(invalid());
 		}
-		if record.attempts >= PASSWORD_RESET_MAX_ATTEMPTS {
+		if !self
+			.reset_tokens
+			.claim_attempt(&record.id, PASSWORD_RESET_MAX_ATTEMPTS)
+			.await?
+		{
 			return Err(invalid());
 		}
-		if record.code_hash != hash_token(code) {
-			self.reset_tokens.increment_attempts(&record.id).await?;
+		if !constant_time_eq(&record.code_hash, &hash_token(code)) {
 			return Err(invalid());
 		}
 
@@ -83,7 +86,7 @@ impl AuthService {
 		}
 		validate_password(new_password)?;
 
-		user.password_hash = Some(hash_password(new_password)?);
+		user.password_hash = Some(hash_password_async(new_password).await?);
 		user.updated_at = Utc::now();
 		self.users.update(&user).await?;
 

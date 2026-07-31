@@ -2,6 +2,7 @@ pub mod cipher;
 pub mod password;
 pub mod token;
 pub mod totp;
+pub mod unsubscribe;
 
 pub use cipher::Encryptor;
 pub use password::{
@@ -12,3 +13,4 @@ pub use token::{
 	pkce_challenge,
 };
 pub use totp::{generate_totp_secret, totp_match_step, totp_matches};
+pub use unsubscribe::{mint_unsubscribe_token, verify_unsubscribe_token};

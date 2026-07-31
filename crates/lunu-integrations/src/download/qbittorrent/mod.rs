@@ -167,7 +167,7 @@ impl QbittorrentClient {
 			return Err(auth_failed());
 		}
 
-		let body = response.text().await.map_err(integration_error)?;
+		let body = crate::http::bounded_text(response).await?;
 		if body.trim() != OK_BODY {
 			return Err(auth_failed());
 		}
@@ -215,7 +215,7 @@ impl DownloadClient for QbittorrentClient {
 				.map_err(integration_error)?,
 		)?;
 
-		let body = response.text().await.map_err(integration_error)?;
+		let body = crate::http::bounded_text(response).await?;
 		if body.trim() != OK_BODY {
 			return Err(Error::Integration(format!(
 				"qbittorrent rejected the torrent: {}",
@@ -242,7 +242,7 @@ impl DownloadClient for QbittorrentClient {
 		.await?;
 		let response = self.check_response(response)?;
 
-		let torrents: Vec<TorrentInfo> = response.json().await.map_err(integration_error)?;
+		let torrents: Vec<TorrentInfo> = crate::http::bounded_json(response).await?;
 		Ok(select_torrent(torrents, &hashes))
 	}
 

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 
 use crate::Result;
 use crate::models::Activity;
@@ -10,4 +11,5 @@ pub trait ActivityRepo: Send + Sync {
 	async fn count(&self) -> Result<i64>;
 	async fn for_request(&self, request_id: &str) -> Result<Vec<Activity>>;
 	async fn delete_for_request(&self, request_id: &str) -> Result<()>;
+	async fn delete_before(&self, cutoff: DateTime<Utc>) -> Result<u64>;
 }

@@ -48,6 +48,7 @@ pub const LIBRARY_NOT_CONFIGURED: &str = "library-not-configured";
 pub const LAST_ADMIN: &str = "last-admin";
 pub const UNKNOWN_SCOPE: &str = "unknown-scope";
 pub const PASSWORD_TOO_SHORT: &str = "password-too-short";
+pub const PASSWORD_TOO_LONG: &str = "password-too-long";
 pub const PASSWORD_NOT_LOCAL: &str = "password-not-local";
 pub const EMAIL_INVALID: &str = "email-invalid";
 pub const UNKNOWN_SETTING: &str = "unknown-setting";
@@ -136,6 +137,7 @@ pub const ALL: &[&str] = &[
 	LAST_ADMIN,
 	UNKNOWN_SCOPE,
 	PASSWORD_TOO_SHORT,
+	PASSWORD_TOO_LONG,
 	PASSWORD_NOT_LOCAL,
 	EMAIL_INVALID,
 	UNKNOWN_SETTING,

@@ -19,9 +19,25 @@ const DISCOVERY_PATH: &str = "/.well-known/openid-configuration";
 
 #[derive(Deserialize)]
 struct Discovery {
+	issuer: String,
 	authorization_endpoint: String,
 	token_endpoint: String,
 	userinfo_endpoint: String,
+}
+
+fn issuer_is_secure(issuer: &str) -> bool {
+	if issuer.starts_with("https://") {
+		return true;
+	}
+	let Some(rest) = issuer.strip_prefix("http://") else {
+		return false;
+	};
+	let authority = rest.split('/').next().unwrap_or("");
+	let host = match authority.strip_prefix('[') {
+		Some(v6) => v6.split(']').next().unwrap_or(""),
+		None => authority.split(':').next().unwrap_or(""),
+	};
+	matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
 #[derive(Deserialize)]
@@ -34,6 +50,7 @@ struct UserInfo {
 	sub: String,
 	preferred_username: Option<String>,
 	email: Option<String>,
+	email_verified: Option<bool>,
 	name: Option<String>,
 }
 
@@ -57,8 +74,20 @@ impl OidcClient {
 
 	async fn discover(&self) -> Result<Discovery> {
 		let issuer = self.required(OIDC_ISSUER_URL).await?;
-		let url = format!("{}{DISCOVERY_PATH}", issuer.trim_end_matches('/'));
-		get_json(|| self.http.get(&url)).await
+		if !issuer_is_secure(&issuer) {
+			return Err(integration_error(
+				"oidc issuer must use https (http is allowed only for loopback)",
+			));
+		}
+		let issuer = issuer.trim_end_matches('/');
+		let url = format!("{issuer}{DISCOVERY_PATH}");
+		let discovery: Discovery = get_json(|| self.http.get(&url)).await?;
+		if discovery.issuer.trim_end_matches('/') != issuer {
+			return Err(integration_error(
+				"oidc discovery issuer does not match the configured issuer url",
+			));
+		}
+		Ok(discovery)
 	}
 
 	async fn scopes(&self) -> Result<String> {
@@ -125,6 +154,7 @@ impl OidcFlow for OidcClient {
 			subject: info.sub,
 			username: info.preferred_username,
 			email: info.email,
+			email_verified: info.email_verified.unwrap_or(false),
 			display_name: info.name,
 		})
 	}

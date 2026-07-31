@@ -47,6 +47,11 @@ impl MetadataService {
 			})
 			.await
 	}
+
+	pub async fn prune_stale_cache(&self) -> Result<u64> {
+		let cutoff = Utc::now() - Duration::days(METADATA_CACHE_TTL_DAYS);
+		self.cache.delete_before(cutoff).await
+	}
 }
 
 const MISS_PAYLOAD: &str = "null";

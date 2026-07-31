@@ -5,11 +5,18 @@ use lunu_core::models::{
 	GrabPayload, ImportPayload, Job, JobType, MergePayload, MonitorPayload, NotificationEvent,
 };
 use lunu_core::services::{
-	AuthService, GrabService, ImportService, JobService, LibraryService, MergeService,
-	MonitorService, NotificationService, RequestService,
+	ActivityService, AuthService, GrabService, ImportService, JobService, LibraryService,
+	MergeService, MetadataService, MonitorService, NotificationInboxService, NotificationService,
+	RequestService,
 };
 use lunu_core::traits::{JobHandler, MergeOutcome};
 use lunu_core::{Error, Result};
+
+fn note_pruned(count: u64, message: &'static str) {
+	if count > 0 {
+		tracing::info!(count, "{message}");
+	}
+}
 
 pub struct PipelineHandler {
 	grabs: Arc<GrabService>,
@@ -21,6 +28,9 @@ pub struct PipelineHandler {
 	library: Arc<LibraryService>,
 	auth: Arc<AuthService>,
 	jobs: Arc<JobService>,
+	metadata: Arc<MetadataService>,
+	activity: Arc<ActivityService>,
+	inbox: Arc<NotificationInboxService>,
 }
 
 impl PipelineHandler {
@@ -35,6 +45,9 @@ impl PipelineHandler {
 		library: Arc<LibraryService>,
 		auth: Arc<AuthService>,
 		jobs: Arc<JobService>,
+		metadata: Arc<MetadataService>,
+		activity: Arc<ActivityService>,
+		inbox: Arc<NotificationInboxService>,
 	) -> Self {
 		Self {
 			grabs,
@@ -46,6 +59,9 @@ impl PipelineHandler {
 			library,
 			auth,
 			jobs,
+			metadata,
+			activity,
+			inbox,
 		}
 	}
 
@@ -115,17 +131,26 @@ impl PipelineHandler {
 	}
 
 	async fn job_cleanup(&self) -> Result<()> {
-		let pruned = self.jobs.prune_finished().await?;
-		if pruned > 0 {
-			tracing::info!(pruned, "pruned finished jobs past the retention window");
-		}
-		let orphaned = self.notifications.prune_orphaned_deliveries().await?;
-		if orphaned > 0 {
-			tracing::info!(
-				orphaned,
-				"pruned notification deliveries for jobs that no longer exist"
-			);
-		}
+		note_pruned(
+			self.jobs.prune_finished().await?,
+			"pruned finished jobs past the retention window",
+		);
+		note_pruned(
+			self.notifications.prune_orphaned_deliveries().await?,
+			"pruned notification deliveries for jobs that no longer exist",
+		);
+		note_pruned(
+			self.metadata.prune_stale_cache().await?,
+			"pruned metadata cache entries past their ttl",
+		);
+		note_pruned(
+			self.activity.prune_old().await?,
+			"pruned activity entries past the retention window",
+		);
+		note_pruned(
+			self.inbox.prune_old().await?,
+			"pruned inbox notifications past the retention window",
+		);
 		Ok(())
 	}
 

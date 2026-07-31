@@ -2,6 +2,7 @@ use crate::models::JobType;
 
 pub const DEFAULT_MAX_ATTEMPTS: i64 = 5;
 pub const TRANSIENT_MAX_ATTEMPTS: i64 = 100;
+pub const NOTIFY_MAX_ATTEMPTS: i64 = 10;
 pub const RETRY_BASE_SECS: i64 = 15;
 pub const RETRY_MAX_SECS: i64 = 3600;
 pub const LEASE_TIMEOUT_SECS: i64 = 300;
@@ -15,6 +16,8 @@ pub const LIBRARY_SYNC_INTERVAL_SECS: i64 = 6 * 60 * 60;
 pub const SESSION_CLEANUP_INTERVAL_SECS: i64 = 24 * 60 * 60;
 pub const JOB_CLEANUP_INTERVAL_SECS: i64 = 24 * 60 * 60;
 pub const JOB_RETENTION_DAYS: i64 = 14;
+pub const ACTIVITY_RETENTION_DAYS: i64 = 90;
+pub const NOTIFICATION_RETENTION_DAYS: i64 = 90;
 
 pub const DEFAULT_SCHEDULES: &[(JobType, i64)] = &[
 	(JobType::LibrarySync, LIBRARY_SYNC_INTERVAL_SECS),

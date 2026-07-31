@@ -17,10 +17,10 @@ pub const DEFAULT_SHUTDOWN_TIMEOUT_SECS: u64 = 30;
 
 pub const DEFAULT_BIND: &str = "127.0.0.1:8080";
 pub const DEFAULT_DATABASE_URL: &str = "sqlite://data/lunu.db?mode=rwc";
-pub const MIN_MASTER_KEY_LEN: usize = 16;
+pub const MIN_MASTER_KEY_LEN: usize = 32;
 pub const MAX_DEFAULT_WORKERS: usize = 8;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BootstrapConfig {
 	pub bind: String,
 	pub database_url: String,
@@ -33,6 +33,24 @@ pub struct BootstrapConfig {
 	pub forward_auth_header: Option<String>,
 	pub forward_auth_proxies: Vec<std::net::IpAddr>,
 	pub shutdown_timeout_secs: u64,
+}
+
+impl fmt::Debug for BootstrapConfig {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("BootstrapConfig")
+			.field("bind", &self.bind)
+			.field("database_url", &self.database_url)
+			.field("master_key", &"<redacted>")
+			.field("workers", &self.workers)
+			.field("trusted_proxy_hops", &self.trusted_proxy_hops)
+			.field("trusted_client_ip_header", &self.trusted_client_ip_header)
+			.field("secure_cookies", &self.secure_cookies)
+			.field("url_base", &self.url_base)
+			.field("forward_auth_header", &self.forward_auth_header)
+			.field("forward_auth_proxies", &self.forward_auth_proxies)
+			.field("shutdown_timeout_secs", &self.shutdown_timeout_secs)
+			.finish()
+	}
 }
 
 impl BootstrapConfig {
@@ -122,7 +140,7 @@ impl BootstrapConfig {
 			issues.push(Issue {
 				var: ENV_MASTER_KEY,
 				problem: "is not set".to_string(),
-				hint: "used to encrypt secrets at rest; set a random value of at least 16 characters. generate one with: openssl rand -base64 32",
+				hint: "used to encrypt secrets at rest; set a random value of at least 32 characters. generate one with: openssl rand -base64 32",
 			});
 		} else if master_key.len() < MIN_MASTER_KEY_LEN {
 			issues.push(Issue {

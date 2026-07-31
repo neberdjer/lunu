@@ -12,8 +12,8 @@ use crate::models::{AuthSource, Role, Session, User};
 use crate::repo::{EmailVerificationRepo, InviteRepo, PasswordResetRepo, SessionRepo, UserRepo};
 use crate::repo::{MfaRecoveryCodeRepo, UserMfaRepo};
 use crate::services::{
-	SettingsService, build_external_user, build_local_user, ensure_username_available, new_id,
-	require_user, validate_password,
+	SettingsService, adopt_existing, build_external_user, build_local_user,
+	ensure_username_available, new_id, require_user, validate_password,
 };
 use crate::traits::{AuthProvider, ExternalIdentity, Mailer, OidcFlow};
 use crate::{Error, Result};
@@ -133,7 +133,10 @@ impl AuthService {
 	pub async fn login(&self, username: &str, password: &str) -> Result<LoginOutcome> {
 		if let Some(user) = self.users.find_by_username(username).await? {
 			if user.auth_source == AuthSource::Local {
-				let hash = user.password_hash.as_deref().ok_or(Error::Unauthorized)?;
+				let Some(hash) = user.password_hash.as_deref() else {
+					dummy_verify_async(password).await;
+					return Err(Error::Unauthorized);
+				};
 				if !verify_password_async(password, hash).await? {
 					return Err(Error::Unauthorized);
 				}
@@ -145,11 +148,16 @@ impl AuthService {
 				}
 				return self.login_challenge(user).await;
 			}
+			if user.auth_source != AuthSource::Abs {
+				dummy_verify_async(password).await;
+				return Err(Error::Unauthorized);
+			}
 			if self
 				.authenticate_external(username, password)
 				.await?
 				.is_none()
 			{
+				dummy_verify_async(password).await;
 				return Err(Error::Unauthorized);
 			}
 			if !user.enabled {
@@ -182,10 +190,7 @@ impl AuthService {
 
 	async fn provision_external(&self, identity: ExternalIdentity) -> Result<User> {
 		if let Some(existing) = self.users.find_by_username(&identity.username).await? {
-			if existing.auth_source == AuthSource::Local {
-				return Err(Error::Unauthorized);
-			}
-			return Ok(existing);
+			return adopt_existing(existing, AuthSource::Abs);
 		}
 
 		let user = build_external_user(identity, Role::User);

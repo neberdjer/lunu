@@ -7,6 +7,7 @@ pub mod metadata;
 pub mod notify;
 pub mod storage;
 
+pub(crate) mod guard;
 pub(crate) mod http;
 
 use std::sync::Arc;

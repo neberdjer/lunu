@@ -22,11 +22,13 @@ pub const MERGE_SKIP_NO_LIBRARY_PATH: &str = "no-library-path";
 pub const MERGE_SKIP_ALREADY_MERGED: &str = "already-merged";
 pub const MERGE_SKIP_OUTPUT_EXISTS: &str = "output-exists";
 pub const MERGE_SKIP_NOT_MULTI_FILE: &str = "not-multi-file";
+pub const MERGE_SKIP_TOO_MANY_SOURCES: &str = "too-many-sources";
 pub const MERGE_SKIP_REASONS: &[&str] = &[
 	MERGE_SKIP_NO_LIBRARY_PATH,
 	MERGE_SKIP_ALREADY_MERGED,
 	MERGE_SKIP_OUTPUT_EXISTS,
 	MERGE_SKIP_NOT_MULTI_FILE,
+	MERGE_SKIP_TOO_MANY_SOURCES,
 ];
 
 pub const ACTIVITY_MERGED: &str = "merged";
@@ -35,3 +37,4 @@ pub const ACTIVITY_MERGE_REVERTED: &str = "merge-reverted";
 
 pub const MERGE_ALL_LIMIT: i64 = 500;
 pub const MERGE_PROBE_CONCURRENCY: usize = 8;
+pub const MERGE_MAX_SOURCES: usize = 2000;

@@ -58,7 +58,7 @@ impl AbsLibrary {
 		let url = format!("{base}/api/libraries");
 		let response =
 			check_response(send_with_retry(|| self.http.get(&url).bearer_auth(token)).await?)?;
-		let body: LibrariesResponse = response.json().await.map_err(integration_error)?;
+		let body: LibrariesResponse = crate::http::bounded_json(response).await?;
 		Ok(body
 			.libraries
 			.into_iter()
@@ -85,7 +85,7 @@ impl AbsLibrary {
 			})
 			.await?;
 			let response = check_response(response)?;
-			let body: ItemsResponse = response.json().await.map_err(integration_error)?;
+			let body: ItemsResponse = crate::http::bounded_json(response).await?;
 
 			let count = body.results.len();
 			for result in body.results {

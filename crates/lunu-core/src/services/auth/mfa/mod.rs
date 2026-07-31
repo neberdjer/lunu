@@ -98,7 +98,12 @@ impl AuthService {
 		})
 	}
 
-	pub async fn mfa_confirm_enrollment(&self, user: &User, code: &str) -> Result<Vec<String>> {
+	pub async fn mfa_confirm_enrollment(
+		&self,
+		user: &User,
+		code: &str,
+		current_session: Option<&str>,
+	) -> Result<Vec<String>> {
 		let mfa = self
 			.mfa
 			.find_for_user(&user.id)
@@ -126,7 +131,10 @@ impl AuthService {
 				..mfa
 			})
 			.await?;
-		self.issue_recovery_codes(&user.id).await
+		let codes = self.issue_recovery_codes(&user.id).await?;
+		self.revoke_other_sessions(&user.id, current_session)
+			.await?;
+		Ok(codes)
 	}
 
 	pub async fn mfa_regenerate_recovery_codes(&self, user: &User) -> Result<Vec<String>> {
@@ -141,7 +149,8 @@ impl AuthService {
 			.find_by_id(user_id)
 			.await?
 			.ok_or_else(|| Error::NotFound(format!("user {user_id}")))?;
-		self.purge_mfa(user_id).await
+		self.purge_mfa(user_id).await?;
+		self.sessions.delete_for_user(user_id).await
 	}
 
 	async fn purge_mfa(&self, user_id: &str) -> Result<()> {
@@ -181,8 +190,9 @@ impl AuthService {
 		self.issue_mfa_email(user, accept_language).await
 	}
 
-	pub async fn mfa_disable(&self, user: &User) -> Result<()> {
-		self.purge_mfa(&user.id).await
+	pub async fn mfa_disable(&self, user: &User, current_session: Option<&str>) -> Result<()> {
+		self.purge_mfa(&user.id).await?;
+		self.revoke_other_sessions(&user.id, current_session).await
 	}
 
 	pub(super) fn decrypt_mfa_secret(&self, mfa: &UserMfa) -> Result<String> {

@@ -60,8 +60,7 @@ impl AuthProvider for AudiobookshelfProvider {
 			return Ok(None);
 		}
 
-		let response = response.error_for_status().map_err(integration_error)?;
-		let body: LoginResponse = response.json().await.map_err(integration_error)?;
+		let body: LoginResponse = crate::http::json_response(response).await?;
 		Ok(Some(ExternalIdentity {
 			username: body.user.username,
 			email: body.user.email.filter(|email| !email.is_empty()),

@@ -7,6 +7,7 @@ pub struct OidcClaims {
 	pub subject: String,
 	pub username: Option<String>,
 	pub email: Option<String>,
+	pub email_verified: bool,
 	pub display_name: Option<String>,
 }
 

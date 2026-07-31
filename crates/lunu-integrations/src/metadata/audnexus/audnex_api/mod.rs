@@ -5,7 +5,6 @@ use serde::de::DeserializeOwned;
 
 use super::audible_api;
 use crate::http::send_with_retry;
-use crate::integration_error;
 
 mod book;
 mod chapters;
@@ -105,6 +104,5 @@ async fn get_json<T: DeserializeOwned>(
 		return Ok(None);
 	}
 
-	let response = response.error_for_status().map_err(integration_error)?;
-	Ok(Some(response.json::<T>().await.map_err(integration_error)?))
+	Ok(Some(crate::http::json_response(response).await?))
 }

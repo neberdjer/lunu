@@ -9,20 +9,12 @@ use lunu_core::consts::settings::{
 use lunu_core::models::NotificationEvent;
 use lunu_core::services::SettingsService;
 use lunu_core::traits::Notifier;
-use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::http::send_write;
 use crate::{http_client_builder, integration_error, optional_setting};
 
 const REQUEST_TIMEOUT_SECS: u64 = 15;
-
-#[derive(Serialize)]
-struct GenericBody<'a> {
-	#[serde(flatten)]
-	event: &'a NotificationEvent,
-	message: String,
-}
 
 pub struct WebhookChannel {
 	http: reqwest::Client,
@@ -70,11 +62,12 @@ impl WebhookChannel {
 }
 
 fn generic_body(event: &NotificationEvent) -> Value {
-	serde_json::to_value(GenericBody {
-		event,
-		message: event.message(),
+	json!({
+		"kind": event.kind,
+		"request_id": event.request_id,
+		"title": event.title,
+		"message": event.message(),
 	})
-	.expect("notification event serializes")
 }
 
 fn discord_body(event: &NotificationEvent) -> Value {
@@ -123,13 +116,16 @@ mod tests {
 	}
 
 	#[test]
-	fn generic_body_flattens_event_and_adds_message() {
+	fn generic_body_carries_event_fields_but_not_the_recipient() {
 		let value = generic_body(&event());
 		assert_eq!(value["kind"], "request-available");
 		assert_eq!(value["request_id"], "r1");
 		assert_eq!(value["title"], "Dune");
-		assert_eq!(value["user_id"], "u1");
 		assert_eq!(value["message"], "Now available: Dune");
+		assert!(
+			value.get("user_id").is_none(),
+			"the recipient's internal id must not leak to an external webhook"
+		);
 	}
 
 	#[test]

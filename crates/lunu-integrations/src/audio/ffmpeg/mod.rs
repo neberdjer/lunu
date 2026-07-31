@@ -4,8 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use lunu_core::Result;
 use lunu_core::consts::merge::{
-	DEFAULT_FFMPEG_BINARY, MERGE_PROBE_CONCURRENCY, MERGE_SKIP_ALREADY_MERGED,
-	MERGE_SKIP_NOT_MULTI_FILE, MERGE_SKIP_OUTPUT_EXISTS, SETTING_MERGE_FFMPEG_PATH,
+	DEFAULT_FFMPEG_BINARY, MERGE_MAX_SOURCES, MERGE_PROBE_CONCURRENCY, MERGE_SKIP_ALREADY_MERGED,
+	MERGE_SKIP_NOT_MULTI_FILE, MERGE_SKIP_OUTPUT_EXISTS, MERGE_SKIP_TOO_MANY_SOURCES,
+	SETTING_MERGE_FFMPEG_PATH,
 };
 use lunu_core::models::SourceDisposition;
 use lunu_core::services::SettingsService;
@@ -74,6 +75,9 @@ impl FfmpegMerger {
 		};
 		if sources.len() < 2 {
 			return Ok(Prepared::Skip(MERGE_SKIP_NOT_MULTI_FILE));
+		}
+		if sources.len() > MERGE_MAX_SOURCES {
+			return Ok(Prepared::Skip(MERGE_SKIP_TOO_MANY_SOURCES));
 		}
 
 		let ffprobe = probe::ffprobe_for(binary);

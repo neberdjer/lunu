@@ -2,10 +2,13 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::consts::auth::OIDC_STATE_TTL_MINS;
 use crate::consts::reasons;
-use crate::consts::settings::BASE_URL;
+use crate::consts::settings::{BASE_URL, OIDC_ISSUER_URL};
 use crate::crypto::{constant_time_eq, generate_token, hash_token, pkce_challenge};
 use crate::models::{AuthSource, Role, User};
-use crate::services::{ProvisionedUser, build_provisioned_user, new_id};
+use crate::services::{
+	ProvisionedUser, adopt_existing, build_provisioned_user, new_id, normalize_email,
+	validate_username,
+};
 use crate::traits::OidcClaims;
 use crate::{Error, Result};
 
@@ -95,24 +98,33 @@ impl AuthService {
 	}
 
 	async fn oidc_user(&self, claims: OidcClaims) -> Result<User> {
-		if let Some(existing) = self.users.find_by_oidc_subject(&claims.subject).await? {
+		if claims.subject.trim().is_empty() {
+			return Err(Error::Validation(reasons::OIDC_STATE_INVALID.to_string()));
+		}
+		let scoped_subject = self.scoped_oidc_subject(&claims.subject).await?;
+		if let Some(existing) = self.users.find_by_oidc_subject(&scoped_subject).await? {
 			return Ok(existing);
 		}
 
-		if let Some(email) = claims.email.as_deref()
-			&& self.users.find_by_email(email).await?.is_some()
+		let wanted = validate_username(&claims.preferred_name())
+			.unwrap_or_else(|_| format!("user-{}", &new_id()[..8]));
+		let email = normalize_email(claims.email).unwrap_or(None);
+		if let Some(address) = email.as_deref()
+			&& self.users.find_by_email(address).await?.is_some()
 		{
 			return Err(Error::Conflict(reasons::OIDC_ACCOUNT_CONFLICT.to_string()));
 		}
 
-		let username = self.available_username(claims.preferred_name()).await?;
+		let email_verified = claims.email_verified && email.is_some();
+		let username = self.available_username(wanted).await?;
 		let user = build_provisioned_user(
 			ProvisionedUser {
 				username,
-				email: claims.email,
+				email,
+				email_verified,
 				display_name: claims.display_name,
 				auth_source: AuthSource::Oidc,
-				oidc_subject: Some(claims.subject),
+				oidc_subject: Some(scoped_subject),
 			},
 			Role::User,
 		);
@@ -120,15 +132,21 @@ impl AuthService {
 		Ok(user)
 	}
 
+	async fn scoped_oidc_subject(&self, subject: &str) -> Result<String> {
+		let issuer = self.setting(OIDC_ISSUER_URL).await?.unwrap_or_default();
+		Ok(format!("{}\n{subject}", issuer.trim_end_matches('/')))
+	}
+
 	pub async fn proxy_user(&self, username: &str) -> Result<User> {
 		if let Some(existing) = self.users.find_by_username(username).await? {
-			return Ok(existing);
+			return adopt_existing(existing, AuthSource::Proxy);
 		}
 
 		let user = build_provisioned_user(
 			ProvisionedUser {
 				username: username.to_string(),
 				email: None,
+				email_verified: false,
 				display_name: None,
 				auth_source: AuthSource::Proxy,
 				oidc_subject: None,
